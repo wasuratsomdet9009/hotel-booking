@@ -1112,7 +1112,6 @@ body.dark-theme #calendar-day-modal-title {
 /* --- Components: Room Grid (index.php) --- */
 .rooms-grid {
   display: grid;
-  gap: 1.25rem;
   grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
   margin-bottom: 2.5rem;
 }
@@ -1580,6 +1579,63 @@ label[for="receipt"] { display: block; padding: 1.5rem 1rem; background-color: v
 .text-danger { color: var(--color-error-text) !important; }
 .highlight-value { color: var(--color-primary-dark); }
 .temporary-archive-row td { background-color: var(--color-info-bg-light) !important; }
+
+
+/* === Enhancements for report.php === */
+
+/* Add transition and hover effect to KPI boxes */
+.kpi-box {
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out, background-color var(--transition-speed) var(--transition-func);
+}
+.kpi-box:hover {
+    transform: translateY(-5px);
+    box-shadow: var(--shadow-md);
+}
+
+/* Style for the main filter section */
+.report-filter-form {
+    border-left: 4px solid var(--color-primary);
+    background-color: var(--color-surface-alt);
+}
+body.dark-theme .report-filter-form {
+    background-color: var(--dt-color-surface-alt);
+    border-left-color: var(--dt-color-primary);
+}
+
+/* Improve Chart Container look */
+.chart-container {
+    border: 1px solid var(--color-border);
+    transition: background-color var(--transition-speed) var(--transition-func);
+}
+
+/* Improve Table Button Readability */
+.report-table .actions-cell .button-small,
+.cash-out-details-table .receipt-link-co {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.report-table .actions-cell .button-small i,
+.cash-out-details-table .receipt-link-co i {
+    font-size: 0.9em;
+}
+
+/* Visual separation for Cash Out section */
+#cash-out-section {
+    margin-top: 3rem;
+    padding-top: 2rem;
+    border-top: 4px solid var(--color-primary);
+    background: linear-gradient(to bottom, var(--color-surface), var(--color-bg));
+}
+body.dark-theme #cash-out-section {
+    border-top-color: var(--dt-color-primary);
+    background: linear-gradient(to bottom, var(--dt-color-surface), var(--dt-color-bg));
+}
+
+#cash-out-section h3 {
+    font-size: 1.6rem;
+}
 
 
 /* --- Keyframes for Animations --- */
