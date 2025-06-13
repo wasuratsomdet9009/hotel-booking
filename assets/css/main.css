@@ -1,0 +1,1795 @@
+/* assets/css/main.css */
+:root {
+  /* --- Color Palette (Light Theme - ที่มีอยู่และเพิ่มเติม) --- */
+  --color-primary: #0056b3;
+  --color-primary-dark: #004080;
+  --color-primary-rgb: 0, 86, 179; /* For rgba() */
+  --color-secondary: #218838;
+  --color-secondary-dark: #1e7e34;
+  --color-alert: #c82333;
+  --color-alert-dark: #bd2130; /* Used for overdue indicators */
+  --color-warning: #e0a800;
+  --color-warning-dark: #d39e00;
+  --color-info: #17a2b8;
+  --color-info-dark: #138496;
+  --color-purple: #6f42c1; /* Example purple */
+  --color-purple-dark: #5a32a3;
+  --color-purple-light: #e9d8f8; /* Light shade for row backgrounds */
+
+  --color-bg: #f8f9fa;
+  --color-surface: #ffffff;    /* พื้นหลังของกล่อง, การ์ด, modal */
+  --color-surface-alt: #f1f3f5; /* พื้นหลังสำรองที่สว่างเล็กน้อย */
+  --color-text: #343a40;
+  --color-text-muted: #6c757d;
+  --color-border: #dee2e6;
+  --color-header-bg: var(--color-primary-dark);
+  --color-header-text: #ffffff;
+  --color-table-head-bg: #e9ecef;
+  --link-color: var(--color-primary);
+  --color-white: #ffffff; /* Explicit white */
+  --color-black: #000000; /* Explicit black */
+
+  /* Messaging & Feedback Colors */
+  --color-error-bg: #f8d7da;
+  --color-error-text: #721c24; /* Using a darker red than --color-alert-dark for better contrast on light bg */
+  --color-error-border: #f5c6cb;
+  --color-success-bg: #d4edda;
+  --color-success-text: #155724;
+  --color-success-border: #c3e6cb;
+  --color-info-bg-light: #e6f7ff;
+  --color-info-border-light: #b3e0ff;
+  --color-warning-bg-light: #fffbe6;
+  --color-warning-border-light: #ffe58f;
+  --color-muted-bg: #f9f9f9; /* For .notes-display-box */
+
+  /* Component Specific Variables (Light Theme) */
+  --color-focus-ring: rgba(var(--color-primary-rgb), 0.5);
+  --color-focus-ring-input: rgba(var(--color-primary-rgb), 0.25);
+  --color-disabled-bg: #e9ecef;
+  --color-readonly-bg: #f0f2f5;
+  --color-input-group-btn-bg: #e9ecef;
+  --color-input-group-btn-hover-bg: #ced4da;
+  --color-input-group-btn-active-bg: #adb5bd;
+  --color-svg-stroke: rgba(0,0,0,0.2);
+  --color-svg-text-on-light-bg: var(--color-text);
+  --color-modal-overlay-bg: rgba(0, 0, 0, 0.6);
+  --color-calendar-today-bg: #fffadc;
+  --color-calendar-today-border: var(--color-warning-dark);
+  --color-calendar-fab-options-bg: var(--color-surface);
+  --color-calendar-fab-option-btn-text: var(--color-text); /* Adjusted */
+  --color-calendar-fab-option-btn-bg: var(--color-surface-alt); /* Adjusted */
+  --color-calendar-fab-option-btn-border: var(--color-border); /* Adjusted */
+  --color-toggle-slider-bg: #ccc; /* For theme toggle */
+  --color-toggle-slider-knob-bg: var(--color-white); /* For theme toggle */
+  --color-table-row-even-bg: var(--color-bg); /* Consistent with main bg or specific like #f8f9fa */
+  --color-table-row-hover-bg: #e9ecef; /* Or var(--color-surface-alt) */
+  --color-nav-link-hover-bg: rgba(255, 255, 255, 0.15);
+  --color-footer-bg: #e9ecef;
+  --color-booking-entry-regular-hover-bg: #f0f8ff;
+  --color-booking-roomnames-lighttheme: #555;
+  --color-upload-label-active-bg: #eef3f8;
+  --color-switch-component-track-bg: #70a9c5;
+  --color-switch-component-slider-bg: rgba(12, 74, 110, 0.65);
+  --color-switch-component-slider-on-bg: rgba(12, 74, 110, 1);
+  --color-switch-component-slider-shadow-inset: rgba(0, 0, 0, 0.2);
+  --color-switch-component-slider-shadow-highlight: rgba(255, 255, 255, 0.2);
+  --color-scrollbar-thumb-bg: #bdc3c7;
+  --color-scrollbar-thumb-hover-bg: #95a5a6;
+  --color-primary-light: #e6f0ff; /* Example for a light primary shade for hovers like .booking-more-indicator */
+
+
+  /* Variables สำหรับ Status Indicator ใน Table View (Light Theme) */
+  --status-occupied-bg: var(--color-alert);
+  --status-booked-bg: var(--color-warning);
+  --status-free-bg: var(--color-secondary);
+  --status-advance_booking-bg: var(--color-info);
+  --status-f-short-occupied-bg: var(--color-purple);
+  --status-default-bg: var(--color-text-muted);
+  --status-occupied-text: var(--color-white);
+  --status-booked-text: var(--color-black); /* Dark text on yellow for light theme */
+  --status-free-text: var(--color-white);
+  --status-advance_booking-text: var(--color-white);
+  --status-f-short-occupied-text: var(--color-white);
+  --status-default-text: var(--color-white);
+  /* Note: overdue_occupied will use --status-occupied-bg and --status-occupied-text or specific overrides if needed */
+
+  /* --- Dark Theme Variables --- */
+  --dt-color-primary: #5ba5f5;
+  --dt-color-primary-dark: #3a97e8;
+  --dt-color-primary-rgb: 91, 165, 245;
+  --dt-color-secondary: #5cb85c;
+  --dt-color-secondary-dark: #4cae4c;
+  --dt-color-alert: #d9534f;
+  --dt-color-alert-dark: #c9302c; /* Used for overdue indicators in dark theme */
+  --dt-color-warning: #f0ad4e;
+  --dt-color-warning-dark: #ec971f;
+  --dt-color-info: #5bc0de;
+  --dt-color-info-dark: #31b0d5;
+  --dt-color-purple: #9b79d6;
+  --dt-color-purple-dark: #805cc2;
+  --dt-color-purple-light: #3c2a4f; /* Dark shade for row backgrounds in dark theme */
+
+  --dt-color-bg: #121212;
+  --dt-color-surface: #1e1e1e;
+  --dt-color-surface-alt: #2a2a2a;
+  --dt-color-text: #e0e0e0;
+  --dt-color-text-muted: #a0a0a0;
+  --dt-color-border: #3a3a3a;
+  --dt-color-header-bg: #171717;
+  --dt-color-header-text: #e0e0e0;
+  --dt-color-table-head-bg: #2c2c2c;
+  --dt-link-color: var(--dt-color-primary);
+  --dt-color-primary-light: #2c3a4f; /* Example for a dark theme light primary shade */
+
+
+  /* Messaging & Feedback Colors (Dark Theme) */
+  --dt-color-error-bg: #4a1a1f;
+  --dt-color-error-text: #f8d7da;
+  --dt-color-error-border: #a71d2a;
+  --dt-color-success-bg: #1c3b23;
+  --dt-color-success-text: #d4edda;
+  --dt-color-success-border: #4cae4c;
+  --dt-color-info-bg-light: #1a2c3f;
+  --dt-color-info-border-light: #3a97e8;
+  --dt-color-warning-bg-light: #4d3c1a;
+  --dt-color-warning-border-light: #d39e00;
+  --dt-color-muted-bg: #252525;
+
+  /* Component Specific Variables (Dark Theme) */
+  --dt-color-focus-ring: rgba(var(--dt-color-primary-rgb), 0.5);
+  --dt-color-focus-ring-input: rgba(var(--dt-color-primary-rgb), 0.35);
+  --dt-color-disabled-bg: #2c2c2c;
+  --dt-color-readonly-bg: #252525;
+  --dt-color-input-group-btn-bg: #3a3a3a;
+  --dt-color-input-group-btn-hover-bg: #4f4f4f;
+  --dt-color-input-group-btn-active-bg: #5a5a5a;
+  --dt-color-svg-stroke: rgba(255,255,255,0.15);
+  --dt-color-svg-text-on-light-bg: var(--color-black); /* For warning bg in dark theme (which is light) */
+  --dt-color-modal-overlay-bg: rgba(0, 0, 0, 0.75);
+  --dt-color-calendar-today-bg: #423c01;
+  --dt-color-calendar-today-border: var(--dt-color-warning-dark);
+  --dt-color-calendar-fab-options-bg: var(--dt-color-surface);
+  --dt-color-calendar-fab-option-btn-text: var(--dt-color-text);
+  --dt-color-calendar-fab-option-btn-bg: #333;
+  --dt-color-calendar-fab-option-btn-border: #555;
+  --dt-color-toggle-slider-bg: #555;
+  --dt-color-toggle-slider-knob-bg: #bbb;
+  --dt-color-table-row-even-bg: #2a2a2a;
+  --dt-color-table-row-hover-bg: #333333;
+  --dt-color-nav-link-hover-bg: rgba(255, 255, 255, 0.1);
+  --dt-color-footer-bg: var(--dt-color-surface);
+  --dt-color-booking-entry-regular-hover-bg: #2a3a4a;
+  --dt-color-booking-roomnames-lighttheme: var(--dt-color-text-muted);
+  --dt-color-upload-label-active-bg: #2a2a2a;
+  --dt-color-switch-component-track-bg: #3a5f75;
+  --dt-color-switch-component-slider-bg: rgba(136, 192, 228, 0.65);
+  --dt-color-switch-component-slider-on-bg: rgba(136, 192, 228, 1);
+  --dt-color-switch-component-slider-shadow-inset: rgba(0, 0, 0, 0.3);
+  --dt-color-switch-component-slider-shadow-highlight: rgba(255, 255, 255, 0.1);
+  --dt-color-scrollbar-thumb-bg: #555;
+  --dt-color-scrollbar-thumb-hover-bg: #777;
+
+  /* Dark Theme Status Indicator Variables */
+  --dt-status-occupied-bg: var(--dt-color-alert);
+  --dt-status-booked-bg: var(--dt-color-warning);
+  --dt-status-free-bg: var(--dt-color-secondary);
+  --dt-status-advance_booking-bg: var(--dt-color-info);
+  --dt-status-f-short-occupied-bg: var(--dt-color-purple);
+  --dt-status-default-bg: var(--dt-color-text-muted);
+  --dt-status-occupied-text: var(--dt-color-text); /* Text on dark alert */
+  --dt-status-booked-text: var(--color-black); /* Dark text on light yellow warning (dark theme) */
+  --dt-status-free-text: var(--dt-color-text);   /* Text on dark green */
+  --dt-status-advance_booking-text: var(--dt-color-text); /* Text on dark info */
+  --dt-status-f-short-occupied-text: var(--color-black); /* or a light color like var(--dt-color-text) if --dt-color-purple is dark */
+  --dt-status-default-text: var(--dt-color-text); /* Text on dark muted */
+  /* Note: overdue_occupied will use --dt-status-occupied-bg and --dt-status-occupied-text or specific overrides if needed */
+
+
+  /* --- Transitions (เหมือนเดิม) --- */
+  --transition-speed: 0.4s; /* From your summary */
+  --transition-func: ease-in-out; /* From your summary */
+  --angle: 0deg; /* From existing */
+
+  /* Default Border Radii (Example values, adjust as needed) */
+  --border-radius-sm: 0.2rem;
+  --border-radius-md: 0.375rem;
+  --border-radius-lg: 0.5rem;
+
+  /* Default Shadows (Example values, adjust as needed) */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+}
+
+
+/* --- Smooth Transition (Comprehensive list from previous version, properties from summary) --- */
+body,
+.site-header, .site-footer,
+.stat-box,
+form, .form-group label,
+.modal-overlay, .modal-content, .modal-close,
+/* button, .button, -- REMOVED FROM HERE AS TRANSITION IS HANDLED IN NEW BUTTON STYLES */
+input, select, textarea, /* Simplified for brevity, covered by specific input types below */
+.report-table th, .report-table td, .report-table tbody tr,
+.advance-table th, .advance-table td, .advance-table tbody tr,
+.advance-table-popup th, .advance-table-popup td, .advance-table-popup tbody tr,
+.rooms-grid .room-svg-house .house-shape, svg.room-svg-house .room-text,
+.calendar-navigation, .calendar-navigation h3,
+.calendar-table th, .calendar-table td.calendar-day, .date-number,
+.booking-group, .booking-customer-name-highlight, .booking-room-names,
+.theme-toggle-switch .slider, .theme-toggle-switch .label-text,
+.site-nav a, .site-header .logo,
+.color-box,
+.switch, .switch::before, .switch::after, .switch > span, /* For generic .switch */
+.checkbox-btn .checkmark,
+label[for="receipt"],
+.fab-main-btn, .fab-option-btn,
+.input-group-quantity .quantity-btn, .input-group-quantity .quantity-input,
+.addon-chip-wrapper, .addon-chip-wrapper.selected .addon-chip-label,
+#room-status-table-view th, #room-status-table-view td, .status-indicator,
+#room-status-table-view tr,
+.report-filter,
+.action-cell .button-small, /* button-small specific transitions handled by new button code if needed */
+.edit-booking-btn,
+.link-like,
+.addon-item, .booking-addons-summary h4, .booking-addons-summary > p,
+.addon-chips-flex-container,
+.delete-booking-btn.btn-danger-confirm, /* Handled by new button code */
+.message, /* For flash messages */
+#flexible-overnight-group, #zone-f-deposit-group, /* For booking form groups */
+.kpi-box, .chart-container, .report-filter-form, /* For report.php */
+.notes-display-box, /* For details.php */
+.overdue-indicator-svg, .overdue-indicator-table, /* Added for smooth transition for new elements */
+.report-section h3, .settings-section h3, .booking-header h2, .details-container h3 /* Enhanced Headers */
+{
+  transition: background-color var(--transition-speed) var(--transition-func),
+              color var(--transition-speed) var(--transition-func),
+              border-color var(--transition-speed) var(--transition-func),
+              fill var(--transition-speed) var(--transition-func), /* For SVG */
+              box-shadow var(--transition-speed) var(--transition-func),
+              transform var(--transition-speed) var(--transition-func), /* Added transform for smooth hover effects */
+              opacity var(--transition-speed) var(--transition-func); /* Added opacity for animations */
+}
+
+
+body.dark-theme {
+  --color-primary: var(--dt-color-primary);
+  --color-primary-dark: var(--dt-color-primary-dark);
+  --color-primary-rgb: var(--dt-color-primary-rgb);
+  --color-secondary: var(--dt-color-secondary);
+  --color-secondary-dark: var(--dt-color-secondary-dark);
+  --color-alert: var(--dt-color-alert);
+  --color-alert-dark: var(--dt-color-alert-dark);
+  --color-warning: var(--dt-color-warning);
+  --color-warning-dark: var(--dt-color-warning-dark);
+  --color-info: var(--dt-color-info);
+  --color-info-dark: var(--dt-color-info-dark);
+  --color-purple: var(--dt-color-purple);
+  --color-purple-dark: var(--dt-color-purple-dark);
+  --color-purple-light: var(--dt-color-purple-light);
+
+  --color-bg: var(--dt-color-bg);
+  --color-surface: var(--dt-color-surface);
+  --color-surface-alt: var(--dt-color-surface-alt);
+  --color-text: var(--dt-color-text);
+  --color-text-muted: var(--dt-color-text-muted);
+  --color-border: var(--dt-color-border);
+  --color-header-bg: var(--dt-color-header-bg);
+  --color-header-text: var(--dt-color-header-text);
+  --color-table-head-bg: var(--dt-color-table-head-bg);
+  --link-color: var(--dt-link-color);
+  /* --color-white and --color-black remain absolute */
+  --color-primary-light: var(--dt-color-primary-light);
+
+
+  /* Messaging & Feedback Colors */
+  --color-error-bg: var(--dt-color-error-bg);
+  --color-error-text: var(--dt-color-error-text);
+  --color-error-border: var(--dt-color-error-border);
+  --color-success-bg: var(--dt-color-success-bg);
+  --color-success-text: var(--dt-color-success-text);
+  --color-success-border: var(--dt-color-success-border);
+  --color-info-bg-light: var(--dt-color-info-bg-light);
+  --color-info-border-light: var(--dt-color-info-border-light);
+  --color-warning-bg-light: var(--dt-color-warning-bg-light);
+  --color-warning-border-light: var(--dt-color-warning-border-light);
+  --color-muted-bg: var(--dt-color-muted-bg);
+
+  /* Component Specific Variables */
+  --color-focus-ring: var(--dt-color-focus-ring);
+  --color-focus-ring-input: var(--dt-color-focus-ring-input);
+  --color-disabled-bg: var(--dt-color-disabled-bg);
+  --color-readonly-bg: var(--dt-color-readonly-bg);
+  --color-input-group-btn-bg: var(--dt-color-input-group-btn-bg);
+  --color-input-group-btn-hover-bg: var(--dt-color-input-group-btn-hover-bg);
+  --color-input-group-btn-active-bg: var(--dt-color-input-group-btn-active-bg);
+  --color-svg-stroke: var(--dt-color-svg-stroke);
+  --color-svg-text-on-light-bg: var(--dt-color-svg-text-on-light-bg);
+  --color-modal-overlay-bg: var(--dt-color-modal-overlay-bg);
+  --color-calendar-today-bg: var(--dt-color-calendar-today-bg);
+  --color-calendar-today-border: var(--dt-color-calendar-today-border);
+  --color-calendar-fab-options-bg: var(--dt-color-calendar-fab-options-bg);
+  --color-calendar-fab-option-btn-text: var(--dt-color-calendar-fab-option-btn-text);
+  --color-calendar-fab-option-btn-bg: var(--dt-color-calendar-fab-option-btn-bg);
+  --color-calendar-fab-option-btn-border: var(--dt-color-calendar-fab-option-btn-border);
+  --color-toggle-slider-bg: var(--dt-color-toggle-slider-bg);
+  --color-toggle-slider-knob-bg: var(--dt-color-toggle-slider-knob-bg);
+  --color-table-row-even-bg: var(--dt-color-table-row-even-bg);
+  --color-table-row-hover-bg: var(--dt-color-table-row-hover-bg);
+  --color-nav-link-hover-bg: var(--dt-color-nav-link-hover-bg);
+  --color-footer-bg: var(--dt-color-footer-bg);
+  --color-booking-entry-regular-hover-bg: var(--dt-color-booking-entry-regular-hover-bg);
+  --color-booking-roomnames-lighttheme: var(--dt-color-booking-roomnames-lighttheme);
+  --color-upload-label-active-bg: var(--dt-color-upload-label-active-bg);
+  --color-switch-component-track-bg: var(--dt-color-switch-component-track-bg);
+  --color-switch-component-slider-bg: var(--dt-color-switch-component-slider-bg);
+  --color-switch-component-slider-on-bg: var(--dt-color-switch-component-slider-on-bg);
+  --color-switch-component-slider-shadow-inset: var(--dt-color-switch-component-slider-shadow-inset);
+  --color-switch-component-slider-shadow-highlight: var(--dt-color-switch-component-slider-shadow-highlight);
+  --color-scrollbar-thumb-bg: var(--dt-color-scrollbar-thumb-bg);
+  --color-scrollbar-thumb-hover-bg: var(--dt-color-scrollbar-thumb-hover-bg);
+
+
+  /* Status Indicator Variables Override */
+  --status-occupied-bg: var(--dt-status-occupied-bg);
+  --status-booked-bg: var(--dt-status-booked-bg);
+  --status-free-bg: var(--dt-status-free-bg);
+  --status-advance_booking-bg: var(--dt-status-advance_booking-bg);
+  --status-f-short-occupied-bg: var(--dt-status-f-short-occupied-bg);
+  --status-default-bg: var(--dt-status-default-bg);
+  --status-occupied-text: var(--dt-status-occupied-text);
+  --status-booked-text: var(--dt-status-booked-text);
+  --status-free-text: var(--dt-status-free-text);
+  --status-advance_booking-text: var(--dt-status-advance_booking-text);
+  --status-f-short-occupied-text: var(--dt-status-f-short-occupied-text);
+  --status-default-text: var(--dt-status-default-text);
+
+  background-color: var(--color-bg);
+  color: var(--color-text);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.35);
+}
+
+/* --- Base & Resets --- */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* --- Layout: Container --- */
+.container {
+  width: 95%;
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+/* --- Layout: Header --- */
+.site-header {
+  background-color: var(--color-header-bg);
+  color: var(--color-header-text);
+  padding: 0.8rem 0;
+  box-shadow: var(--shadow-md);
+  margin-bottom: 2rem;
+}
+
+.site-header .container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.site-header .logo {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0;
+  color: var(--color-header-text);
+  text-decoration: none;
+}
+
+.site-nav ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.site-nav a {
+  color: var(--color-header-text);
+  text-decoration: none;
+  padding: 0.6rem 1rem;
+  border-radius: var(--border-radius-md);
+  display: block;
+}
+
+.site-nav a:hover,
+.site-nav a:focus {
+  background-color: var(--color-nav-link-hover-bg);
+  outline: none;
+}
+
+/* --- Layout: Footer --- */
+.site-footer {
+  background-color: var(--color-footer-bg);
+  color: var(--color-text-muted);
+  padding: 1.5rem 0;
+  margin-top: 3rem;
+  text-align: center;
+  font-size: 0.9rem;
+}
+body.dark-theme .site-footer {
+    border-top: 1px solid var(--color-border);
+}
+
+.site-footer p {
+  margin: 0;
+}
+
+/* --- Components: Dashboard Stats --- */
+.dashboard-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2.5rem;
+}
+
+.stat-box {
+  background-color: var(--color-surface);
+  border-radius: var(--border-radius-lg);
+  padding: 1.5rem;
+  box-shadow: var(--shadow-sm);
+  text-align: center;
+  border: 1px solid var(--color-border);
+}
+.stat-box:hover {
+  transform: translateY(-5px);
+  box-shadow: var(--shadow-md);
+}
+.stat-box h3 {
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+.stat-box p {
+  font-size: 2.25rem;
+  font-weight: 600;
+  margin: 0;
+  color: var(--color-primary-dark);
+}
+.stat-box svg { /* Modified from summary */
+    color: var(--color-warning-dark);
+}
+/* body.dark-theme .stat-box svg is covered by variable override */
+
+/* --- Components: Buttons (ปรับปรุงใหม่และยิ่งใหญ่ขึ้น) --- */
+.button,
+button {
+  display: inline-block;
+  padding: 0.7em 1.7em;
+  font-size: 16px;
+  font-weight: 600; /* เพิ่มความหนาตัวอักษร */
+  letter-spacing: 0.5px; /* เพิ่มระยะห่างตัวอักษรเล็กน้อย */
+  text-align: center;
+  text-decoration: none;
+  vertical-align: middle;
+  cursor: pointer;
+  border-radius: 0.5em;
+  border: 1px solid #e8e8e8;
+  background: #e8e8e8;
+  color: #090909;
+  box-shadow: 6px 6px 12px #c5c5c5, -6px -6px 12px #ffffff;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  transition: all 0.25s cubic-bezier(0.68, -0.55, 0.265, 1.55); /* ปรับ transition ให้ดูมีชีวิตชีวา */
+}
+
+.button:hover, button:hover {
+    transform: translateY(-2px); /* ยกปุ่มขึ้นเล็กน้อยเมื่อ hover */
+    box-shadow: 8px 8px 16px #c5c5c5, -8px -8px 16px #ffffff, 0 4px 8px rgba(0,0,0,0.1); /* เพิ่มเงาให้ดูเด่นขึ้น */
+}
+body.dark-theme .button:hover, body.dark-theme button:hover {
+    box-shadow: 8px 8px 16px #101010, -8px -8px 16px #2c2c2c, 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.button:active,
+button:active {
+  color: #666;
+  transform: translateY(1px); /* กดปุ่มลงเล็กน้อย */
+  box-shadow: inset 5px 5px 10px #c5c5c5, inset -5px -5px 10px #ffffff; /* ปรับเงาตอนกดให้ชัดเจน */
+}
+body.dark-theme .button:active, body.dark-theme button:active {
+    box-shadow: inset 5px 5px 10px #101010, inset -5px -5px 10px #2c2c2c;
+}
+
+.button:focus,
+button:focus,
+.button:focus-visible,
+button:focus-visible {
+  outline: none;
+  box-shadow: 6px 6px 12px #c5c5c5, -6px -6px 12px #ffffff, 0 0 0 0.2rem var(--color-focus-ring);
+}
+
+
+/* --- การคงสีเดิมของปุ่มแต่ละประเภท --- */
+/* Primary Button */
+.button.primary {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-white);
+}
+.button.primary:hover {
+  background-color: var(--color-primary-dark);
+  border-color: var(--color-primary-dark);
+}
+.button.primary:active {
+  background-color: var(--color-primary-dark);
+  color: #f0f0f0;
+  box-shadow: inset 4px 4px 12px rgba(0,0,0,0.2), inset -4px -4px 12px rgba(255,255,255,0.7);
+}
+body.dark-theme .button.primary {
+  background-color: var(--dt-color-primary);
+  border-color: var(--dt-color-primary);
+  color: var(--color-black);
+}
+body.dark-theme .button.primary:hover {
+  background-color: var(--dt-color-primary-dark);
+  border-color: var(--dt-color-primary-dark);
+}
+body.dark-theme .button.primary:active {
+  background-color: var(--dt-color-primary-dark);
+  color: #1a1a1a;
+  box-shadow: inset 4px 4px 12px rgba(0,0,0,0.4), inset -4px -4px 12px rgba(255,255,255,0.1);
+}
+
+
+/* Secondary Button */
+.button.secondary {
+  background-color: var(--color-secondary);
+  border-color: var(--color-secondary);
+  color: var(--color-white);
+}
+.button.secondary:hover {
+  background-color: var(--color-secondary-dark);
+  border-color: var(--color-secondary-dark);
+}
+.button.secondary:active {
+  background-color: var(--color-secondary-dark);
+  color: #f0f0f0;
+  box-shadow: inset 4px 4px 12px rgba(0,0,0,0.2), inset -4px -4px 12px rgba(255,255,255,0.7);
+}
+body.dark-theme .button.secondary {
+  background-color: var(--dt-color-secondary);
+  border-color: var(--dt-color-secondary);
+  color: var(--color-black);
+}
+body.dark-theme .button.secondary:hover {
+  background-color: var(--dt-color-secondary-dark);
+  border-color: var(--dt-color-secondary-dark);
+}
+body.dark-theme .button.secondary:active {
+  background-color: var(--dt-color-secondary-dark);
+  color: #1a1a1a;
+  box-shadow: inset 4px 4px 12px rgba(0,0,0,0.4), inset -4px -4px 12px rgba(255,255,255,0.1);
+}
+
+
+/* Alert Button */
+.button.alert {
+  background-color: var(--color-alert);
+  border-color: var(--color-alert);
+  color: var(--color-white);
+}
+.button.alert:hover {
+  background-color: var(--color-alert-dark);
+  border-color: var(--color-alert-dark);
+}
+.button.alert:active {
+  background-color: var(--color-alert-dark);
+  color: #f0f0f0;
+  box-shadow: inset 4px 4px 12px rgba(0,0,0,0.2), inset -4px -4px 12px rgba(255,255,255,0.7);
+}
+body.dark-theme .button.alert {
+  background-color: var(--dt-color-alert);
+  border-color: var(--dt-color-alert);
+  color: var(--color-white);
+}
+body.dark-theme .button.alert:hover {
+  background-color: var(--dt-color-alert-dark);
+  border-color: var(--dt-color-alert-dark);
+}
+body.dark-theme .button.alert:active {
+  background-color: var(--dt-color-alert-dark);
+  color: #f0f0f0;
+  box-shadow: inset 4px 4px 12px rgba(0,0,0,0.4), inset -4px -4px 12px rgba(255,255,255,0.1);
+}
+
+/* Warning Button */
+.button.warning {
+  background-color: var(--color-warning);
+  border-color: var(--color-warning);
+  color: var(--color-black);
+}
+.button.warning:hover {
+  background-color: var(--color-warning-dark);
+  border-color: var(--color-warning-dark);
+}
+.button.warning:active {
+  background-color: var(--color-warning-dark);
+  color: #333;
+  box-shadow: inset 4px 4px 12px rgba(0,0,0,0.15), inset -4px -4px 12px rgba(255,255,255,0.8);
+}
+body.dark-theme .button.warning {
+  background-color: var(--dt-color-warning);
+  border-color: var(--dt-color-warning);
+  color: var(--color-black);
+}
+body.dark-theme .button.warning:hover {
+  background-color: var(--dt-color-warning-dark);
+  border-color: var(--dt-color-warning-dark);
+}
+body.dark-theme .button.warning:active {
+  background-color: var(--dt-color-warning-dark);
+  color: #1a1a1a;
+  box-shadow: inset 4px 4px 12px rgba(0,0,0,0.3), inset -4px -4px 12px rgba(255,255,255,0.15);
+}
+
+
+/* Info Button */
+.button.info {
+  background-color: var(--color-info);
+  border-color: var(--color-info);
+  color: var(--color-white);
+}
+.button.info:hover {
+  background-color: var(--color-info-dark);
+  border-color: var(--color-info-dark);
+}
+.button.info:active {
+  background-color: var(--color-info-dark);
+  color: #f0f0f0;
+  box-shadow: inset 4px 4px 12px rgba(0,0,0,0.2), inset -4px -4px 12px rgba(255,255,255,0.7);
+}
+body.dark-theme .button.info {
+  background-color: var(--dt-color-info);
+  border-color: var(--dt-color-info);
+  color: var(--color-black);
+}
+body.dark-theme .button.info:hover {
+  background-color: var(--dt-color-info-dark);
+  border-color: var(--dt-color-info-dark);
+}
+body.dark-theme .button.info:active {
+  background-color: var(--dt-color-info-dark);
+  color: #1a1a1a;
+  box-shadow: inset 4px 4px 12px rgba(0,0,0,0.4), inset -4px -4px 12px rgba(255,255,255,0.1);
+}
+
+/* Outline Buttons */
+.button.outline-primary {
+  background: #e8e8e8;
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+.button.outline-primary:hover {
+  background: #f0f0f0;
+  border-color: var(--color-primary-dark);
+  color: var(--color-primary-dark);
+}
+.button.outline-primary:active {
+  background: #e0e0e0;
+  color: var(--color-primary-dark);
+}
+body.dark-theme .button.outline-primary {
+  background: var(--dt-color-surface-alt);
+  border-color: var(--dt-color-primary);
+  color: var(--dt-color-primary);
+}
+body.dark-theme .button.outline-primary:hover {
+  background: #3a3a3a;
+  border-color: var(--dt-color-primary-dark);
+  color: var(--dt-color-primary-dark);
+}
+body.dark-theme .button.outline-primary:active {
+  background: #2a2a2a;
+  color: var(--dt-color-primary-dark);
+}
+
+
+.button.outline-secondary {
+  background: #e8e8e8;
+  border-color: var(--color-secondary);
+  color: var(--color-secondary);
+}
+.button.outline-secondary:hover {
+  background: #f0f0f0;
+  border-color: var(--color-secondary-dark);
+  color: var(--color-secondary-dark);
+}
+.button.outline-secondary:active {
+  background: #e0e0e0;
+  color: var(--color-secondary-dark);
+}
+body.dark-theme .button.outline-secondary {
+  background: var(--dt-color-surface-alt);
+  border-color: var(--dt-color-secondary);
+  color: var(--dt-color-secondary);
+}
+body.dark-theme .button.outline-secondary:hover {
+  background: #3a3a3a;
+  border-color: var(--dt-color-secondary-dark);
+  color: var(--dt-color-secondary-dark);
+}
+body.dark-theme .button.outline-secondary:active {
+  background: #2a2a2a;
+  color: var(--dt-color-secondary-dark);
+}
+
+
+/* Button Small */
+.button-small {
+  padding: 0.5em 1.2em;
+  font-size: 14px;
+}
+
+/* Link Button */
+.button.link {
+  background: #e8e8e8;
+  border-color: #e8e8e8;
+  color: var(--link-color);
+  text-decoration: none;
+}
+.button.link:hover {
+  background: #f0f0f0;
+  color: var(--color-primary-dark);
+  text-decoration: underline;
+}
+.button.link:active {
+  background: #e0e0e0;
+  color: var(--color-primary-dark);
+}
+body.dark-theme .button.link {
+  background: var(--dt-color-surface-alt);
+  border-color: var(--dt-color-surface-alt);
+  color: var(--dt-link-color);
+}
+body.dark-theme .button.link:hover {
+  background: #3a3a3a;
+  color: var(--dt-color-primary-dark);
+}
+body.dark-theme .button.link:active {
+  background: #2a2a2a;
+  color: var(--dt-color-primary-dark);
+}
+
+
+/* Button Disabled State */
+.button:disabled,
+button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  background: #dcdcdc;
+  color: #888;
+  box-shadow: inset 3px 3px 6px #b5b5b5, inset -3px -3px 6px #ffffff;
+  border-color: #d0d0d0;
+}
+body.dark-theme .button:disabled,
+body.dark-theme button:disabled {
+  background: #252525;
+  color: #666;
+  box-shadow: inset 3px 3px 6px #151515, inset -3px -3px 6px #353535;
+  border-color: #303030;
+}
+
+/* ปุ่มลบที่มีการยืนยัน (delete-booking-btn) */
+.delete-booking-btn.btn-danger-confirm {
+  background-color: var(--color-alert-dark) !important;
+  border-color: var(--color-alert-dark) !important;
+  color: var(--color-white) !important;
+}
+.delete-booking-btn.btn-danger-confirm:hover {
+  background-color: #a71d2a !important;
+  border-color: #a71d2a !important;
+}
+.delete-booking-btn.btn-danger-confirm:active {
+  background-color: #a71d2a !important;
+  box-shadow: inset 4px 4px 12px rgba(0,0,0,0.3), inset -4px -4px 12px rgba(255,255,255,0.6);
+}
+
+
+/* ปุ่มสำหรับ loading state */
+.button.loading {
+  position: relative;
+  color: transparent !important;
+  pointer-events: none;
+  box-shadow: inset 2px 2px 5px #c5c5c5, inset -2px -2px 5px #ffffff;
+}
+.button.loading::after { /* Spinner */
+  content: '';
+  display: block;
+  width: 1.2em;
+  height: 1.2em;
+  border: 3px solid rgba(9, 9, 9, 0.2);
+  border-top-color: #090909;
+  border-radius: 50%;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  animation: button-spinner 0.75s linear infinite;
+  box-sizing: border-box;
+}
+/* Spinner color for specific button types */
+.button.primary.loading::after, .button.secondary.loading::after, .button.alert.loading::after, .button.info.loading::after {
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    border-top-color: var(--color-white);
+}
+.button.warning.loading::after {
+    border: 3px solid rgba(0, 0, 0, 0.2);
+    border-top-color: var(--color-black);
+}
+body.dark-theme .button.loading {
+  box-shadow: inset 2px 2px 5px #101010, inset -2px -2px 5px #2c2c2c;
+}
+body.dark-theme .button.loading::after {
+    border: 3px solid rgba(224, 224, 224, 0.2);
+    border-top-color: #e0e0e0;
+}
+body.dark-theme .button.primary.loading::after, body.dark-theme .button.secondary.loading::after, body.dark-theme .button.alert.loading::after, body.dark-theme .button.info.loading::after {
+    border: 3px solid rgba(0, 0, 0, 0.2);
+    border-top-color: var(--color-black);
+}
+body.dark-theme .button.warning.loading::after {
+     border: 3px solid rgba(0,0,0, 0.2);
+     border-top-color: var(--color-black);
+}
+@keyframes button-spinner { to { transform: translate(-50%, -50%) rotate(360deg); } }
+
+
+/* --- Components: Forms & Enhanced Inputs --- */
+form {
+  background-color: var(--color-surface);
+  padding: 1.5rem;
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--color-border);
+  margin-bottom: 2rem;
+}
+.form-group {
+  margin-bottom: 1.25rem;
+}
+.form-group label {
+  display: block;
+  margin-bottom: 0.4rem;
+  font-weight: 500;
+  font-size: 0.9rem;
+  color: var(--color-text);
+}
+input[type="text"],
+input[type="number"],
+input[type="date"],
+input[type="datetime-local"],
+input[type="tel"],
+select,
+textarea {
+  display: block;
+  width: 100%;
+  padding: 0.75rem 1rem; /* เพิ่ม padding ให้ดูใหญ่ขึ้น */
+  font-size: 1rem; /* เพิ่มขนาด font */
+  line-height: 1.5;
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  background-clip: padding-box;
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-sm);
+  box-shadow: inset 2px 2px 5px var(--color-border), inset -2px -2px 5px var(--color-surface);
+  transition: box-shadow 0.3s, border-color 0.3s;
+}
+
+body.dark-theme input[type="text"],
+body.dark-theme input[type="number"],
+body.dark-theme input[type="date"],
+body.dark-theme input[type="datetime-local"],
+body.dark-theme input[type="tel"],
+body.dark-theme select,
+body.dark-theme textarea {
+    box-shadow: inset 2px 2px 5px var(--dt-color-bg), inset -2px -2px 5px var(--dt-color-surface-alt);
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus,
+input[type="date"]:focus,
+input[type="datetime-local"]:focus,
+input[type="tel"]:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--color-primary);
+  outline: 0;
+  box-shadow: 0 0 0 0.25rem var(--color-focus-ring-input), var(--shadow-md); /* เพิ่มเงาด้านนอกเมื่อ focus */
+}
+
+input:disabled, select:disabled, textarea:disabled {
+  background-color: var(--color-disabled-bg);
+  opacity: 0.7;
+  cursor: not-allowed;
+  box-shadow: none; /* Remove shadow for disabled */
+}
+body.dark-theme input:disabled,
+body.dark-theme select:disabled,
+body.dark-theme textarea:disabled {
+  color: var(--dt-color-text-muted);
+  opacity: 0.5;
+}
+input[readonly] {
+    background-color: var(--color-readonly-bg);
+    opacity: 1;
+    border-style: dashed;
+    cursor: default;
+    box-shadow: none; /* Remove shadow for readonly */
+}
+body.dark-theme input[readonly] {
+    color: var(--dt-color-text-muted);
+}
+
+input[type="checkbox"], input[type="radio"] {
+  margin-right: 0.5rem; vertical-align: middle; width: 1em; height: 1em;
+  accent-color: var(--color-primary);
+}
+label.inline-checkbox, label.inline-radio {
+  display: inline-flex; align-items: center; font-weight: normal; cursor: pointer;
+}
+
+.report-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-end;
+  margin-bottom: 2rem;
+  padding: 1rem;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-md);
+}
+.report-filter .filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    flex: 1 1 auto;
+    min-width: 180px;
+}
+.report-filter label {
+  margin-bottom: 0.25rem;
+  font-size: 0.85rem;
+  font-weight: normal;
+}
+.report-filter input[type="date"],
+.report-filter input[type="text"],
+.report-filter select {
+  width: 100%;
+}
+.report-filter button[type="submit"] {
+  padding: 0.6rem 1rem;
+  margin-top: 1.25rem;
+}
+
+.input-group-quantity {
+  display: flex;
+  align-items: center;
+  width: fit-content;
+}
+.input-group-quantity .quantity-input {
+  width: 60px;
+  text-align: center;
+  border-left: none;
+  border-right: none;
+  border-radius: 0;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.input-group-quantity .quantity-input::-webkit-outer-spin-button,
+.input-group-quantity .quantity-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.input-group-quantity .quantity-btn {
+  background-color: var(--color-input-group-btn-bg);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  padding: 0;
+  width: calc(0.75rem * 2 + 1.5em);
+  height: calc(1.5em + 1.5rem + 2px);
+  cursor: pointer;
+  font-size: 1.2rem;
+  line-height: calc(1.5em + 1.5rem);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+.input-group-quantity .quantity-minus {
+  border-right: none;
+  border-radius: var(--border-radius-sm) 0 0 var(--border-radius-sm);
+}
+.input-group-quantity .quantity-plus {
+  border-left: none;
+  border-radius: 0 var(--border-radius-sm) var(--border-radius-sm) 0;
+}
+.input-group-quantity .quantity-btn:hover {
+  background-color: var(--color-input-group-btn-hover-bg);
+}
+.input-group-quantity .quantity-btn:active {
+  background-color: var(--color-input-group-btn-active-bg);
+}
+
+
+/* --- Enhanced Section Headers --- */
+.report-section h3, .settings-section h3, .booking-header h2, .details-container h3, #confirmBookingModalHeader h3, #calendar-day-modal-title {
+    font-size: 1.6rem; /* ขนาดหัวข้อใหญ่ขึ้น */
+    color: var(--color-primary-dark);
+    padding-bottom: 0.75rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 2px solid var(--color-primary); /* เส้นใต้หนาขึ้นและใช้สีหลัก */
+    letter-spacing: 0.5px;
+}
+body.dark-theme .report-section h3,
+body.dark-theme .settings-section h3,
+body.dark-theme .booking-header h2,
+body.dark-theme .details-container h3,
+body.dark-theme #confirmBookingModalHeader h3,
+body.dark-theme #calendar-day-modal-title {
+    color: var(--dt-color-primary-dark);
+    border-bottom-color: var(--dt-color-primary);
+}
+
+
+/* --- Components: Tables --- */
+.table-responsive {
+  overflow-x: auto;
+  margin: 1.5rem 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-md);
+}
+.report-table,
+.advance-table,
+.advance-table-popup {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: var(--color-surface);
+}
+.report-table th, .report-table td,
+.advance-table th, .advance-table td,
+.advance-table-popup th, .advance-table-popup td {
+  padding: 0.8rem 1rem;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  vertical-align: middle;
+}
+.report-table th, .advance-table th, .advance-table-popup th {
+  background-color: var(--color-table-head-bg);
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+.report-table tbody tr:nth-child(even),
+.advance-table tbody tr:nth-child(even),
+.advance-table-popup tbody tr:nth-child(even) {
+  background-color: var(--color-table-row-even-bg); /* From summary */
+}
+.report-table tbody tr:hover,
+.advance-table tbody tr:hover,
+.advance-table-popup tbody tr:hover {
+  background-color: var(--color-table-row-hover-bg); /* From summary */
+}
+.report-table td img.deposit-thumb {
+  width: 40px; height: auto; border-radius: var(--border-radius-sm);
+  cursor: pointer; vertical-align: middle; border: 1px solid var(--color-border);
+}
+
+/* --- Components: Room Grid (index.php) --- */
+.rooms-grid {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  margin-bottom: 2.5rem;
+}
+.room-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  position: relative; /* Added for positioning overdue indicator */
+}
+.room-container:hover {
+  transform: scale(1.08);
+  filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2));
+}
+body.dark-theme .room-container:hover {
+    filter: drop-shadow(0 4px 8px rgba(0,0,0,0.4));
+}
+svg.room-svg-house {
+  width: 100%;
+  height: auto;
+  max-width: 100px;
+  display: block;
+  overflow: visible;
+}
+svg.room-svg-house .house-shape {
+  stroke: var(--color-svg-stroke); /* From summary */
+  stroke-width: 1;
+}
+svg.room-svg-house.free .house-shape { fill: var(--color-secondary); }
+svg.room-svg-house.booked .house-shape { fill: var(--color-warning); }
+svg.room-svg-house.occupied .house-shape { fill: var(--color-alert); }
+svg.room-svg-house.advance_booking .house-shape { fill: var(--color-info); }
+svg.room-svg-house.f_short_occupied .house-shape { fill: var(--color-purple); } /* New Status */
+
+/* --- ADDED FOR OVERDUE --- */
+svg.room-svg-house.overdue_occupied .house-shape { /* ถ้า display_status เป็น overdue_occupied */
+  fill: var(--color-alert-dark) !important; /* สีแดงเข้ม หรือสีอื่นที่ต้องการ */
+  stroke: var(--color-alert-dark) !important;
+  stroke-width: 2px; /* ทำให้เด่นขึ้น */
+}
+svg.room-svg-house.overdue_occupied .room-text {
+  fill: var(--color-white) !important; /* หรือ var(--dt-color-text) สำหรับ dark theme */
+}
+body.dark-theme svg.room-svg-house.overdue_occupied .room-text {
+  fill: var(--dt-color-text) !important;
+}
+/* Style for the SVG warning icon */
+.overdue-indicator-svg {
+  position: absolute; /* Position it relative to .room-container */
+  top: -5px; /* Adjust as needed */
+  right: -5px; /* Adjust as needed */
+  width: 20px; /* Adjust as needed */
+  height: 20px; /* Adjust as needed */
+  z-index: 5;
+  fill: var(--color-alert-dark); /* Or any color you prefer */
+  animation: pulse-warning-svg 1.5s infinite ease-in-out;
+}
+/* --- END ADDED FOR OVERDUE --- */
+
+
+svg.room-svg-house .room-text {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-size: 20px;
+  font-weight: bold;
+  fill: var(--color-white);
+  text-anchor: middle;
+  dominant-baseline: middle;
+  pointer-events: none;
+}
+svg.room-svg-house.booked .room-text,
+svg.room-svg-house.advance_booking .room-text { /* If info is light, text should be dark */
+  fill: var(--color-svg-text-on-light-bg);
+}
+svg.room-svg-house.f_short_occupied .room-text { fill: var(--color-white); } /* New Status - adjust if needed for dark theme purple */
+body.dark-theme svg.room-svg-house.f_short_occupied .room-text {
+  fill: var(--dt-status-f-short-occupied-text); /* Use variable for dark theme text */
+}
+
+
+/* --- Components: Status Legend --- */
+.status-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin: 1.5rem 0 2rem 0;
+  padding: 1rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-md);
+}
+.status-box {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+.color-box {
+  width: 18px; height: 18px; border-radius: var(--border-radius-sm);
+  border: 1px solid var(--color-svg-stroke);
+  flex-shrink: 0;
+}
+.color-box.occupied { background-color: var(--color-alert); }
+.color-box.booked { background-color: var(--color-warning); }
+.color-box.free { background-color: var(--color-secondary); }
+.color-box.advance_booking { background-color: var(--color-info); }
+.color-box.f_short_occupied { background-color: var(--color-purple); } /* New Status for legend */
+/* --- ADDED FOR OVERDUE --- */
+.status-container .color-box.overdue_occupied {
+  background-color: var(--color-alert-dark); /* สีเดียวกับที่ใช้ใน table view */
+}
+/* --- END ADDED FOR OVERDUE --- */
+
+
+/* --- Components: Modals --- */
+.modal-overlay {
+  display: flex;
+  visibility: hidden;
+  align-items: center;
+  justify-content: center;
+  position: fixed;
+  inset: 0;
+  background: var(--color-modal-overlay-bg);
+  z-index: 1000;
+  padding: 1rem;
+  opacity: 0;
+  transition: opacity 0.3s var(--transition-func), visibility 0s linear 0.3s;
+}
+.modal-overlay.show {
+  visibility: visible;
+  opacity: 1;
+  transition-delay: 0s;
+}
+.modal-content {
+  background: var(--color-surface);
+  padding: 1.5rem;
+  border-radius: var(--border-radius-lg);
+  max-width: 90%;
+  width: 500px;
+  position: relative;
+  box-shadow: var(--shadow-lg);
+  transform: scale(0.95);
+  max-height: 90vh;
+  overflow-y: auto;
+  min-height: 50px;
+  border: 1px solid var(--color-border);
+}
+.modal-overlay.show .modal-content {
+  transform: scale(1);
+}
+.modal-close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  background: transparent;
+  border: none;
+  font-size: 1.8rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  padding: 0.25rem 0.5rem;
+}
+.modal-close:hover { color: var(--color-alert); }
+#modal-body h3, #modal-body h4 { margin-top: 0; color: var(--color-primary-dark); }
+.details-container h3 { margin-bottom: 1.5rem; }
+.details-container section { margin-bottom: 1.5rem; }
+.receipt-preview h4, .deposit-preview h4 { font-size: 1rem; margin-bottom: 0.5rem; }
+.receipt-img, #modal-image, #deposit-modal-image {
+  max-width: 100%; height: auto; border-radius: var(--border-radius-md);
+  border: 1px solid var(--color-border); display: block;
+}
+.button-group {
+  margin-top: 1.5rem; display: flex; flex-wrap: wrap; gap: 0.8rem;
+}
+.modal-content .button-group {
+    justify-content: flex-end;
+}
+#return-deposit-form {
+  margin-top: 1rem; padding: 1rem; border: 1px dashed var(--color-border);
+  border-radius: var(--border-radius-md); background-color: var(--color-bg);
+  width: 100%;
+}
+#return-deposit-form input[type="file"] { margin-bottom: 0.8rem; }
+
+/* Responsive Design (existing blocks, content inside might be slightly adjusted by other rules) */
+@media (min-width: 769px) {
+    .modal-content { padding: 2rem; max-width: 650px; } /* Increased width slightly */
+}
+@media (max-width: 768px) { /* General tablet and smaller */
+  html, body { font-size: 15px; }
+  .site-header .container { flex-direction: column; align-items: flex-start; }
+  .site-nav { margin-top: 0.5rem; width: 100%; }
+  .site-nav ul { flex-direction: column; align-items: flex-start; gap: 0.2rem; width: 100%; }
+  .site-nav a { padding: 0.5rem 0.8rem; width: 100%; text-align: left; }
+  .dashboard-stats { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; }
+  .stat-box p { font-size: 1.8rem; }
+  .rooms-grid { grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 0.6rem; }
+  .report-filter { flex-direction: column; align-items: stretch; }
+  .report-filter .filter-group { flex-basis: 100%; }
+  .report-filter input[type="date"], .report-filter input[type="text"], .report-filter select { width: 100%; min-width: unset; }
+  .report-filter button[type="submit"] { align-self: stretch; margin-top: 0.5rem; }
+  .modal-content { max-width: 95%; }
+  .modal-close { top: 0.5rem; right: 0.5rem; font-size: 1.5rem; }
+  .button-group { flex-direction: column; align-items: stretch; }
+  .button-group button, .button-group .button { width: 100%; margin-left: 0 !important; margin-right: 0 !important; }
+  .modal-content .button-group { flex-direction: row; align-items: center; }
+  .modal-content .button-group.stack-on-mobile { flex-direction: column; align-items: stretch; }
+  .modal-content .button-group.stack-on-mobile button, .modal-content .button-group.stack-on-mobile .button { width: 100%; }
+  .booking-group { padding: 3px 5px; font-size: 0.7rem; white-space: normal; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .booking-room-names { font-size: 0.65rem; }
+  .booking-customer-name-highlight { font-size: 0.7rem; }
+  a.calendar-add-btn[href*="index.php"] { font-size: 0.65rem !important; padding: 2px 4px !important; }
+  .calendar-navigation h3 { font-size: 1rem; }
+  .calendar-navigation .button { padding: 0.3rem 0.6rem; font-size: 0.75rem; }
+}
+@media (max-width: 480px) { /* General mobile */
+  html, body { font-size: 14px; }
+  .container { width: 100%; padding-left: 0.75rem; padding-right: 0.75rem; }
+  .dashboard-stats { grid-template-columns: 1fr; }
+  .site-header .logo { font-size: 1.3rem; }
+  .rooms-grid { grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); gap: 0.5rem; }
+  .modal-content .button-group { flex-direction: column; align-items: stretch; }
+  .modal-content .button-group button, .modal-content .button-group .button { width: 100%; }
+  .booking-group { padding: 1px 3px; font-size: 0.6rem; -webkit-line-clamp: 1; }
+  .booking-room-names { font-size: 0.55rem; }
+  .booking-customer-name-highlight { font-size: 0.6rem; }
+}
+
+.button-small {
+  padding: 0.3rem 0.6rem; font-size: 0.8rem;
+  margin-right: 0.3rem; vertical-align: middle;
+}
+.actions-cell { white-space: nowrap; }
+.actions-cell .button-small:last-child { margin-right: 0; }
+.edit-booking-btn {
+  background-color: var(--color-info); color: var(--color-white);
+  text-decoration: none; display: inline-block;
+}
+.edit-booking-btn:hover { background-color: var(--color-info-dark); }
+.form-group input[type="tel"].input-phone {
+  border-left: 3px solid var(--color-info);
+}
+.form-group input[type="tel"].input-phone:focus {
+  border-left-color: var(--color-primary);
+}
+.link-like { color: var(--link-color); text-decoration: underline; }
+.link-like:hover { color: var(--color-primary-dark); }
+
+/* Addon and Booking Summary Styles */
+.booking-addons-summary { margin-top: 1rem; padding-top: 1rem; border-top: 1px dashed var(--color-border); }
+.booking-addons-summary h4 { font-size: 1.05rem; color: var(--color-primary-dark); margin-bottom: 0.75rem; }
+.booking-addons-list { list-style: none; padding-left: 0; margin-bottom: 0.75rem; }
+.addon-item { background-color: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--border-radius-sm); padding: 0.6rem 0.8rem; margin-bottom: 0.5rem; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; font-size: 0.9rem; }
+.addon-item .addon-name { font-weight: 500; flex-basis: 40%; min-width: 120px; margin-right: 0.5rem; }
+.addon-item .addon-quantity { color: var(--color-text-muted); flex-basis: 15%; min-width: 50px; text-align: center; margin-right: 0.5rem; }
+.addon-item .addon-price-each { color: var(--color-text-muted); font-size: 0.85rem; flex-basis: 25%; min-width: 100px; text-align: right; margin-right: 0.5rem; }
+.addon-item .addon-price-total { font-weight: 500; color: var(--color-secondary-dark); flex-basis: 15%; min-width: 80px; text-align: right; }
+.booking-addons-summary > p { font-weight: bold; text-align: right; margin-top: 0.5rem; font-size: 0.95rem; color: var(--color-primary-dark); }
+.addon-chips-flex-container { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 5px; padding: 10px; background-color: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--border-radius-md); }
+.addon-chip-wrapper {
+    display: flex;
+    align-items: center;
+    padding: 8px 14px;
+    background-color: var(--color-surface-alt);
+    border: 1px solid var(--color-border);
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    box-shadow: var(--shadow-sm);
+}
+.addon-chip-wrapper:hover { background-color: var(--color-disabled-bg); border-color: #ced4da; box-shadow: var(--shadow-md); }
+body.dark-theme .addon-chip-wrapper:hover { background-color: var(--dt-color-input-group-btn-hover-bg); border-color: var(--dt-color-border); }
+.addon-checkbox, .addon-checkbox-modal { margin-right: 8px; width: 1.1em; height: 1.1em; accent-color: var(--color-primary); }
+.addon-chip-label { font-weight: normal; margin-bottom: 0; line-height: 1.2; }
+.addon-quantity, .addon-quantity-modal { font-size: 0.9em; padding: 4px 6px; border-radius: var(--border-radius-sm); border: 1px solid #ced4da; width: 55px; margin-left: 8px; text-align: center; background-color: var(--color-white); color: var(--color-text); }
+body.dark-theme .addon-quantity, body.dark-theme .addon-quantity-modal { border-color: var(--dt-color-border); background-color: var(--dt-color-surface); color: var(--dt-color-text); }
+.addon-chip-wrapper.selected { background-color: var(--color-primary); border-color: var(--color-primary-dark); color: var(--color-header-text); box-shadow: var(--shadow-md), inset 0 1px 2px var(--color-svg-stroke); }
+.addon-chip-wrapper.selected .addon-chip-label { font-weight: 500; color: var(--color-header-text); }
+.addon-chip-wrapper.selected .addon-quantity, .addon-chip-wrapper.selected .addon-quantity-modal { border-color: var(--color-primary-dark); background-color: var(--color-surface); color: var(--color-text); }
+body.dark-theme .addon-chip-wrapper.selected .addon-quantity, body.dark-theme .addon-chip-wrapper.selected .addon-quantity-modal { border-color: var(--dt-color-primary-dark); background-color: var(--dt-color-bg); color: var(--dt-color-text); }
+.addon-chip-wrapper.selected .addon-checkbox, .addon-chip-wrapper.selected .addon-checkbox-modal { accent-color: var(--color-info); }
+
+/* Enhanced Calendar View Styles (booking_calendar_view.php) */
+.calendar-navigation { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; padding: 0.75rem 1rem; background-color: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--border-radius-md); box-shadow: var(--shadow-sm); }
+.calendar-navigation h3 { margin: 0; font-size: 1.3rem; color: var(--color-primary-dark); }
+.calendar-navigation .button { padding: 0.4rem 0.8rem; font-size: 0.85rem; }
+.calendar-table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; border: 1px solid var(--color-border); border-radius: var(--border-radius-md); overflow: hidden; background-color: var(--color-surface); }
+.calendar-table th { background-color: var(--color-primary); color: var(--color-header-text); padding: 0.6rem 0.5rem; text-align: center; font-weight: 500; font-size: 0.85rem; text-transform: uppercase; border-bottom: 1px solid var(--color-border); }
+body.dark-theme .calendar-table th { border-left: 1px solid var(--color-border); }
+body.dark-theme .calendar-table th:first-child { border-left: none; }
+.calendar-table td.calendar-day { border: 1px solid var(--color-border); height: 130px; vertical-align: top; padding: 0.4rem; font-size: 0.8rem; position: relative; background-color: var(--color-surface); }
+.calendar-table td.calendar-day.empty { background-color: var(--color-bg); }
+body.dark-theme .calendar-table td.calendar-day.empty { opacity: 0.7; }
+.calendar-table td.calendar-day.today { background-color: var(--color-calendar-today-bg); border: 1.5px solid var(--color-calendar-today-border); }
+.date-number { font-size: 0.85em; font-weight: 600; color: var(--color-text); text-align: right; padding: 3px 5px; position: absolute; top: 4px; right: 4px; width: auto; min-width: 1.6em; height: 1.6em; line-height: 1.6em; border-radius: 50%; background-color: transparent; z-index: 2; }
+.calendar-table td.calendar-day.today .date-number { color: var(--color-black); background-color: var(--color-warning-dark); }
+body.dark-theme .calendar-table td.calendar-day.today .date-number { color: var(--color-black); }
+.booking-entries-area { margin-top: 2em; max-height: calc(130px - 2.2em - 28px - 8px); overflow-y: auto; padding-right: 4px; position: relative; z-index: 1; }
+.booking-entries-area::-webkit-scrollbar { width: 6px; }
+.booking-entries-area::-webkit-scrollbar-thumb { background: var(--color-scrollbar-thumb-bg); border-radius: 3px; }
+.booking-entries-area::-webkit-scrollbar-thumb:hover { background: var(--color-scrollbar-thumb-hover-bg); }
+.booking-group { margin-bottom: 5px; padding: 6px 8px; border-radius: var(--border-radius-sm); cursor: pointer; display: block; line-height: 1.4; font-size: 0.78rem; box-shadow: var(--shadow-sm); }
+.booking-group:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+.booking-room-names { font-weight: 400; font-size: 0.75rem; color: var(--color-text-muted); display: block; margin-bottom: 2px; }
+.booking-customer-name-highlight { font-weight: 600; font-size: 0.8rem; color: var(--color-text); text-decoration: none !important; }
+.booking-customer-name-highlight:hover { color: var(--color-primary); }
+.highlighted-transaction { background-color: var(--color-info-bg-light); border-left: 3px solid var(--color-primary); color: var(--color-text); }
+.highlighted-transaction .booking-customer-name-highlight, .highlighted-transaction .booking-room-names { color: inherit; }
+body.dark-theme .highlighted-transaction { color: var(--dt-color-text); }
+.regular-booking-entry { background-color: var(--color-surface-alt); border: 1px solid var(--color-border); border-left: 3px solid var(--color-text-muted); }
+.regular-booking-entry:hover { background-color: var(--color-booking-entry-regular-hover-bg); }
+.regular-booking-entry .booking-customer-name-highlight { color: var(--color-info-dark); }
+.regular-booking-entry .booking-room-names { color: var(--color-booking-roomnames-lighttheme); }
+.calendar-add-booking-area { position: absolute; bottom: 5px; right: 5px; z-index: 10; }
+a.calendar-add-btn[href*="index.php"] { background-color: var(--color-secondary); color: var(--color-white); border: 1px solid var(--color-secondary-dark); font-size: 0.7rem !important; padding: 3px 6px !important; border-radius: var(--border-radius-sm); width: auto; display: inline-block; margin: 2px; }
+a.calendar-add-btn[href*="index.php"]:hover { background-color: var(--color-secondary-dark); }
+.fab-options { background-color: var(--color-calendar-fab-options-bg); box-shadow: var(--shadow-md); border-radius: var(--border-radius-md); padding: 0.5rem; }
+.fab-option-btn { color: var(--color-calendar-fab-option-btn-text); background-color: var(--color-calendar-fab-option-btn-bg); border: 1px solid var(--color-calendar-fab-option-btn-border); }
+
+/* Index Table View (index.php) */
+#room-status-table-view th, #room-status-table-view td { padding: 0.6rem 0.8rem; font-size: 0.85rem; }
+#room-status-table-view .status-indicator { padding: 0.2em 0.5em; border-radius: var(--border-radius-sm); font-weight: 500; display: inline-block; min-width: 70px; text-align: center; }
+#room-status-table-view .status-indicator.status-occupied { background-color: var(--status-occupied-bg); color: var(--status-occupied-text); }
+#room-status-table-view .status-indicator.status-booked { background-color: var(--status-booked-bg); color: var(--status-booked-text); }
+#room-status-table-view .status-indicator.status-free { background-color: var(--status-free-bg); color: var(--status-free-text); }
+#room-status-table-view .status-indicator.status-advance_booking { background-color: var(--status-advance_booking-bg); color: var(--status-advance_booking-text); }
+#room-status-table-view .status-indicator.status-f_short_occupied {
+  background-color: var(--status-f-short-occupied-bg);
+  color: var(--status-f-short-occupied-text);
+}
+#room-status-table-view .status-indicator.status-dirty,
+#room-status-table-view .status-indicator.status-maintenance { background-color: var(--status-default-bg); color: var(--status-default-text); }
+
+/* --- ADDED FOR OVERDUE --- */
+#room-status-table-view .status-indicator.status-overdue_occupied {
+  background-color: var(--status-occupied-bg);
+  color: var(--status-occupied-text);
+  animation: pulse-warning-bg 1.5s infinite ease-in-out;
+}
+.overdue-indicator-table {
+  color: var(--color-alert-dark);
+  font-weight: bold;
+  font-size: 1.1em;
+  margin-left: 5px;
+  animation: pulse-warning-text 1.5s infinite ease-in-out;
+  display: inline-block;
+}
+#room-status-table-view tr.room-row-status-booked { background-color: var(--color-warning-bg-light); }
+#room-status-table-view tr.room-row-status-occupied { background-color: var(--color-error-bg); }
+#room-status-table-view tr.room-row-status-f_short_occupied {
+  background-color: var(--color-purple-light);
+}
+body.dark-theme #room-status-table-view tr.room-row-status-f_short_occupied {
+  background-color: var(--dt-color-purple-light);
+}
+
+.receipt-thumbnail-table { width: 40px; height: auto; border-radius: var(--border-radius-sm); cursor: pointer; border: 1px solid var(--color-border); vertical-align: middle; }
+.receipt-thumbnail-table:hover { opacity: 0.8; box-shadow: var(--shadow-sm); }
+.text-center { text-align: center !important; }
+
+/* Generic .switch component */
+.switch { --_switch-bg-clr: var(--color-switch-component-track-bg); --_switch-padding: 4px; --_slider-bg-clr: var(--color-switch-component-slider-bg); --_slider-bg-clr-on: var(--color-switch-component-slider-on-bg); --_slider-txt-clr: var(--color-white); --_label-padding: 0.6rem 1.2rem; --_switch-easing: cubic-bezier(0.47,1.64,0.41,0.8); color: var(--_slider-txt-clr); width: fit-content; display: flex; justify-content: center; align-items: center; position: relative; border-radius: 9999px; cursor: pointer; isolation: isolate; font-size: 0.85rem; font-weight: 500; box-shadow: var(--shadow-sm); }
+body.dark-theme .switch { --_slider-txt-clr: var(--dt-color-text); }
+.switch input[type="checkbox"] { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border-width: 0; }
+.switch > span { display: grid; place-content: center; transition: opacity 300ms ease-in-out 100ms, color var(--transition-speed) var(--transition-func); padding: var(--_label-padding); z-index: 1; }
+.switch::before, .switch::after { content: ""; position: absolute; border-radius: inherit; }
+.switch::before { background-color: var(--_slider-bg-clr); inset: var(--_switch-padding) 50% var(--_switch-padding) var(--_switch-padding); transition: inset 400ms var(--_switch-easing), background-color 400ms ease-in-out; z-index: -1; box-shadow: inset 0 1px 1px var(--color-switch-component-slider-shadow-inset), 0 1px var(--color-switch-component-slider-shadow-highlight); }
+.switch::after { background-color: var(--_switch-bg-clr); inset: 0; z-index: -2; }
+.switch:focus-within::after, .switch:hover::after { box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--_switch-bg-clr); }
+.switch > input:not(:checked) + span { opacity: 1; }
+.switch > input:not(:checked) ~ span:last-of-type { opacity: 0.7; }
+.switch > input:checked + span { opacity: 0.7; }
+.switch > input:checked ~ span:last-of-type { opacity: 1; }
+.switch:has(input:not(:checked)):hover::before { inset: var(--_switch-padding) 48% var(--_switch-padding) var(--_switch-padding); }
+.switch:has(input:checked):hover::before { inset: var(--_switch-padding) var(--_switch-padding) var(--_switch-padding) 48%; }
+.switch:has(input:checked)::before { background-color: var(--_slider-bg-clr-on); inset: var(--_switch-padding) var(--_switch-padding) var(--_switch-padding) 50%; }
+
+/* Custom Modern Checkbox */
+.checkbox-btn { display: inline-flex; align-items: center; position: relative; cursor: pointer; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none; padding-left: 28px; min-height: 22px; line-height: 1.4; margin-bottom: 0.75rem; font-weight: normal; color: var(--color-text); }
+.checkbox-btn input[type="checkbox"] { position: absolute; opacity: 0; cursor: pointer; height: 0; width: 0; }
+.checkbox-btn .checkmark { position: absolute; top: 50%; left: 0; transform: translateY(-50%); height: 20px; width: 20px; background-color: var(--color-surface); border: 2px solid var(--color-border); border-radius: var(--border-radius-sm); }
+.checkbox-btn:hover input[type="checkbox"] ~ .checkmark { border-color: var(--color-primary); }
+.checkbox-btn input[type="checkbox"]:checked ~ .checkmark { background-color: var(--color-primary); border-color: var(--color-primary); }
+.checkbox-btn .checkmark::after { content: ""; position: absolute; display: none; left: 6px; top: 2px; width: 5px; height: 10px; border: solid var(--color-white); border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.checkbox-btn input[type="checkbox"]:checked ~ .checkmark::after { display: block; }
+.checkbox-btn input[type="checkbox"]:focus ~ .checkmark, .checkbox-btn input[type="checkbox"]:focus-visible ~ .checkmark { box-shadow: 0 0 0 0.2rem var(--color-focus-ring-input); border-color: var(--color-primary); }
+
+/* Booking Page Specific Styles (booking.php) */
+.booking-header { margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid var(--color-border); }
+#booking-form { padding: 2rem; margin-top: 0; }
+#booking-form .form-group p { margin-bottom: 0.5rem; font-size: 1rem; }
+#booking-form .form-group p strong { color: var(--color-text); font-weight: 500; }
+#booking-form .form-group hr { border: 0; border-top: 1px dashed var(--color-border); margin: 1.25rem 0; }
+#base_amount_paid_display { font-weight: 600; font-size: 1.1rem; color: var(--color-primary-dark); }
+#total-addon-price-display, #deposit-amount-display { font-weight: 600; color: var(--color-info-dark); }
+#grand-total-price-display { font-size: 1.6rem; font-weight: 700; color: var(--color-secondary-dark); }
+#flexible-overnight-group { background-color: var(--color-info-bg-light); border: 1px solid var(--color-info-border-light); padding: 1rem; border-radius: var(--border-radius-md); margin-bottom: 1rem; }
+#zone-f-deposit-group { background-color: var(--color-warning-bg-light); border: 1px solid var(--color-warning-border-light); padding: 1rem; border-radius: var(--border-radius-md); margin-bottom: 1rem; }
+
+/* File Input (booking.php) - Old style commented out, new style below */
+/*
+.form-group input[type="file"]#receipt { width: 0.1px; height: 0.1px; opacity: 0; overflow: hidden; position: absolute; z-index: -1; }
+label[for="receipt"] { display: block; padding: 1.5rem 1rem; background-color: var(--color-bg); border: 2px dashed var(--color-border); border-radius: var(--border-radius-md); text-align: center; cursor: pointer; position: relative; font-weight: 500; color: var(--color-primary-dark); overflow: hidden; }
+... etc
+*/
+
+/* FAB (Floating Action Button) */
+.calendar-fab-container { position: relative; display: flex; justify-content: flex-end; align-items: flex-end; }
+.fab-main-btn { background-color: var(--color-primary); color: var(--color-white); border: none; border-radius: 50%; width: 40px; height: 40px; font-size: 20px; cursor: pointer; box-shadow: var(--shadow-md); z-index: 12; display: flex; justify-content: center; align-items: center; padding: 0; }
+.fab-main-btn:hover { background-color: var(--color-primary-dark); transform: scale(1.1); box-shadow: var(--shadow-lg); }
+.fab-main-btn svg { width: 18px; height: 18px; fill: currentColor; }
+.fab-options { display: flex; flex-direction: column-reverse; align-items: flex-end; position: absolute; bottom: calc(100% + 10px); right: 0; visibility: hidden; opacity: 0; transform: translateY(15px) scale(0.8); transform-origin: bottom right; transition: opacity 0.25s var(--transition-func), transform 0.25s var(--transition-func), visibility 0s linear 0.25s; z-index: 11; gap: 8px; padding: 0.5rem; box-shadow: var(--shadow-md); border-radius: var(--border-radius-md); background-color: var(--color-calendar-fab-options-bg); }
+.calendar-fab-container.active .fab-options { visibility: visible; opacity: 1; transform: translateY(0) scale(1); transition-delay: 0s,0s,0s; }
+.fab-option-btn { padding: 0.45rem 0.9rem; font-size: 0.8rem; border-radius: var(--border-radius-md); text-decoration: none; box-shadow: var(--shadow-sm); white-space: nowrap; min-width: 90px; text-align: center; color: var(--color-calendar-fab-option-btn-text); background-color: var(--color-calendar-fab-option-btn-bg); border: 1px solid var(--color-calendar-fab-option-btn-border); }
+.fab-option-btn:hover { transform: scale(1.05); box-shadow: var(--shadow-md); }
+.fab-option-single { background-color: var(--color-secondary); color: var(--color-white); }
+.fab-option-single:hover { background-color: var(--color-secondary-dark); }
+.fab-option-multi { background-color: var(--color-info); color: var(--color-white); }
+.fab-option-multi:hover { background-color: var(--color-info-dark); }
+
+/* Theme Toggle Switch (layout.php) */
+.theme-toggle-switch { position: relative; display: inline-flex; align-items: center; width: auto; height: 34px; margin: 0 5px 0 15px; vertical-align: middle; }
+.theme-toggle-switch input[type="checkbox"] { opacity: 0; width: 0; height: 0; position: absolute; }
+.theme-toggle-switch .slider { display: inline-block; width: 50px; height: 26px; background-color: var(--color-toggle-slider-bg); border-radius: 26px; cursor: pointer; position: relative; }
+.theme-toggle-switch .slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 3px; bottom: 3px; background-color: var(--color-toggle-slider-knob-bg); border-radius: 50%; transition: transform var(--transition-speed) var(--transition-func); }
+.theme-toggle-switch input:checked + .slider { background-color: var(--color-primary); }
+.theme-toggle-switch input:focus + .slider, .theme-toggle-switch input:focus-visible + .slider { box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-primary); }
+.theme-toggle-switch input:checked + .slider:before { transform: translateX(24px); }
+.theme-toggle-switch .label-text { margin-left: 8px; color: var(--color-header-text); font-size: 0.85em; line-height: 26px;}
+
+/* Flash Messages (layout.php) */
+.message { padding: 10px; border-radius: var(--border-radius-sm); margin-bottom: 1rem; }
+.message.error { background-color: var(--color-error-bg); color: var(--color-error-text); border: 1px solid var(--color-error-border); }
+.message.success { background-color: var(--color-success-bg); color: var(--color-success-text); border: 1px solid var(--color-success-border); }
+
+/* login.php specific */
+.error-message {
+    color: var(--color-error-text);
+    background-color: var(--color-error-bg);
+    border: 1px solid var(--color-error-border);
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    border-radius: var(--border-radius-sm);
+}
+
+/* details.php specific */
+.notes-display-box {
+    background-color: var(--color-muted-bg);
+    border: 1px solid var(--color-border);
+    padding: 1rem;
+    border-radius: var(--border-radius-sm);
+    margin-top: 1rem;
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+/* report.php specific styles */
+.report-header h2 { color: var(--color-primary-dark); }
+.report-section { background-color: var(--color-surface); border: 1px solid var(--color-border); padding: 1rem; margin-bottom: 1.5rem; border-radius: var(--border-radius-md); }
+.kpi-box { background-color: var(--color-surface); border: 1px solid var(--color-border); padding: 1rem; border-radius: var(--border-radius-md); text-align: center; }
+.kpi-box h4 { color: var(--color-text-muted); margin-top: 0; margin-bottom: 0.5rem; font-size: 0.9rem; }
+.kpi-box p { color: var(--color-primary); font-size: 1.5rem; font-weight: bold; margin: 0; }
+.chart-container { background-color: var(--color-surface); border: 1px solid var(--color-border); padding: 1rem; border-radius: var(--border-radius-md); }
+.report-filter-form { background-color: var(--color-bg); border: 1px solid var(--color-border); padding: 1rem; margin-bottom: 1.5rem; border-radius: var(--border-radius-md); }
+.text-success { color: var(--color-success-text) !important; }
+.text-danger { color: var(--color-error-text) !important; }
+.highlight-value { color: var(--color-primary-dark); }
+.temporary-archive-row td { background-color: var(--color-info-bg-light) !important; }
+
+
+/* --- Keyframes for Animations --- */
+@keyframes pulse-warning-svg {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.2) translateY(-2px) translateX(-2px); opacity: 0.7; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes pulse-warning-text {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.1); opacity: 0.6; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes pulse-warning-bg {
+  0% { opacity: 1; }
+  50% { opacity: 0.7; }
+  100% { opacity: 1; }
+}
+@keyframes spin_border { to { --angle: 360deg; } }
+@keyframes shake-alert {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-2px); }
+  50% { transform: translateX(2px); }
+  75% { transform: translateX(-1px); }
+}
+@keyframes pulse-icon {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.15); opacity: 0.8; }
+}
+@keyframes gentle-rotate-alert {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-8deg); }
+  75% { transform: rotate(8deg); }
+}
+
+/* FIX for #final_amount_paid text color in Dark Mode */
+body.dark-theme input#final_amount_paid[style*="background-color: rgb(233, 236, 239)"],
+body.dark-theme input#final_amount_paid[style*="background-color: #e9ecef"] {
+  color: #090909 !important;
+}
+body.dark-theme input[readonly][style*="background-color: rgb(240, 242, 245)"],
+body.dark-theme input[readonly][style*="background-color: #f0f2f5"] {
+    color: #090909 !important;
+}
+
+/* --- Pagination Styles --- */
+.pagination-nav {
+  margin-top: 1.5rem;
+  display: flex;
+  justify-content: center;
+}
+.pagination {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  gap: 0.5rem;
+}
+.pagination .page-item .page-link {
+  color: var(--color-primary);
+  padding: 0.5em 1em;
+  font-size: 0.9rem;
+  border-radius: 0.5em;
+  background: #e8e8e8;
+  border: 1px solid #e8e8e8;
+  text-decoration: none;
+  transition: all 0.3s;
+  box-shadow: 3px 3px 6px #c5c5c5, -3px -3px 6px #ffffff;
+}
+.pagination .page-item .page-link:hover {
+  background-color: #f0f0f0;
+  border-color: var(--color-primary-dark);
+  color: var(--color-primary-dark);
+  box-shadow: 4px 4px 8px #c5c5c5, -4px -4px 8px #ffffff;
+}
+.pagination .page-item.active .page-link {
+  z-index: 1;
+  color: var(--color-white);
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+  box-shadow: inset 2px 2px 5px rgba(0,0,0,0.2), inset -2px -2px 5px rgba(255,255,255,0.7);
+}
+.pagination .page-item.disabled .page-link {
+  color: var(--color-text-muted);
+  pointer-events: none;
+  cursor: auto;
+  background-color: #e9ecef;
+  border-color: #dee2e6;
+  box-shadow: inset 2px 2px 4px #c5c5c5, inset -2px -2px 4px #ffffff;
+}
+/* Dark Theme Pagination */
+body.dark-theme .pagination .page-item .page-link {
+  background: var(--dt-color-surface-alt);
+  border-color: var(--dt-color-border);
+  color: var(--dt-color-primary);
+  box-shadow: 3px 3px 6px #101010, -3px -3px 6px #2c2c2c;
+}
+body.dark-theme .pagination .page-item .page-link:hover {
+  background-color: #3a3a3a;
+  border-color: var(--dt-color-primary-dark);
+  color: var(--dt-color-primary-dark);
+  box-shadow: 4px 4px 8px #101010, -4px -4px 8px #2c2c2c;
+}
+body.dark-theme .pagination .page-item.active .page-link {
+  color: var(--color-black);
+  background-color: var(--dt-color-primary);
+  border-color: var(--dt-color-primary);
+  box-shadow: inset 2px 2px 5px rgba(0,0,0,0.4), inset -2px -2px 5px rgba(255,255,255,0.1);
+}
+body.dark-theme .pagination .page-item.disabled .page-link {
+  color: var(--dt-color-text-muted);
+  background-color: #252525;
+  border-color: #303030;
+  box-shadow: inset 2px 2px 4px #101010, inset -2px -2px 4px #2c2c2c;
+}
+
+/* === Calendar View Enhancements (เพิ่มเติม/ปรับปรุง) === */
+/* Responsive Day Cell Content */
+.booking-entries-area.desktop-only { display: block; }
+.booking-summary-mobile.mobile-only { display: none; }
+.booking-more-indicator { font-size: 0.78rem; color: var(--color-primary); text-align: center; cursor: pointer; padding: 4px 5px; margin-top: 5px; border-radius: var(--border-radius-sm); background-color: var(--color-surface-alt); transition: background-color 0.2s, color 0.2s; display: block; }
+.booking-more-indicator:hover { background-color: var(--color-primary-light); color: var(--color-primary-dark); }
+/* Mobile Styles */
+@media (max-width: 768px) {
+    .booking-entries-area.desktop-only { display: none; }
+    .booking-summary-mobile.mobile-only { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 8px 5px; text-align: center; cursor: pointer; border-radius: var(--border-radius-sm); background-color: transparent; min-height: 40px; margin-top: 4px; transition: background-color 0.2s ease-in-out; position: relative; z-index: 1; }
+    .booking-summary-mobile.mobile-only:hover { background-color: var(--color-surface-alt); }
+    .booking-summary-mobile .booking-count { font-size: 0.85rem; font-weight: 600; color: var(--color-primary); display: block; }
+    .booking-summary-mobile .first-booking-preview { font-size: 0.7rem; color: var(--color-text-muted); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 90%; margin-top: 2px; }
+    .booking-summary-mobile .no-bookings-mobile { font-size: 0.8rem; color: var(--color-text-muted); font-style: italic; }
+    .calendar-table td.calendar-day { height: 110px !important; padding: 0.25rem !important; }
+    .booking-entries-area { max-height: calc(110px - 1.8em - 30px - 5px); }
+    .calendar-add-booking-area { min-height: 30px; padding-top: 2px; bottom: 2px; right: 2px; }
+    .calendar-fab-container .fab-main-btn { width: 28px; height: 28px; }
+    .calendar-fab-container .fab-main-btn svg { width: 13px; height: 13px; }
+    .fab-options { bottom: calc(100% + 5px); gap: 5px; }
+    .fab-option-btn { padding: 5px 7px; font-size: 0.65em; min-width: 65px; }
+    .date-number { font-size: 0.8em !important; padding: 2px 3px !important; top: 2px !important; right: 2px !important; z-index: 3; }
+    .calendar-table td.calendar-day.today .date-number { width: 1.6em !important; height: 1.6em !important; line-height: 1.6em !important; font-size: 0.9em !important; }
+    .calendar-table th { padding: 0.5rem 0.2rem !important; font-size: 0.75rem !important; }
+}
+/* Day Details Modal */
+#calendar-day-modal-body { padding-right: 5px; max-height: 70vh; overflow-y: auto; }
+#calendar-day-modal-body .modal-booking-entry { background-color: var(--color-surface); padding: 0.8rem 1rem; margin-bottom: 0.8rem; border-radius: var(--border-radius-md); border: 1px solid var(--color-border); border-left-width: 5px; transition: box-shadow 0.2s ease, transform 0.2s ease; }
+#calendar-day-modal-body .modal-booking-entry:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+body.dark-theme #calendar-day-modal-body .modal-booking-entry { background-color: var(--dt-color-surface-alt); border-color: var(--dt-color-border); }
+#calendar-day-modal-body .modal-booking-entry.regular { border-left-color: var(--color-secondary); }
+body.dark-theme #calendar-day-modal-body .modal-booking-entry.regular { border-left-color: var(--dt-color-secondary); }
+#calendar-day-modal-body .modal-booking-entry.highlighted { border-left-color: var(--color-info); background-color: var(--color-info-bg-light); }
+body.dark-theme #calendar-day-modal-body .modal-booking-entry.highlighted { border-left-color: var(--dt-color-info); background-color: var(--dt-color-info-bg-light); }
+#calendar-day-modal-body .modal-booking-entry p { margin: 0 0 0.4rem 0; font-size: 0.95rem; line-height: 1.45; }
+#calendar-day-modal-body .modal-booking-entry .modal-room-names { font-size: 0.85rem; color: var(--color-text-muted); display: block; margin-bottom: 0.3rem; }
+#calendar-day-modal-body .modal-booking-entry .modal-customer-name { font-weight: 600; color: var(--color-primary-dark); font-size: 1.05rem; }
+body.dark-theme #calendar-day-modal-body .modal-booking-entry .modal-customer-name { color: var(--dt-link-color); }
+#calendar-day-modal-body .modal-booking-entry .modal-view-details-btn { font-size: 0.8rem; padding: 0.35rem 0.8rem; margin-top: 0.75rem; text-decoration: none; display: inline-block; }
+#calendar-day-modal-body .modal-view-details-btn i.fas { margin-right: 5px; }
+/* Modal Scrollbar */
+#calendar-day-modal-body::-webkit-scrollbar { width: 8px; }
+#calendar-day-modal-body::-webkit-scrollbar-track { background: var(--color-surface-alt); border-radius: 10px; }
+#calendar-day-modal-body::-webkit-scrollbar-thumb { background-color: var(--color-scrollbar-thumb-bg); border-radius: 10px; border: 2px solid var(--color-surface-alt); }
+#calendar-day-modal-body::-webkit-scrollbar-thumb:hover { background-color: var(--color-scrollbar-thumb-hover-bg); }
+
+/* --- Dashboard Notification Icons --- */
+.nearing-checkout-indicator-svg { animation: gentle-rotate-alert 2.5s infinite ease-in-out; }
+.pending-payment-indicator-svg { animation: pulse-icon 2s infinite ease-in-out; }
+.nearing-checkout-indicator-table,
+.pending-payment-indicator-table { vertical-align: middle; display: inline-block; }
+.nearing-checkout-indicator-table img { width: 16px; height: 16px; margin-bottom: -2px; animation: gentle-rotate-alert 2.5s infinite ease-in-out; }
+.pending-payment-indicator-table img { width: 16px; height: 16px; margin-bottom: -2px; animation: pulse-icon 2s infinite ease-in-out; }
+
+/* --- New Stylish File Upload --- */
+.stylish-upload-label {
+    display: block;
+    padding: 2rem 1.5rem;
+    background-color: var(--color-surface-alt);
+    border: 2px dashed var(--color-border);
+    border-radius: var(--border-radius-lg);
+    text-align: center;
+    cursor: pointer;
+    transition: background-color 0.3s, border-color 0.3s;
+    margin-bottom: 1rem;
+}
+.stylish-upload-label:hover {
+    background-color: var(--color-primary-light);
+    border-color: var(--color-primary);
+}
+.upload-icon-area { margin-bottom: 0.75rem; }
+.upload-icon { width: 48px; height: 48px; fill: var(--color-primary); transition: transform 0.3s; }
+.stylish-upload-label:hover .upload-icon { transform: scale(1.1); }
+.upload-main-text { display: block; font-size: 1.1rem; font-weight: 600; color: var(--color-primary-dark); margin-bottom: 0.25rem; }
+.upload-sub-text { display: block; font-size: 0.85rem; color: var(--color-text-muted); }
+.filenames-display-area { margin-top: 0.5rem; font-size: 0.9rem; color: var(--color-text); padding: 0.5rem; background-color: var(--color-bg); border-radius: var(--border-radius-sm); border: 1px solid var(--color-border); min-height: 1.5em; }
+.filenames-display-area p { margin: 0; }
+.previews-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 1rem; margin-top: 1rem; padding: 0.5rem; background-color: var(--color-bg); border-radius: var(--border-radius-md); }
+.file-preview-item { border: 1px solid var(--color-border); border-radius: var(--border-radius-md); padding: 0.75rem; background-color: var(--color-surface); box-shadow: var(--shadow-sm); display: flex; flex-direction: column; align-items: center; }
+.preview-element-container { width: 100%; height: 100px; display: flex; align-items: center; justify-content: center; margin-bottom: 0.5rem; background-color: var(--color-surface-alt); border-radius: var(--border-radius-sm); overflow: hidden; }
+.receipt-preview-thumb { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: var(--border-radius-sm); }
+.pdf-icon-preview, .other-file-preview { font-size: 2.5rem; color: var(--color-text-muted); text-align: center; }
+.pdf-filename-preview, .other-filename-preview { display: block; font-size: 0.7rem; color: var(--color-text-muted); margin-top: 0.25rem; word-break: break-all; line-height: 1.2; }
+.receipt-description-group { margin-top: 0.5rem; width: 100%; }
+.receipt-description-group label { font-size: 0.8rem !important; margin-bottom: 0.15rem !important; color: var(--color-text-muted); }
+.form-control-sm { font-size: 0.85rem !important; padding: 0.4rem 0.6rem !important; }
+/* Dark theme adjustments for upload area */
+body.dark-theme .stylish-upload-label { background-color: var(--dt-color-surface-alt); border-color: var(--dt-color-border); }
+body.dark-theme .stylish-upload-label:hover { background-color: var(--dt-color-primary-light); border-color: var(--dt-color-primary); }
+body.dark-theme .upload-icon { fill: var(--dt-color-primary); }
+body.dark-theme .upload-main-text { color: var(--dt-color-primary-dark); }
+body.dark-theme .upload-sub-text { color: var(--dt-color-text-muted); }
+body.dark-theme .filenames-display-area { background-color: var(--dt-color-bg); border-color: var(--dt-color-border); color: var(--dt-color-text); }
+body.dark-theme .previews-grid { background-color: var(--dt-color-bg); }
+body.dark-theme .file-preview-item { border-color: var(--dt-color-border); background-color: var(--dt-color-surface); }
+body.dark-theme .preview-element-container { background-color: var(--dt-color-surface-alt); }
+body.dark-theme .pdf-icon-preview, body.dark-theme .other-file-preview { color: var(--dt-color-text-muted); }
+body.dark-theme .receipt-description-group label { color: var(--dt-color-text-muted); }
