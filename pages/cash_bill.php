@@ -185,7 +185,7 @@ ob_start();
         body, html {
             background-color: #fff !important; 
             -webkit-print-color-adjust: exact !important; 
-            color-adjust: exact !important;
+            print-color-adjust: exact !important;
         }
         body * { visibility: hidden; }
         #bill-content-wrapper, #bill-content, #bill-content * { visibility: visible; }
