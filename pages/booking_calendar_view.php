@@ -352,7 +352,7 @@ ob_start();
                             echo '<a href="/hotel_booking/pages/index.php"' .
                                  ' class="button-small calendar-add-btn old-style-today-btn"' .
                                  ' title="การจองสำหรับวันนี้ กรุณาทำผ่านหน้าหลัก Dashboard"' .
-                                 ' onclick="event.preventDefault(); alert(\'การจองสำหรับวันปัจจุบัน (' . h(date('d/m/Y', strtotime($cellDateStr))) . ') ให้ดำเนินการผ่านหน้าหลัก Dashboard ค่ะ\'); window.location.href=this.href;">+ จอง (หน้าหลัก)</a>';
+                                 ' onclick="event.preventDefault(); window.location.href=this.href;">+ จอง (หน้าหลัก)</a>'; // Removed alert
                         } elseif ($cellDateObj > $todayDateObj) {
                             echo '<div class="calendar-fab-container">';
                             echo '  <button type="button" class="fab-main-btn" title="เพิ่มการจอง">';
@@ -384,18 +384,16 @@ ob_start();
                                     
                                     $customerDisplayName = h($groupData_php['customer_name']);
                                     $roomCount = count($groupData_php['rooms']);
-                                    if ($roomCount > 1 && strpos($customerDisplayName, '(' . $roomCount . ' ห้อง)') === false) { // <<< MODIFIED: Avoid double-adding room count
+                                    if ($roomCount > 1 && strpos($customerDisplayName, '(' . $roomCount . ' ห้อง)') === false) { 
                                         $customerDisplayName .= ' (' . $roomCount . ' ห้อง)';
                                     }
                                     $titleHoverDesktop = "ลูกค้า: " . h($groupData_php['customer_name']) . "\nห้อง: " . $roomNamesStrDesktop;
                                     
-                                    // *** MODIFICATION START: Add pending payment alert to customer name display ***
                                     $customerDisplayHtml = '<span class="booking-customer-name-highlight">' . $customerDisplayName;
                                     if (isset($groupData_php['has_pending_payment_group']) && $groupData_php['has_pending_payment_group']) {
                                         $customerDisplayHtml .= '<span class="calendar-pending-payment-alert" title="มียอดค้างชำระ">💰</span>';
                                     }
                                     $customerDisplayHtml .= '</span>';
-                                    // *** MODIFICATION END ***
 
                                     $dataAttributes = 'data-booking-ids="' . h(implode(',', $groupData_php['booking_ids'])) . '" ';
                                     if (!empty($groupData_php['booking_group_id'])) {
@@ -406,7 +404,7 @@ ob_start();
                                     
                                     echo '<div class="' . $entryClassDesktop . ' calendar-customer-name-action" ' . $dataAttributes . '>';
                                     echo '<span class="booking-room-names">' . $roomNamesStrDesktop . '</span> ';
-                                    echo $customerDisplayHtml; // *** Use new HTML with potential alert ***
+                                    echo $customerDisplayHtml; 
                                     echo '</div>';
                                     $entriesShownDesktop++;
                                 } else {
@@ -810,173 +808,12 @@ ob_start();
     </div>
 </div>
 <?php
-// START: Added JavaScript variable for bookingsByDateAndGroup
+// ***** START: FIX 2.0 - เหลือไว้แค่ส่วนที่จำเป็น *****
+// กำหนดค่าตัวแปร JavaScript เพื่อให้ main.js นำไปใช้ต่อ
 echo "<script>const bookingsByDateAndGroupJS = " . json_encode($bookingsByDateAndGroup) . ";</script>";
-// END: Added JavaScript variable
+// ***** END: FIX 2.0 *****
 ?>
 
-<script>
-// เราไม่จำเป็นต้องนิยามฟังก์ชัน openBookingGroupSummaryModal ที่นี่อีกแล้ว
-// เพราะมันถูกกำหนดเป็นฟังก์ชันกลางใน main.js ซึ่งถูกโหลดใน layout.php แล้ว
-
-document.addEventListener('DOMContentLoaded', function() {
-    
-    const calendarDayBookingsModal = document.getElementById('calendar-day-bookings-modal');
-    const calendarDayModalTitleDate = document.getElementById('modal-selected-date-display');
-    const calendarDayModalBody = document.getElementById('calendar-day-modal-body');
-    const mainCalendarTable = document.querySelector('table.calendar-table');
-
-    if (typeof bookingsByDateAndGroupJS === 'undefined') {
-        window.bookingsByDateAndGroupJS = {};
-    }
-    
-    // --- START: REVISED CLICK HANDLING LOGIC ---
-    if (mainCalendarTable) {
-        mainCalendarTable.addEventListener('click', function(event) {
-            const fabOptionLink = event.target.closest('.fab-option-btn');
-            const mainFabButton = event.target.closest('.fab-main-btn');
-            const groupModalTrigger = event.target.closest('.calendar-customer-name-action');
-            const dailyModalTrigger = event.target.closest('.calendar-day-action-trigger');
-
-            if (fabOptionLink) {
-                console.log('[Calendar FAB] Option link clicked. URL:', fabOptionLink.href);
-                return;
-            }
-
-            if (mainFabButton) {
-                event.preventDefault(); // Prevent any default button action.
-                
-                const fabContainer = mainFabButton.closest('.calendar-fab-container');
-                if (fabContainer) {
-                    const isActive = fabContainer.classList.contains('active');
-                    // Close other active FABs.
-                    document.querySelectorAll('.calendar-fab-container.active').forEach(otherFab => {
-                        if (otherFab !== fabContainer) {
-                            otherFab.classList.remove('active');
-                        }
-                    });
-                    // Toggle the 'active' state of the clicked FAB.
-                    fabContainer.classList.toggle('active', !isActive);
-                }
-                return; // End execution for the main FAB button.
-            }
-
-            if (groupModalTrigger) {
-                event.preventDefault();
-                const bookingIds = groupModalTrigger.dataset.bookingIds;
-                const bookingGroupId = groupModalTrigger.dataset.bookingGroupId;
-                // เรียกใช้ฟังก์ชันกลางจาก main.js ได้เลย
-                openBookingGroupSummaryModal(bookingGroupId, bookingIds);
-                return;
-            }
-
-            if (dailyModalTrigger) {
-                event.preventDefault();
-                const dateStr = dailyModalTrigger.dataset.date;
-                const dayCell = dailyModalTrigger.closest('td');
-                const bookingCount = parseInt(dayCell ? dayCell.dataset.bookingCount : '0', 10);
-
-                if (dailyModalTrigger.classList.contains('booking-summary-mobile') && bookingCount === 0) {
-                    return; // Do nothing if a mobile user clicks on a day with no bookings.
-                }
-
-                let modalHtml = '';
-                let bookingsFoundForDate = 0;
-
-                if (typeof bookingsByDateAndGroupJS === 'object' && bookingsByDateAndGroupJS !== null) {
-                    for (const groupKey in bookingsByDateAndGroupJS) {
-                        if (bookingsByDateAndGroupJS.hasOwnProperty(groupKey)) {
-                            const groupData = bookingsByDateAndGroupJS[groupKey];
-                            if (groupData.date === dateStr) {
-                                bookingsFoundForDate++;
-                                const roomsDisplay = groupData.rooms.map(room => room.display).join(', ');
-                                const isHighlighted = groupData.is_highlighted_group;
-                                const firstRoomId = groupData.rooms[0] ? groupData.rooms[0].id : '';
-                                const bookingGroupId = groupData.booking_group_id || '';
-                                
-                                modalHtml += `<div class="modal-booking-entry ${isHighlighted ? 'highlighted' : 'regular'}">`;
-                                modalHtml += `  <p class="modal-customer-name">${groupData.customer_name}</p>`;
-                                modalHtml += `  <p class="modal-room-names">ห้อง: ${roomsDisplay}</p>`;
-                                if (groupData.customer_phone) {
-                                   modalHtml += `  <p style="font-size:0.85rem; color:var(--color-text-muted);">โทร: ${groupData.customer_phone}</p>`;
-                                }
-                                modalHtml += `  <button type="button" class="button-small outline-primary modal-view-details-btn" 
-                                                       data-booking-ids="${groupData.booking_ids.join(',')}" 
-                                                       data-booking-group-id="${bookingGroupId}"
-                                                       data-first-room-id="${firstRoomId}"
-                                                       style="font-size: 0.8rem; padding: 0.3rem 0.6rem; margin-top: 0.5rem;">
-                                                    <i class="fas fa-info-circle" style="margin-right:4px;"></i>ดูรายละเอียดกลุ่มนี้
-                                               </button>`;
-                                modalHtml += `</div>`;
-                            }
-                        }
-                    }
-                } else {
-                     console.error("bookingsByDateAndGroupJS is not a valid object or is null.");
-                     if(calendarDayModalBody) calendarDayModalBody.innerHTML = '<p class="text-danger" style="padding:1rem;">เกิดข้อผิดพลาด: ไม่สามารถโหลดข้อมูลการจองได้</p>';
-                }
-
-                if (bookingsFoundForDate === 0) {
-                    modalHtml = '<p style="text-align:center; padding:1rem; color:var(--color-text-muted);"><em>ไม่มีรายการจองสำหรับวันนี้</em></p>';
-                }
-                if(calendarDayModalBody) calendarDayModalBody.innerHTML = modalHtml;
-
-                try {
-                    const dateObj = new Date(dateStr + 'T00:00:00');
-                    const thaiDateString = dateObj.toLocaleDateString('th-TH', {
-                        day: 'numeric', month: 'long', year: 'numeric'
-                    });
-                    if(calendarDayModalTitleDate) calendarDayModalTitleDate.textContent = thaiDateString;
-                } catch(e) {
-                    if(calendarDayModalTitleDate) calendarDayModalTitleDate.textContent = dateStr;
-                    console.error("Error formatting date for modal title:", e);
-                }
-                
-                if (typeof showModal === 'function' && calendarDayBookingsModal) {
-                    showModal(calendarDayBookingsModal);
-                } else if(calendarDayBookingsModal) {
-                    calendarDayBookingsModal.classList.add('show');
-                }
-                return;
-            }
-        });
-    }
-    // --- END: REVISED CLICK HANDLING LOGIC ---
-
-    // --- Add a global click listener to close any active FAB menu when clicking outside of it ---
-    document.addEventListener('click', function(event) {
-        const activeFabContainers = document.querySelectorAll('.calendar-fab-container.active');
-        activeFabContainers.forEach(fabContainer => {
-            // If the click is outside the currently active FAB container, remove the 'active' class.
-            if (!fabContainer.contains(event.target)) {
-                fabContainer.classList.remove('active');
-            }
-        });
-    });
-
-
-    // --- Click handler for the "View Details" button inside the daily modal ---
-    if (calendarDayModalBody) {
-        calendarDayModalBody.addEventListener('click', async function(event){
-            const viewDetailsButton = event.target.closest('.modal-view-details-btn');
-            if (viewDetailsButton) {
-                // Hide the current (daily) modal
-                if (typeof hideModal === 'function' && calendarDayBookingsModal) {
-                    hideModal(calendarDayBookingsModal);
-                } else if (calendarDayBookingsModal) {
-                    calendarDayBookingsModal.classList.remove('show');
-                }
-
-                const bookingIds = viewDetailsButton.dataset.bookingIds;
-                const bookingGroupId = viewDetailsButton.dataset.bookingGroupId;
-                
-                // Call the reusable function to open the main summary modal
-                openBookingGroupSummaryModal(bookingGroupId, bookingIds);
-            }
-        });
-    }
-});
-</script>
 <?php
 function thaimonthfull($montheng) {
     $thaimonths = [
