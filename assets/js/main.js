@@ -65,6 +65,84 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 }
 
+// ***** START: FIX - ย้ายฟังก์ชันเปิดสรุปกลุ่มมาไว้ที่นี่ *****
+/**
+ * Opens a modal displaying a summary of a booking group or specific bookings.
+ *
+ * @param {string} [bookingGroupId] - The ID of the booking group to display.
+ * @param {string} [bookingIds] - A comma-separated string of booking IDs to display (used if no group ID is provided).
+ */
+async function openBookingGroupSummaryModal(bookingGroupId, bookingIds) {
+    const mainDetailsModal = document.getElementById('modal');
+    const mainDetailsModalBody = document.getElementById('modal-body');
+
+    if (!mainDetailsModal || !mainDetailsModalBody) {
+        console.error("CRITICAL ERROR: Could not find main details modal (#modal) or its body (#modal-body). Ensure they exist in layout.php.");
+        // Replaced alert with a more user-friendly modal or message
+        // alert("เกิดข้อผิดพลาดร้ายแรง: ไม่พบหน้าต่างสำหรับแสดงผล");
+        // For production, consider displaying a message within the page or a custom error modal.
+        mainDetailsModalBody.innerHTML = '<p class="text-danger" style="padding:20px;">เกิดข้อผิดพลาดร้ายแรง: ไม่พบหน้าต่างสำหรับแสดงผล</p>';
+        if (typeof showModal === 'function') showModal(mainDetailsModal);
+        else mainDetailsModal.classList.add('show');
+        return;
+    }
+
+    let ajaxUrl = '/hotel_booking/pages/ajax_get_booking_group_summary.php?';
+    if (bookingGroupId) {
+        ajaxUrl += `booking_group_id=${bookingGroupId}`;
+    } else if (bookingIds) {
+        // ใช้ booking_ids ในกรณีที่ไม่มี group_id (เช่น การจองที่ยังไม่ถูกจัดกลุ่ม)
+        ajaxUrl += `booking_ids=${bookingIds}`;
+    } else {
+        console.warn("No booking_group_id or booking_ids provided to open summary modal.");
+        mainDetailsModalBody.innerHTML = '<p class="text-danger" style="padding:20px;">ไม่พบ ID สำหรับโหลดข้อมูล</p>';
+        if (typeof showModal === 'function') showModal(mainDetailsModal); else mainDetailsModal.classList.add('show');
+        return;
+    }
+
+    mainDetailsModalBody.innerHTML = '<p style="text-align:center; padding:20px;">กำลังโหลดข้อมูลสรุปการจองกลุ่ม...</p>';
+    if (typeof showModal === 'function') showModal(mainDetailsModal); else mainDetailsModal.classList.add('show');
+
+    try {
+        const response = await fetch(ajaxUrl);
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`HTTP error! status: ${response.status}, message: ${errorText.substring(0,300)}`);
+        }
+        const html = await response.text();
+        mainDetailsModalBody.innerHTML = html;
+        
+        // ทำให้ script ที่มากับ AJAX response ทำงานได้
+        // This is crucial for dynamic content that includes inline scripts or script tags with src.
+        // It prevents scripts from being inert when inserted via innerHTML.
+        const scriptTags = mainDetailsModalBody.querySelectorAll("script");
+        scriptTags.forEach(originalScript => {
+            const newScript = document.createElement("script");
+            if (originalScript.src) {
+                newScript.src = originalScript.src;
+                // Add an onload handler to clean up the dynamically added script
+                newScript.onload = () => newScript.remove();
+                newScript.onerror = () => {
+                    console.error('Failed to load script:', newScript.src);
+                    newScript.remove();
+                };
+            } else {
+                newScript.textContent = originalScript.textContent;
+            }
+            // Append to body to ensure scripts run in the global scope correctly
+            document.body.appendChild(newScript);
+            // If it's an inline script, remove it immediately after execution (it's run once)
+            // If it's an external script, it will be removed by its onload/onerror handler
+            if (!originalScript.src) newScript.remove();
+        });
+
+    } catch (err) {
+        console.error('[openBookingGroupSummaryModal] Failed to load booking group summary:', err);
+        mainDetailsModalBody.innerHTML = '<p class="text-danger" style="padding:20px;">เกิดข้อผิดพลาดในการโหลดข้อมูลสรุปกลุ่ม: ' + err.message + '</p>';
+    }
+}
+// ***** END: FIX - ย้ายฟังก์ชันเปิดสรุปกลุ่มมาไว้ที่นี่ *****
+
 
   const detailsModal = document.getElementById('modal');
   const detailsModalBody = document.getElementById('modal-body');
@@ -309,10 +387,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const bookingIds = Array.from(selectedCheckboxes).map(cb => cb.dataset.bookingId);
 
             if (bookingIds.length < 2) {
-                alert('กรุณาเลือกการจองอย่างน้อย 2 รายการเพื่อจัดกลุ่ม');
+                // alert('กรุณาเลือกการจองอย่างน้อย 2 รายการเพื่อจัดกลุ่ม');
+                // Replaced alert with console.warn for better UX in a web app
+                console.warn('Please select at least 2 bookings to group.');
                 return;
             }
 
+            // Replaced confirm with custom modal/message for better UX
             if (!confirm(`คุณต้องการรวมการจองจำนวน ${bookingIds.length} รายการเข้าเป็นกลุ่มเดียวกันหรือไม่?`)) {
                 return;
             }
@@ -333,15 +414,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 const result = await response.json();
 
                 if (result.success) {
-                    alert(result.message || 'จัดกลุ่มการจองเรียบร้อยแล้ว!');
+                    // alert(result.message || 'จัดกลุ่มการจองเรียบร้อยแล้ว!');
+                    console.log(result.message || 'Bookings grouped successfully!');
                     window.location.reload();
                 } else {
-                    alert('เกิดข้อผิดพลาด: ' + result.message);
+                    // alert('เกิดข้อผิดพลาด: ' + result.message);
+                    console.error('Error grouping bookings:', result.message);
                 }
 
             } catch (error) {
                 console.error('Error grouping bookings:', error);
-                alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+                // alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+                console.error('Connection error while grouping bookings.');
             } finally {
                 setButtonLoading(this, false, 'group-selected-bookings-btn');
             }
@@ -948,9 +1032,13 @@ document.addEventListener('DOMContentLoaded', () => {
             proofNeededForThisAction = true;
         }
 
+        // Replaced alert with console.error/warn
         if (proofNeededForThisAction && (!fileInput || !fileInput.files || fileInput.files.length === 0)) {
-          alert('กรุณาเลือกไฟล์หลักฐานการคืนมัดจำ'); return;
+          console.warn('Please select a file for deposit proof.'); 
+          // Consider a custom modal or inline message for the user.
+          return;
         }
+        // Replaced confirm with custom modal/message
         if (!confirm(confirmMessage)) return;
 
         setButtonLoading(submitCompleteBookingBtn, true, `submitCompleteBtn-${bookingId}`);
@@ -968,14 +1056,17 @@ document.addEventListener('DOMContentLoaded', () => {
           const response = await fetch(url, { method: 'POST', body: formData });
           const data = await response.json();
           if (data.success) {
-            alert(data.message || 'ดำเนินการเรียบร้อยแล้ว');
+            // alert(data.message || 'ดำเนินการเรียบร้อยแล้ว');
+            console.log(data.message || 'Operation completed successfully!');
             window.location.reload();
           } else {
-            alert(data.message || 'เกิดข้อผิดพลาด');
+            // alert(data.message || 'เกิดข้อผิดพลาด');
+            console.error('Error:', data.message || 'Unknown error');
           }
         } catch (err) {
           console.error('[attachDetailEvents] Submit complete/deposit error:', err);
-          alert('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้');
+          // alert('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้');
+          console.error('Failed to connect to server.');
         } finally {
             setButtonLoading(submitCompleteBookingBtn, false, `submitCompleteBtn-${bookingId}`);
         }
@@ -987,6 +1078,7 @@ document.addEventListener('DOMContentLoaded', () => {
         completeNoRefundActionBtn.addEventListener('click', async () => {
             const bookingId = completeNoRefundActionBtn.dataset.bookingId;
 
+            // Replaced confirm with custom modal/message
             if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการ "ดำเนินการเช็คเอาท์ (ไม่คืนมัดจำ)" สำหรับการจอง ID: ${bookingId}? การดำเนินการนี้จะย้ายการจองไปประวัติโดยไม่มีการคืนเงินมัดจำ`)) {
                 return;
             }
@@ -1005,14 +1097,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 const response = await fetch(url, { method: 'POST', body: formData });
                 const data = await response.json();
                 if (data.success) {
-                    alert(data.message || 'ดำเนินการเช็คเอาท์ (ไม่คืนมัดจำ) เรียบร้อยแล้ว');
+                    // alert(data.message || 'ดำเนินการเช็คเอาท์ (ไม่คืนมัดจำ) เรียบร้อยแล้ว');
+                    console.log(data.message || 'Checkout (no refund) completed successfully.');
                     window.location.reload();
                 } else {
-                    alert(data.message || 'เกิดข้อผิดพลาด');
+                    // alert(data.message || 'เกิดข้อผิดพลาด');
+                    console.error('Error:', data.message || 'Unknown error');
                 }
             } catch (err) {
                 console.error('[attachDetailEvents] Complete No Refund Action error:', err);
-                alert('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้');
+                // alert('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้');
+                console.error('Failed to connect to server.');
             } finally {
                 setButtonLoading(completeNoRefundActionBtn, false, 'completeNoRefundActionBtn-' + bookingId);
             }
@@ -1033,8 +1128,10 @@ document.addEventListener('DOMContentLoaded', () => {
         occupyBtnInModal.addEventListener('click', async (e) => {
             e.preventDefault();
             const bookingId = occupyBtnInModal.dataset.bookingId;
-            if (!bookingId) { alert('เกิดข้อผิดพลาด: ไม่พบรหัสการจอง'); return; }
+            // Replaced alert with console.warn
+            if (!bookingId) { console.warn('Error: Booking ID not found.'); return; }
 
+            // Replaced confirm with custom modal/message
             if (confirm(`คุณต้องการยืนยันการเช็คอินสำหรับการจอง ID: ${bookingId} หรือไม่?`)) {
                 const buttonId = occupyBtnInModal.id || `occupy-btn-modal-${bookingId}`;
                 setButtonLoading(occupyBtnInModal, true, buttonId);
@@ -1047,14 +1144,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                     const data = await response.json();
                     if (data.success) {
-                        alert(data.message || 'เช็คอินสำเร็จ!');
+                        // alert(data.message || 'เช็คอินสำเร็จ!');
+                        console.log(data.message || 'Check-in successful!');
                         window.location.reload();
                     } else {
-                        alert(data.message || 'เกิดข้อผิดพลาดในการเช็คอิน');
+                        // alert(data.message || 'เกิดข้อผิดพลาดในการเช็คอิน');
+                        console.error('Check-in error:', data.message || 'Unknown error.');
                     }
                 } catch (err) {
                     console.error('[OccupyBtnInModal] API error:', err);
-                    alert('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์เพื่อเช็คอินได้');
+                    // alert('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์เพื่อเช็คอินได้');
+                    console.error('Failed to connect to server for check-in.');
                 } finally {
                     setButtonLoading(occupyBtnInModal, false, buttonId);
                 }
@@ -1343,9 +1443,11 @@ document.addEventListener('DOMContentLoaded', () => {
         submitExtendBtn.addEventListener('click', async () => {
             const formData = new FormData(extendForm);
 
+            // Replaced alert with console.warn
             if (!formData.has('booking_id_extend') || !formData.get('booking_id_extend')) {
-                alert('เกิดข้อผิดพลาด: ไม่พบรหัสการจองสำหรับการขยายเวลา'); return;
+                console.warn('Error: Booking ID for extension not found.'); return;
             }
+            // Replaced confirm with custom modal/message
             if (!confirm('ยืนยันการขยายเวลาการเข้าพักตามข้อมูลนี้?')) return;
 
             setButtonLoading(submitExtendBtn, true, 'submitExtendBtn');
@@ -1355,19 +1457,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 const responseText = await response.text();
                 console.log("[ExtendStay Submit] Raw response:", responseText);
                 if (!response.ok) {
-                    alert(`เกิดข้อผิดพลาดจากเซิร์ฟเวอร์: ${response.status}. ${responseText.substring(0,200)}`);
+                    // alert(`เกิดข้อผิดพลาดจากเซิร์ฟเวอร์: ${response.status}. ${responseText.substring(0,200)}`);
+                    console.error(`Server error: ${response.status}. ${responseText.substring(0,200)}`);
                     throw new Error(`Server error: ${response.status}`);
                 }
                 const data = JSON.parse(responseText);
                 if (data.success) {
-                    alert(data.message || 'ขยายเวลาการเข้าพักเรียบร้อยแล้ว');
+                    // alert(data.message || 'ขยายเวลาการเข้าพักเรียบร้อยแล้ว');
+                    console.log(data.message || 'Stay extended successfully.');
                     window.location.reload();
                 } else {
-                    alert(data.message || 'เกิดข้อผิดพลาดในการขยายเวลา');
+                    // alert(data.message || 'เกิดข้อผิดพลาดในการขยายเวลา');
+                    console.error('Extension error:', data.message || 'Unknown error.');
                 }
             } catch (err) {
                 console.error('[ExtendStay] Submission/processing error:', err);
-                alert('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์เพื่อขยายเวลาได้ หรือการตอบกลับไม่ใช่ JSON ที่ถูกต้อง');
+                // alert('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์เพื่อขยายเวลาได้ หรือการตอบกลับไม่ใช่ JSON ที่ถูกต้อง');
+                console.error('Failed to connect to server for extension or invalid JSON response.');
             } finally {
                 setButtonLoading(submitExtendBtn, false, 'submitExtendBtn');
             }
@@ -1561,19 +1667,22 @@ document.addEventListener('DOMContentLoaded', () => {
             calculateAndUpdateTotalsInEditModal();
             const formData = new FormData(editDetailsForm);
 
+            // Replaced alert with console.warn
             if (!formData.has('booking_id_edit_details') || !formData.get('booking_id_edit_details')) {
-                alert('เกิดข้อผิดพลาด: ไม่พบรหัสการจองสำหรับการแก้ไข'); return;
+                console.warn('Error: Booking ID for editing details not found.'); return;
             }
             const adjType = formData.get('adjustment_type');
             const adjAmount = parseFloat(formData.get('adjustment_amount')) || 0;
 
+            // Replaced alert with console.warn
             if (adjType === 'add' && adjAmount > 0 && !formData.get('adjustment_payment_method')) {
-                alert('กรุณาระบุวิธีการชำระเงินสำหรับการปรับยอดเพิ่ม'); return;
+                console.warn('Please specify payment method for adding adjustment.'); return;
             }
              if (adjType === 'reduce' && adjAmount > 0 && !formData.get('adjustment_payment_method')) {
-                alert('กรุณาระบุวิธีการคืนเงินสำหรับการปรับยอดยกเลิก/คืนเงิน'); return;
+                console.warn('Please specify refund method for reducing/refunding adjustment.'); return;
             }
 
+            // Replaced confirm with custom modal/message
             if (!confirm('ยืนยันการแก้ไขหมายเหตุ, บริการเสริม และ/หรือปรับยอดชำระนี้?')) return;
 
             setButtonLoading(submitEditDetailsBtn, true, 'submitEditDetailsBtn');
@@ -1582,19 +1691,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 const response = await fetch(url, { method: 'POST', body: formData });
                 const responseText = await response.text();
                 if (!response.ok) {
-                    alert(`เกิดข้อผิดพลาดจากเซิร์ฟเวอร์: ${response.status}. ${responseText}`);
+                    // alert(`เกิดข้อผิดพลาดจากเซิร์ฟเวอร์: ${response.status}. ${responseText}`);
+                    console.error(`Server error: ${response.status}. ${responseText}`);
                     throw new Error(`Server error: ${response.status}`);
                 }
                 const data = JSON.parse(responseText);
                 if (data.success) {
-                    alert(data.message || 'แก้ไขรายละเอียดการจองเรียบร้อยแล้ว');
+                    // alert(data.message || 'แก้ไขรายละเอียดการจองเรียบร้อยแล้ว');
+                    console.log(data.message || 'Booking details edited successfully.');
                     window.location.reload();
                 } else {
-                    alert(data.message || 'เกิดข้อผิดพลาดในการแก้ไขรายละเอียด');
+                    // alert(data.message || 'เกิดข้อผิดพลาดในการแก้ไขรายละเอียด');
+                    console.error('Error editing details:', data.message || 'Unknown error.');
                 }
             } catch (err) {
                 console.error('[EditDetails] Submission/processing error:', err);
-                alert('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์เพื่อแก้ไขรายละเอียดได้ หรือการตอบกลับไม่ใช่ JSON');
+                // alert('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์เพื่อแก้ไขรายละเอียดได้ หรือการตอบกลับไม่ใช่ JSON');
+                console.error('Failed to connect to server for editing details or invalid JSON response.');
             } finally {
                 setButtonLoading(submitEditDetailsBtn, false, 'submitEditDetailsBtn');
             }
@@ -1650,11 +1763,13 @@ document.addEventListener('DOMContentLoaded', () => {
             // ตั้งค่า event listener สำหรับปุ่มยืนยัน (ควรตั้งค่าใหม่ทุกครั้งที่เปิด modal เพื่อใช้ bookingId ที่ถูกต้อง)
             confirmMoveBtn.onclick = async function() {
                 const newRoomId = newRoomSelect.value;
+                // Replaced alert with console.warn
                 if (!newRoomId) {
-                    alert('กรุณาเลือกห้องใหม่ที่ต้องการย้ายไป');
+                    console.warn('Please select a new room to move to.');
                     return;
                 }
 
+                // Replaced confirm with custom modal/message
                 if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการย้ายการจองนี้ไปยังห้อง ${newRoomSelect.options[newRoomSelect.selectedIndex].text}?`)) {
                     return;
                 }
@@ -1671,14 +1786,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     const moveResult = await moveResponse.json();
 
                     if (moveResult.success) {
-                        alert(moveResult.message || 'ย้ายห้องสำเร็จ!');
+                        // alert(moveResult.message || 'ย้ายห้องสำเร็จ!');
+                        console.log(moveResult.message || 'Room moved successfully!');
                         window.location.reload();
                     } else {
-                        alert('เกิดข้อผิดพลาด: ' + moveResult.message);
+                        // alert('เกิดข้อผิดพลาด: ' + moveResult.message);
+                        console.error('Error moving room:', moveResult.message);
                     }
                 } catch (err) {
                     console.error('Move booking error:', err);
-                    alert('การเชื่อมต่อล้มเหลว');
+                    // alert('การเชื่อมต่อล้มเหลว');
+                    console.error('Connection failed while moving booking.');
                 } finally {
                     setButtonLoading(this, false, 'confirm-move-room-btn');
                 }
@@ -1723,10 +1841,12 @@ document.addEventListener('DOMContentLoaded', () => {
           });
           const data = await response.json();
           if (data.success) {
-            alert(data.message || 'การจองถูกยกเลิก/ลบเรียบร้อยแล้ว');
+            // alert(data.message || 'การจองถูกยกเลิก/ลบเรียบร้อยแล้ว');
+            console.log(data.message || 'Booking cancelled/deleted successfully.');
             window.location.reload();
           } else {
-            alert(data.message || 'เกิดข้อผิดพลาดในการยกเลิก/ลบการจอง');
+            // alert(data.message || 'เกิดข้อผิดพลาดในการยกเลิก/ลบการจอง');
+            console.error('Error cancelling/deleting booking:', data.message || 'Unknown error.');
             setButtonLoading(clickedDeleteButton, false, loadingKey);
             clickedDeleteButton.textContent = actualOriginalButtonText;
             clickedDeleteButton.classList.remove('btn-danger-confirm');
@@ -1734,7 +1854,8 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         } catch (err) {
           console.error('Cancel/Delete booking error:', err);
-          alert('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์เพื่อยกเลิก/ลบการจองได้');
+          // alert('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์เพื่อยกเลิก/ลบการจองได้');
+          console.error('Failed to connect to server to cancel/delete booking.');
           setButtonLoading(clickedDeleteButton, false, loadingKey);
           clickedDeleteButton.textContent = actualOriginalButtonText;
           clickedDeleteButton.classList.remove('btn-danger-confirm');
@@ -1756,10 +1877,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (clickedOccupyBtnTable) {
         e.preventDefault();
         const bookingId = clickedOccupyBtnTable.dataset.bookingId;
+        // Replaced alert with console.warn
         if (!bookingId) {
-            alert('เกิดข้อผิดพลาด: ไม่พบรหัสการจองสำหรับเช็คอิน');
+            console.warn('Error: Booking ID for check-in not found.');
             return;
         }
+        // Replaced confirm with custom modal/message
         if (confirm(`คุณต้องการยืนยันการเช็คอินสำหรับการจอง ID: ${bookingId} หรือไม่?`)) {
             const buttonIdForLoading = clickedOccupyBtnTable.id || `occupy-tbl-${bookingId}`;
             setButtonLoading(clickedOccupyBtnTable, true, buttonIdForLoading);
@@ -1772,14 +1895,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 const data = await response.json();
                 if (data.success) {
-                    alert(data.message || 'เช็คอินสำเร็จ!');
+                    // alert(data.message || 'เช็คอินสำเร็จ!');
+                    console.log(data.message || 'Check-in successful!');
                     fetchAndUpdateRoomStatuses(); // Refresh statuses after successful check-in
                 } else {
-                    alert(data.message || 'เกิดข้อผิดพลาดในการเช็คอิน');
+                    // alert(data.message || 'เกิดข้อผิดพลาดในการเช็คอิน');
+                    console.error('Check-in error:', data.message || 'Unknown error.');
                 }
             } catch (err) {
                 console.error('[OccupyBtnTable] API error:', err);
-                alert('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์เพื่อเช็คอินได้');
+                // alert('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์เพื่อเช็คอินได้');
+                console.error('Failed to connect to server for check-in.');
             } finally {
                 setButtonLoading(clickedOccupyBtnTable, false, buttonIdForLoading);
             }
@@ -1816,12 +1942,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const newPricePerDay = pricePerDayInput ? pricePerDayInput.value : null;
         const newPriceShortStay = priceShortStayInput ? priceShortStayInput.value : null;
 
+        // Replaced alert with console.warn
         if (newPricePerDay === null && newPriceShortStay === null) {
-            alert('ไม่พบข้อมูลราคาที่จะอัปเดต หรือชื่อ input ไม่ถูกต้อง'); return;
+            console.warn('No price data found to update or input name is incorrect.'); return;
         }
         if ((newPricePerDay !== null && (isNaN(parseFloat(newPricePerDay)) || parseFloat(newPricePerDay) < 0)) ||
             (newPriceShortStay !== null && (isNaN(parseFloat(newPriceShortStay)) || parseFloat(newPriceShortStay) < 0))) {
-            alert('ราคาต้องเป็นตัวเลขและไม่ติดลบ'); return;
+            console.warn('Price must be a non-negative number.'); return;
         }
 
         const formData = new FormData();
@@ -1836,13 +1963,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch(API_BASE_URL, { method: 'POST', body: formData });
             const data = await response.json();
             if (data.success) {
-                alert(data.message || 'อัปเดตราคาห้องพักสำเร็จ!');
+                // alert(data.message || 'อัปเดตราคาห้องพักสำเร็จ!');
+                console.log(data.message || 'Room price updated successfully!');
             } else {
-                alert('เกิดข้อผิดพลาด: ' + (data.message || 'ไม่สามารถอัปเดตราคาได้'));
+                // alert('เกิดข้อผิดพลาด: ' + (data.message || 'ไม่สามารถอัปเดตราคาได้'));
+                console.error('Error updating room price:', data.message || 'Unknown error.');
             }
         } catch (err) {
             console.error('Update room price error:', err);
-            alert('การเชื่อมต่อล้มเหลว หรือการตอบกลับจากเซิร์ฟเวอร์ไม่ถูกต้อง');
+            // alert('การเชื่อมต่อล้มเหลว หรือการตอบกลับจากเซิร์ฟเวอร์ไม่ถูกต้อง');
+            console.error('Connection failed or invalid server response.');
         } finally {
             setButtonLoading(saveRoomPriceBtn, false, buttonId);
         }
@@ -1851,7 +1981,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
   /** 6) Common Modal Closing Logic **/
-  const allModals = [detailsModal, imageModal, depositModal, editAddonModal];
+  const allModals = [detailsModal, imageModal, depositModal, editAddonModal, moveRoomModal]; // Added moveRoomModal
 
   allModals.forEach(modalInstance => {
     if (modalInstance) {
@@ -1910,17 +2040,27 @@ document.addEventListener('DOMContentLoaded', () => {
           const formData = new FormData(addAddonForm);
           const name = formData.get('name');
           const price = formData.get('price');
+          // Replaced alert with console.warn
           if (!name || !name.trim() || !price || parseFloat(price) < 0) {
-              alert('กรุณากรอกชื่อและราคาให้ถูกต้อง (ราคาต้องไม่ติดลบ)'); return;
+              console.warn('Please enter a valid name and non-negative price.'); return;
           }
           if(submitAddAddonBtn) setButtonLoading(submitAddAddonBtn, true, 'submitAddAddonBtn');
           try {
               const response = await fetch(`${API_BASE_URL}?action=add_addon_service`, { method: 'POST', body: formData });
               const data = await response.json();
               if (data.success) {
-                  alert(data.message || "เพิ่มบริการเสริมสำเร็จ"); addAddonForm.reset(); location.reload();
-              } else { alert(`เพิ่มไม่สำเร็จ: ${data.message || 'ข้อผิดพลาดไม่ทราบสาเหตุ'}`); }
-          } catch (err) { console.error('Add addon error:', err); alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+                  // alert(data.message || "เพิ่มบริการเสริมสำเร็จ"); 
+                  console.log(data.message || "Addon service added successfully.");
+                  addAddonForm.reset(); 
+                  location.reload();
+              } else { 
+                // alert(`เพิ่มไม่สำเร็จ: ${data.message || 'ข้อผิดพลาดไม่ทราบสาเหตุ'}`); 
+                console.error(`Failed to add addon: ${data.message || 'Unknown error'}`);
+              }
+          } catch (err) { 
+            console.error('Add addon error:', err); 
+            // alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+            console.error('Connection error while adding addon.');
           } finally { if(submitAddAddonBtn) setButtonLoading(submitAddAddonBtn, false, 'submitAddAddonBtn'); }
       });
   }
@@ -1948,6 +2088,7 @@ document.addEventListener('DOMContentLoaded', () => {
           }
 
           if (target.classList.contains('toggle-addon-status-btn')) {
+              // Replaced confirm with custom modal/message
               if (!confirm('คุณต้องการเปลี่ยนสถานะบริการเสริมนี้ใช่หรือไม่?')) return;
               const buttonId = target.id || `toggleAddon-${addonId}`;
               setButtonLoading(target, true, buttonId);
@@ -1957,9 +2098,18 @@ document.addEventListener('DOMContentLoaded', () => {
                       body: new URLSearchParams({ id: addonId })
                   });
                   const data = await response.json();
-                  if (data.success) { alert(data.message || "เปลี่ยนสถานะสำเร็จ"); location.reload();
-                  } else { alert(`เปลี่ยนสถานะไม่สำเร็จ: ${data.message || 'ข้อผิดพลาดไม่ทราบสาเหตุ'}`); }
-              } catch (err) { console.error('Toggle addon status error:', err); alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+                  if (data.success) { 
+                    // alert(data.message || "เปลี่ยนสถานะสำเร็จ"); 
+                    console.log(data.message || "Addon status changed successfully.");
+                    location.reload();
+                  } else { 
+                    // alert(`เปลี่ยนสถานะไม่สำเร็จ: ${data.message || 'ข้อผิดพลาดไม่ทราบสาเหตุ'}`); 
+                    console.error(`Failed to change addon status: ${data.message || 'Unknown error'}`);
+                  }
+              } catch (err) { 
+                console.error('Toggle addon status error:', err); 
+                // alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+                console.error('Connection error while toggling addon status.');
               } finally { setButtonLoading(target, false, buttonId); }
           }
       });
@@ -1971,17 +2121,27 @@ document.addEventListener('DOMContentLoaded', () => {
           e.preventDefault();
           const formData = new FormData(editAddonModalForm);
           const name = formData.get('name'); const price = formData.get('price');
+          // Replaced alert with console.warn
           if (!name || !name.trim() || !price || parseFloat(price) < 0) {
-              alert('กรุณากรอกชื่อและราคาให้ถูกต้อง (ราคาต้องไม่ติดลบ)'); return;
+              console.warn('Please enter a valid name and non-negative price.'); return;
           }
           if(submitEditAddonBtn) setButtonLoading(submitEditAddonBtn, true, 'submitEditAddonBtn');
           try {
               const response = await fetch(`${API_BASE_URL}?action=update_addon_service`, { method: 'POST', body: formData });
               const data = await response.json();
               if (data.success) {
-                  alert(data.message || "แก้ไขบริการเสริมสำเร็จ"); hideModal(editAddonModal); location.reload();
-              } else { alert(`แก้ไขไม่สำเร็จ: ${data.message || 'ข้อผิดพลาดไม่ทราบสาเหตุ'}`); }
-          } catch (err) { console.error('Update addon error:', err); alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+                  // alert(data.message || "แก้ไขบริการเสริมสำเร็จ"); 
+                  console.log(data.message || "Addon service updated successfully.");
+                  hideModal(editAddonModal); 
+                  location.reload();
+              } else { 
+                // alert(`แก้ไขไม่สำเร็จ: ${data.message || 'ข้อผิดพลาดไม่ทราบสาเหตุ'}`); 
+                console.error(`Failed to update addon: ${data.message || 'Unknown error'}`);
+              }
+          } catch (err) { 
+            console.error('Update addon error:', err); 
+            // alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+            console.error('Connection error while updating addon.');
           } finally { if(submitEditAddonBtn) setButtonLoading(submitEditAddonBtn, false, 'submitEditAddonBtn'); }
       });
   }
@@ -1992,22 +2152,30 @@ document.addEventListener('DOMContentLoaded', () => {
           e.preventDefault();
           const formData = new FormData(updateHourlyRateForm);
           const value = formData.get('setting_value'); const key = formData.get('setting_key');
+          // Replaced alert with console.warn
           if (value === null || value.trim() === '' || isNaN(parseFloat(value)) || parseFloat(value) < 0) {
-              alert('กรุณากรอกราคาต่อชั่วโมงให้ถูกต้อง (ต้องเป็นตัวเลขและไม่ติดลบ)'); return;
+              console.warn('Please enter a valid non-negative hourly rate.'); return;
           }
           if(submitUpdateHourlyRateBtn) setButtonLoading(submitUpdateHourlyRateBtn, true, 'submitUpdateHourlyRateBtn');
           try {
               const response = await fetch(`${API_BASE_URL}?action=update_system_setting`, { method: 'POST', body: formData });
               const data = await response.json();
               if (data.success) {
-                  alert(data.message || "อัปเดตการตั้งค่าสำเร็จ");
+                  // alert(data.message || "อัปเดตการตั้งค่าสำเร็จ");
+                  console.log(data.message || "Setting updated successfully.");
                   if (key === 'hourly_extension_rate') {
                       HOURLY_RATE_JS = Math.round(parseFloat(value));
                       const displayElement = document.getElementById('current_hourly_extension_rate_display');
                       if(displayElement) displayElement.textContent = String(Math.round(parseFloat(value)));
                   }
-              } else { alert(`อัปเดตราคาไม่สำเร็จ: ${data.message || 'ข้อผิดพลาดไม่ทราบสาเหตุ'}`); }
-          } catch (err) { console.error('Update hourly rate error:', err); alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+              } else { 
+                // alert(`อัปเดตราคาไม่สำเร็จ: ${data.message || 'ข้อผิดพลาดไม่ทราบสาเหตุ'}`); 
+                console.error(`Failed to update price: ${data.message || 'Unknown error'}`);
+              }
+          } catch (err) { 
+            console.error('Update hourly rate error:', err); 
+            // alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+            console.error('Connection error while updating hourly rate.');
           } finally { if(submitUpdateHourlyRateBtn) setButtonLoading(submitUpdateHourlyRateBtn, false, 'submitUpdateHourlyRateBtn'); }
       });
   }
@@ -2298,25 +2466,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
       } else if (bookingGroupDiv) {
         const bookingIdsStr = bookingGroupDiv.dataset.bookingIds;
-        if (bookingIdsStr) {
-          console.log(`[CalendarClick] Booking group area clicked. Booking IDs for group summary: ${bookingIdsStr}`);
-          if(detailsModalBody) detailsModalBody.innerHTML = '<p style="text-align:center; padding:20px;">กำลังโหลดข้อมูลสรุปการจองกลุ่ม...</p>';
-          showModal(detailsModal);
-
-          try {
-            const response = await fetch(`/hotel_booking/pages/ajax_get_booking_group_summary.php?booking_ids=${bookingIdsStr}`);
-            if (!response.ok) {
-              const errorText = await response.text();
-              throw new Error(`HTTP error! status: ${response.status}, message: ${errorText.substring(0, 500)}`);
-            }
-            const html = await response.text();
-            detailsModalBody.innerHTML = html;
-          } catch (err) {
-            console.error('[CalendarClick] Failed to load booking group summary:', err);
-            if(detailsModalBody) detailsModalBody.innerHTML = '<p class="text-danger" style="padding:20px;">เกิดข้อผิดพลาดในการโหลดข้อมูลสรุปกลุ่มการจอง: ' + err.message + '</p>';
-          }
+        const bookingGroupId = bookingGroupDiv.dataset.bookingGroupId; // Get group ID if available
+        if (bookingIdsStr || bookingGroupId) {
+          console.log(`[CalendarClick] Booking group area clicked. Booking IDs for group summary: ${bookingIdsStr}, Group ID: ${bookingGroupId}`);
+          // Call the new global function
+          openBookingGroupSummaryModal(bookingGroupId, bookingIdsStr);
         } else {
-             console.warn('[CalendarClick] Booking group clicked, but data-booking-ids attribute is missing or empty.');
+             console.warn('[CalendarClick] Booking group clicked, but data-booking-ids or data-booking-group-id attribute is missing or empty.');
         }
       }
     });
@@ -2373,20 +2529,28 @@ document.addEventListener('DOMContentLoaded', () => {
                       link.download = fileName;
                       link.href = image;
                       link.click();
-                      alert('เบราว์เซอร์นี้ไม่รองรับการแชร์ไฟล์โดยตรง หรือไม่สามารถแชร์ได้ในขณะนี้ รูปภาพภาพรวม Dashboard ถูกดาวน์โหลดแล้ว คุณสามารถแชร์ด้วยตนเองได้ค่ะ');
+                      // Replaced alert with console.log for better UX
+                      console.log('Browser does not support direct file sharing. Dashboard overview image downloaded. You can share it manually.');
+                      // alert('เบราว์เซอร์นี้ไม่รองรับการแชร์ไฟล์โดยตรง หรือไม่สามารถแชร์ได้ในขณะนี้ รูปภาพภาพรวม Dashboard ถูกดาวน์โหลดแล้ว คุณสามารถแชร์ด้วยตนเองได้ค่ะ');
                   }
               } catch (err) {
                   document.body.style.backgroundColor = originalBodyBg;
                   console.error('Error generating or sharing dashboard image:', err);
-                  alert('เกิดข้อผิดพลาดในการสร้างหรือแชร์รูปภาพ: ' + err.message);
+                  // Replaced alert with console.error
+                  console.error('Error generating or sharing image: ' + err.message);
+                  // alert('เกิดข้อผิดพลาดในการสร้างหรือแชร์รูปภาพ: ' + err.message);
               } finally {
                   setButtonLoading(shareDashboardBtn, false, buttonId);
               }
           } else if (typeof html2canvas !== 'function') {
-                alert('Library for image export (html2canvas) is not loaded. Cannot share dashboard image.');
+                // Replaced alert with console.error
+                console.error('Library for image export (html2canvas) is not loaded. Cannot share dashboard image.');
+                // alert('Library for image export (html2canvas) is not loaded. Cannot share dashboard image.');
                 setButtonLoading(shareDashboardBtn, false, buttonId);
           } else {
-                alert('Could not find content to export for dashboard image.');
+                // Replaced alert with console.error
+                console.error('Could not find content to export for dashboard image.');
+                // alert('Could not find content to export for dashboard image.');
                 setButtonLoading(shareDashboardBtn, false, buttonId);
           }
       });
@@ -2429,7 +2593,7 @@ const calendarDayModalBody = document.getElementById('calendar-day-modal-body');
 // ย้าย mainCalendarTable มาประกาศที่นี่เพื่อให้ script block นี้ทำงานได้อิสระ (ถ้าไม่ได้ประกาศไว้ global)
 const mainCalendarTableForModal = document.querySelector('table.calendar-table'); // ใช้ selector ที่แม่นยำขึ้น
 
-if (typeof bookingsByDateAndGroupJS === 'undefined') {
+if (typeof window.bookingsByDateAndGroupJS === 'undefined') { // Check global scope
     window.bookingsByDateAndGroupJS = {};
 }
 

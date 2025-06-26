@@ -816,60 +816,11 @@ echo "<script>const bookingsByDateAndGroupJS = " . json_encode($bookingsByDateAn
 ?>
 
 <script>
+// เราไม่จำเป็นต้องนิยามฟังก์ชัน openBookingGroupSummaryModal ที่นี่อีกแล้ว
+// เพราะมันถูกกำหนดเป็นฟังก์ชันกลางใน main.js ซึ่งถูกโหลดใน layout.php แล้ว
+
 document.addEventListener('DOMContentLoaded', function() {
     
-    // --- Reusable function to open the main booking group summary modal ---
-    async function openBookingGroupSummaryModal(bookingGroupId, bookingIds) {
-        const mainDetailsModal = document.getElementById('modal');
-        const mainDetailsModalBody = document.getElementById('modal-body');
-
-        if (!mainDetailsModal || !mainDetailsModalBody) {
-            console.warn("Could not find main details modal (#modal) for group summary.");
-            return;
-        }
-
-        let ajaxUrl = '/hotel_booking/pages/ajax_get_booking_group_summary.php?';
-        if (bookingGroupId) {
-            ajaxUrl += `booking_group_id=${bookingGroupId}`;
-        } else if (bookingIds) {
-            ajaxUrl += `booking_ids=${bookingIds}`;
-        } else {
-            console.warn("No booking_group_id or booking_ids provided to open summary modal.");
-            mainDetailsModalBody.innerHTML = '<p class="text-danger" style="padding:20px;">ไม่พบ ID สำหรับโหลดข้อมูล</p>';
-            if (typeof showModal === 'function') showModal(mainDetailsModal); else mainDetailsModal.classList.add('show');
-            return;
-        }
-
-        mainDetailsModalBody.innerHTML = '<p style="text-align:center; padding:20px;">กำลังโหลดข้อมูลสรุปการจองกลุ่ม...</p>';
-        if (typeof showModal === 'function') showModal(mainDetailsModal); else mainDetailsModal.classList.add('show');
-
-        try {
-            const response = await fetch(ajaxUrl);
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`HTTP error! status: ${response.status}, message: ${errorText.substring(0,300)}`);
-            }
-            const html = await response.text();
-            mainDetailsModalBody.innerHTML = html;
-            
-            const scriptTags = mainDetailsModalBody.querySelectorAll("script");
-            scriptTags.forEach(originalScript => {
-                const newScript = document.createElement("script");
-                if (originalScript.src) {
-                    newScript.src = originalScript.src;
-                } else {
-                    newScript.textContent = originalScript.textContent;
-                }
-                document.body.appendChild(newScript).parentNode.removeChild(newScript);
-            });
-
-        } catch (err) {
-            console.error('[openBookingGroupSummaryModal] Failed to load booking group summary:', err);
-            mainDetailsModalBody.innerHTML = '<p class="text-danger" style="padding:20px;">เกิดข้อผิดพลาดในการโหลดข้อมูลสรุปกลุ่ม: ' + err.message + '</p>';
-        }
-    }
-
-
     const calendarDayBookingsModal = document.getElementById('calendar-day-bookings-modal');
     const calendarDayModalTitleDate = document.getElementById('modal-selected-date-display');
     const calendarDayModalBody = document.getElementById('calendar-day-modal-body');
@@ -888,15 +839,11 @@ document.addEventListener('DOMContentLoaded', function() {
             const dailyModalTrigger = event.target.closest('.calendar-day-action-trigger');
 
             if (fabOptionLink) {
-                // **Priority 1: Clicked on a FAB option link (e.g., "Single Room").**
-                // Let the browser handle the link's default behavior (navigation).
-                // No event.preventDefault() or event.stopPropagation() needed.
                 console.log('[Calendar FAB] Option link clicked. URL:', fabOptionLink.href);
                 return;
             }
 
             if (mainFabButton) {
-                // **Priority 2: Clicked the main FAB button ("+") to toggle the menu.**
                 event.preventDefault(); // Prevent any default button action.
                 
                 const fabContainer = mainFabButton.closest('.calendar-fab-container');
@@ -915,16 +862,15 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             if (groupModalTrigger) {
-                // **Priority 3: Clicked on a booking entry in the cell.**
                 event.preventDefault();
                 const bookingIds = groupModalTrigger.dataset.bookingIds;
                 const bookingGroupId = groupModalTrigger.dataset.bookingGroupId;
+                // เรียกใช้ฟังก์ชันกลางจาก main.js ได้เลย
                 openBookingGroupSummaryModal(bookingGroupId, bookingIds);
                 return;
             }
 
             if (dailyModalTrigger) {
-                // **Priority 4: Clicked the "more" trigger or mobile summary area.**
                 event.preventDefault();
                 const dateStr = dailyModalTrigger.dataset.date;
                 const dayCell = dailyModalTrigger.closest('td');
