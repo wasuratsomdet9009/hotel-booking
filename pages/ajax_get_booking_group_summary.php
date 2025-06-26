@@ -28,7 +28,7 @@ if (!$groupMainInfo) {
 // 2. ดึงข้อมูลห้องพักทั้งหมดในกลุ่ม
 $stmt_group_rooms = $pdo->prepare("
     SELECT
-        r.zone, r.room_number, b.price_per_night, b.nights,
+        b.id as booking_id, r.zone, r.room_number, b.price_per_night, b.nights,
         b.booking_type, b.total_price AS booking_specific_total_price,
         COALESCE(r.short_stay_duration_hours, ".DEFAULT_SHORT_STAY_DURATION_HOURS.") as effective_short_stay_duration
     FROM bookings b JOIN rooms r ON b.room_id = r.id
@@ -78,20 +78,49 @@ if ($dates) {
     $latestCheckout = $dates['latest_checkout'] ? new DateTime($dates['latest_checkout']) : null;
 }
 
-// คำนวณยอดรวมค่าห้องพัก
+// ***** START: โค้ดที่แก้ไข *****
+// ดึงข้อมูลบริการเสริมทั้งหมดในกลุ่ม และจัดกลุ่มตาม booking_id
+$stmt_all_addons_in_group = $pdo->prepare("
+    SELECT b.id as booking_id, aserv.name AS addon_name, ba.quantity, ba.price_at_booking
+    FROM booking_addons ba
+    JOIN addon_services aserv ON ba.addon_service_id = aserv.id
+    JOIN bookings b ON ba.booking_id = b.id
+    WHERE b.booking_group_id = :group_id ORDER BY aserv.name ASC
+");
+$stmt_all_addons_in_group->execute([':group_id' => $bookingGroupId]);
+$allAddonsInGroup = $stmt_all_addons_in_group->fetchAll(PDO::FETCH_ASSOC);
+
+// สร้าง Map ของ Addon cost สำหรับแต่ละ booking_id
+$addonCostsPerBooking = [];
+foreach ($allAddonsInGroup as $addon) {
+    $bookingIdKey = $addon['booking_id'];
+    if (!isset($addonCostsPerBooking[$bookingIdKey])) {
+        $addonCostsPerBooking[$bookingIdKey] = 0;
+    }
+    $addonCostsPerBooking[$bookingIdKey] += (float)$addon['price_at_booking'] * (int)$addon['quantity'];
+}
+
+
+// คำนวณยอดรวมค่าห้องพัก (แก้ไขส่วน short_stay)
 foreach ($groupRooms as $room) {
     if ($room['booking_type'] === 'overnight') {
         $totalRoomCost += (float)$room['price_per_night'] * (int)$room['nights'];
-    } else {
-        // สำหรับ short_stay ให้ใช้ booking_specific_total_price เพราะมันคือราคาเหมา
-        // แต่ต้องหักค่า Addon ที่อาจจะรวมอยู่ในนั้น (ถ้ามี)
-        $totalRoomCost += (float)$room['booking_specific_total_price'];
+    } else { // short_stay
+        // สำหรับ short_stay, booking_specific_total_price คือราคารวมทุกอย่างของ booking นั้น
+        // เราต้องหักค่า Addon ของ booking นั้นๆ ออก เพื่อให้ได้ค่าห้องที่แท้จริง
+        $bookingIdForLookup = $room['booking_id'] ?? null; 
+        $addonCostForThisBooking = isset($addonCostsPerBooking[$bookingIdForLookup]) ? $addonCostsPerBooking[$bookingIdForLookup] : 0;
+        
+        // ยอดค่าห้องที่แท้จริง = ยอดรวมของการจอง - ยอด addon ของการจองนั้น
+        $actualRoomCostForShortStay = (float)$room['booking_specific_total_price'] - $addonCostForThisBooking;
+        $totalRoomCost += $actualRoomCostForShortStay;
     }
 }
-// คำนวณยอดรวมบริการเสริม
-foreach ($groupAddons as $addon) {
-    $totalAddonCost += (float)$addon['price_at_booking'] * (int)$addon['quantity'];
-}
+// คำนวณยอดรวมบริการเสริม (ใช้ผลรวมที่คำนวณไว้แล้ว)
+$totalAddonCost = array_sum($addonCostsPerBooking);
+// ***** END: โค้ดที่แก้ไข *****
+
+
 // คำนวณยอดชำระแล้ว
 foreach ($groupReceipts as $receipt) {
     if (isset($receipt['amount']) && is_numeric($receipt['amount'])) {
@@ -175,7 +204,7 @@ if (file_exists(__DIR__ . '/..' . $logo_path)) {
             </thead>
             <tbody>
                 <?php foreach ($groupRooms as $room): 
-                    $roomBasePrice = ($room['booking_type'] === 'overnight') ? (float)$room['price_per_night'] * (int)$room['nights'] : (float)$room['booking_specific_total_price'];
+                    $roomBasePrice = ($room['booking_type'] === 'overnight') ? (float)$room['price_per_night'] * (int)$room['nights'] : ((float)$room['booking_specific_total_price'] - (isset($addonCostsPerBooking[$room['booking_id']]) ? $addonCostsPerBooking[$room['booking_id']] : 0));
                 ?>
                 <tr style="border-bottom: 1px solid #eef2f5;">
                     <td style="padding: 8px;"><?= h($room['zone'] . $room['room_number']) ?></td>
