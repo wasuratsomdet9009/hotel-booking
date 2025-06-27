@@ -10,25 +10,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title><?= isset($pageTitle) ? h($pageTitle) : 'Hotel Admin' ?></title>
   
-  <!-- CSS หลัก (ไฟล์เดิม) -->
   <link rel="stylesheet" href="/hotel_booking/assets/css/main.css">
   
-  <!-- Favicon -->
   <link rel="icon" type="image/x-icon" href="/hotel_booking/assets/image/logo.ico">
 
-  <!-- Font Awesome 6 for Icons (แก้ไข Attribute ที่ผิด) -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" xintegrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
 
-  <!-- AOS Animation Library -->
   <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
   
-  <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="/hotel_booking/assets/js/main.js" defer></script>
   
-  <!-- Styles (รวมโค้ด CSS สำหรับ Navbar ใหม่เข้ามาแล้ว) -->
   <style>
     /* --- Dark Theme เดิม --- */
     body.dark-theme { background-color: #121212; color: #e0e0e0; }
@@ -328,7 +322,6 @@
         </a>
       </h1>
 
-      <!-- Hamburger Menu Button (แสดงเฉพาะบนมือถือ) -->
       <button class="nav-toggle" aria-label="toggle navigation">
         <span class="hamburger"></span>
       </button>
@@ -345,7 +338,6 @@
               <li><a href="/hotel_booking/pages/settings_management.php"><i class="fa-solid fa-gears icon"></i>ตั้งค่า</a></li>
             <?php endif; ?>
 
-            <!-- User Info and Logout (จัดกลุ่มใหม่) -->
             <li class="nav-user-section">
                 <div class="user-info">
                   <i class="fa-solid fa-circle-user user-icon"></i>
@@ -366,7 +358,6 @@
             </li>
 
           <?php else: ?>
-             <!-- ส่วนนี้จะแสดงเมื่อยังไม่ได้ login (ถ้ามี) -->
              <li><a href="/hotel_booking/pages/login.php"><i class="fa-solid fa-right-to-bracket icon"></i>เข้าสู่ระบบ</a></li>
           <?php endif; ?>
         </ul>
@@ -392,16 +383,71 @@
     ?>
   </main>
 
-    <!-- Modals (คงไว้เหมือนเดิมทั้งหมด) -->
-    <div id="modal" class="modal-overlay"> ... </div>
-    <div id="image-modal" class="modal-overlay"> ... </div>
-    <div id="deposit-modal" class="modal-overlay"> ... </div>
-    <div id="edit-addon-modal" class="modal-overlay"> ... </div>
-    <div id="confirmBookingModal" class="modal-overlay"> ... </div>
-    <div id="move-room-modal" class="modal-overlay"> ... </div>
+    <div id="modal" class="modal-overlay">
+      <div class="modal-content" data-aos="fade-down" data-aos-duration="300">
+        <button class="modal-close" aria-label="Close">×</button>
+        <div id="modal-body">
+            </div>
+      </div>
+    </div>
 
+    <div id="image-modal" class="modal-overlay">
+      <div class="modal-content" data-aos="zoom-in" data-aos-duration="300" style="max-width:700px; width:90%;">
+        <button class="modal-close" aria-label="Close">×</button>
+        <img id="modal-image" src="" alt="หลักฐาน" style="max-width:100%; height:auto; border-radius:var(--border-radius-md); display:block;" />
+      </div>
+    </div>
+    
+    <div id="deposit-modal" class="modal-overlay">
+      <div class="modal-content">
+        <button class="modal-close" aria-label="Close">×</button>
+        <div id="deposit-modal-body">
+            <h4>คืนเงินมัดจำ</h4>
+            <img id="deposit-modal-image" src="" alt="หลักฐานคืนมัดจำ" style="display:none; max-width: 100%; height: auto; margin-top: 10px;">
+        </div>
+      </div>
+    </div>
 
-  <footer class="site-footer">
+    <div id="edit-addon-modal" class="modal-overlay">
+        <div class="modal-content" style="max-width:500px;">
+            <button class="modal-close" aria-label="Close">×</button>
+            <h3>แก้ไขบริการเสริม</h3>
+            <form id="edit-addon-modal-form">
+                <input type="hidden" name="id" id="edit_addon_id">
+                <div class="form-group">
+                    <label for="edit_addon_name_modal">ชื่อบริการ:</label>
+                    <input type="text" id="edit_addon_name_modal" name="name" required class="form-control">
+                </div>
+                <div class="form-group">
+                    <label for="edit_addon_price_modal">ราคา (บาท):</label>
+                    <input type="number" id="edit_addon_price_modal" name="price" required class="form-control" step="1" min="0">
+                </div>
+                <div class="button-group">
+                    <button type="submit" id="submitEditAddonBtn" class="button primary">บันทึกการแก้ไข</button>
+                    <button type="button" class="button outline-secondary modal-close">ยกเลิก</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="move-room-modal" class="modal-overlay">
+        <div class="modal-content" style="max-width:500px;">
+            <button class="modal-close" aria-label="Close">×</button>
+            <h3>ย้ายห้องพัก</h3>
+            <p id="move-room-info-text">กำลังโหลดข้อมูล...</p>
+            <div class="form-group">
+                <label for="select-new-room">เลือกห้องใหม่ที่ต้องการย้ายไป:</label>
+                <select id="select-new-room" class="form-control" disabled>
+                    <option value="">-- กรุณาเลือก --</option>
+                </select>
+            </div>
+            <div class="button-group">
+                <button id="confirm-move-room-btn" class="button primary" disabled>ยืนยันการย้ายห้อง</button>
+                <button type="button" class="button outline-secondary modal-close">ยกเลิก</button>
+            </div>
+        </div>
+    </div>
+    <footer class="site-footer">
     <div class="container">
       <p>&copy; <?= date('Y') ?> Hotel Booking System. All rights reserved.</p>
     </div>

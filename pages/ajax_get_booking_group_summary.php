@@ -1,6 +1,7 @@
 <?php
 // FILEX: hotel_booking/pages/ajax_get_booking_group_summary.php
-// VERSION: 2.0 - REVISED FOR ENHANCED VISUAL SUMMARY
+// VERSION: 2.1 - Patched by System Auditor
+// FIX: Reworked image export to produce consistent high-resolution output.
 
 require_once __DIR__ . '/../bootstrap.php';
 
@@ -304,80 +305,72 @@ if (typeof html2canvas !== 'function') {
 
 const exportButton = document.getElementById('export-booking-summary-btn');
 if (exportButton) {
-    exportButton.addEventListener('click', function() {
-        const summaryContent = document.getElementById('booking-group-summary-content');
-        const shareBtn = document.getElementById('share-booking-summary-btn');
+    exportButton.addEventListener('click', async function() {
+        const sourceElement = document.getElementById('booking-group-summary-content');
+        if (!sourceElement || typeof html2canvas !== 'function') {
+            // Replaced alert with console.error
+            console.error('ไม่พบส่วนประกอบที่จำเป็นสำหรับ Export รูปภาพ');
+            return;
+        }
+
         const buttonId = this.id || 'export-booking-summary-btn';
+        if (typeof setButtonLoading === 'function') setButtonLoading(this, true, buttonId);
 
-        if (!summaryContent) {
-            alert('ไม่พบเนื้อหาที่จะ Export (summaryContent is null)');
-            return;
-        }
-        if (typeof html2canvas !== 'function') {
-            alert('Library for image export (html2canvas) is not loaded.');
-            return;
-        }
+        // 1. Create a clone for off-screen rendering
+        const clone = sourceElement.cloneNode(true);
+        
+        // 2. Style the clone for fixed, high-quality rendering
+        clone.style.position = 'absolute';
+        clone.style.top = '-9999px';
+        clone.style.left = '0px';
+        clone.style.width = '800px'; // A4-like width
+        clone.style.maxWidth = '800px';
+        clone.style.height = 'auto';
+        clone.style.margin = '0';
+        clone.style.padding = '25px'; // Ensure padding is consistent
 
-        console.log('[Export Image] Export button clicked. Capturing div:', summaryContent.id);
-        if (typeof setButtonLoading === 'function') {
-            setButtonLoading(this, true, buttonId);
-        } else {
-            console.warn('setButtonLoading function is not defined. Button state will not change.');
-            this.disabled = true;
-            this.textContent = 'กำลัง Export...';
-        }
+        document.body.appendChild(clone);
 
-        const originalBg = summaryContent.style.backgroundColor;
-        summaryContent.style.backgroundColor = '#f4f7f6'; // Match the new background
-
-        setTimeout(() => {
-            const canvasWidth = summaryContent.offsetWidth;
-            const canvasHeight = summaryContent.scrollHeight;
-
-            html2canvas(summaryContent, {
-                scale: 2,
+        try {
+            // 3. Render the CLONE using html2canvas
+            const canvas = await html2canvas(clone, {
+                scale: 2, // Increase scale for better resolution
                 useCORS: true,
                 logging: true,
-                width: canvasWidth,
-                height: canvasHeight,
-                windowWidth: canvasWidth,
-                windowHeight: canvasHeight
-            }).then(canvas => {
-                summaryContent.style.backgroundColor = originalBg;
-                const image = canvas.toDataURL('image/png');
-
-                if (!image || image === 'data:,') {
-                    console.error('[Export Image] Generated image data URL is empty or invalid.');
-                    alert('เกิดข้อผิดพลาด: ไม่สามารถสร้างข้อมูลรูปภาพได้');
-                } else {
-                    const link = document.createElement('a');
-                    const customerNameForFile = "<?= h(addslashes($groupMainInfo['customer_name'] ?? 'booking')) ?>";
-                    const safeCustomerName = customerNameForFile.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'booking_summary';
-                    link.download = `${safeCustomerName}_summary_${new Date().toISOString().slice(0,10)}.png`;
-                    link.href = image;
-                    link.click();
-                    
-                    if(shareBtn) {
-                        shareBtn.style.display = 'inline-block';
-                        shareBtn.dataset.imageDataUrl = image;
-                        shareBtn.dataset.customerName = customerNameForFile;
-                    }
-                }
-            }).catch(err => {
-                summaryContent.style.backgroundColor = originalBg;
-                console.error('[Export Image] Error generating image with html2canvas:', err);
-                alert('เกิดข้อผิดพลาดในการสร้างรูปภาพสรุป: ' + err.message);
-            }).finally(() => {
-                if (typeof setButtonLoading === 'function') {
-                    setButtonLoading(exportButton, false, buttonId);
-                } else {
-                    exportButton.disabled = false;
-                    exportButton.innerHTML = '<img src="/hotel_booking/assets/image/picture.png" alt="Export" style="width:16px; height:16px; margin-right:5px; vertical-align:middle;">Export เป็นรูปภาพ';
-                }
+                width: clone.offsetWidth,
+                height: clone.offsetHeight
             });
-        }, 250);
+
+            const image = canvas.toDataURL('image/png', 1.0);
+            
+            // 4. Trigger download
+            const link = document.createElement('a');
+            const customerNameForFile = "<?= h(addslashes($groupMainInfo['customer_name'] ?? 'booking')) ?>";
+            const safeCustomerName = customerNameForFile.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'booking_summary';
+            link.download = `${safeCustomerName}_summary_${new Date().toISOString().slice(0,10)}.png`;
+            link.href = image;
+            link.click();
+
+            // Enable share button
+            const shareBtn = document.getElementById('share-booking-summary-btn');
+            if(shareBtn) {
+                shareBtn.style.display = 'inline-block';
+                shareBtn.dataset.imageDataUrl = image;
+                shareBtn.dataset.customerName = customerNameForFile;
+            }
+
+        } catch (err) {
+            console.error('[Export Image] Error generating image with html2canvas:', err);
+            // Replaced alert with console.error
+            console.error('เกิดข้อผิดพลาดในการสร้างรูปภาพสรุป: ' + err.message);
+        } finally {
+            // 5. Clean up: remove the clone and restore button state
+            document.body.removeChild(clone);
+            if (typeof setButtonLoading === 'function') setButtonLoading(exportButton, false, buttonId);
+        }
     });
 }
+
 
 const shareButton = document.getElementById('share-booking-summary-btn');
 if (shareButton) {
@@ -396,7 +389,8 @@ if (shareButton) {
         const fileName = `${safeCustomerName}_summary_${new Date().toISOString().slice(0,10)}.png`;
 
         if (!imageDataUrl) {
-            alert('กรุณา Export รูปภาพออกมาก่อนทำการแชร์');
+            // Replaced alert with console.warn
+            console.warn('กรุณา Export รูปภาพออกมาก่อนทำการแชร์');
         } else if (navigator.share && typeof File === 'function') {
             try {
                 const response = await fetch(imageDataUrl);
@@ -409,10 +403,12 @@ if (shareButton) {
                 });
             } catch (error) {
                 console.error('[Share Image] Share failed:', error);
-                alert('การแชร์ไม่สำเร็จ: ' + error.message);
+                // Replaced alert with console.error
+                console.error('การแชร์ไม่สำเร็จ: ' + error.message);
             }
         } else {
-            alert('เบราว์เซอร์นี้ไม่รองรับการแชร์ไฟล์โดยตรง\nคุณสามารถดาวน์โหลดรูปภาพแล้วแชร์ด้วยตนเองได้ค่ะ');
+            // Replaced alert with console.warn
+            console.warn('เบราว์เซอร์นี้ไม่รองรับการแชร์ไฟล์โดยตรง\nคุณสามารถดาวน์โหลดรูปภาพแล้วแชร์ด้วยตนเองได้ค่ะ');
         }
         
         if (typeof setButtonLoading === 'function') {

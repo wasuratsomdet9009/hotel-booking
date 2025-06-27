@@ -1,6 +1,6 @@
 // FILEX: hotel_booking/assets/js/main.js
-// VERSION: 2.1 - Patched by System Auditor
-// FIX: Centralized calendar view logic into main.js to resolve ReferenceError.
+// VERSION: 2.3 - Patched by System Auditor
+// FIX: Removed redundant calendar event listener to resolve syntax errors.
 
 // =========================================================================
 // == GLOBAL FUNCTIONS (Available to all pages)
@@ -18,7 +18,6 @@ window.openBookingGroupSummaryModal = async function(bookingGroupId, bookingIds)
 
     if (!mainDetailsModal || !mainDetailsModalBody) {
         console.error("CRITICAL ERROR: Could not find main details modal (#modal) or its body (#modal-body).");
-        // Replaced alert with a more user-friendly console error and return, as per guidelines.
         console.error("เกิดข้อผิดพลาดร้ายแรง: ไม่พบหน้าต่างสำหรับแสดงผล (Modal)");
         return;
     }
@@ -152,11 +151,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (groupModalTrigger) {
                 event.preventDefault();
-                const bookingIds = groupModalTrigger.dataset.bookingIds;
                 const bookingGroupId = groupModalTrigger.dataset.bookingGroupId;
-                if (typeof window.openBookingGroupSummaryModal === 'function') {
-                    window.openBookingGroupSummaryModal(bookingGroupId, bookingIds);
+                
+                // --- START: MODIFICATION - Redirect to group edit page ---
+                if (bookingGroupId) {
+                    window.location.href = `/hotel_booking/pages/edit_booking_group.php?booking_group_id=${bookingGroupId}`;
+                } else {
+                    console.warn('ไม่พบรหัสกลุ่มการจองสำหรับรายการนี้');
                 }
+                // --- END: MODIFICATION ---
                 return;
             }
 
@@ -474,13 +477,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const bookingIds = Array.from(selectedCheckboxes).map(cb => cb.dataset.bookingId);
 
                 if (bookingIds.length < 2) {
-                    // alert('กรุณาเลือกการจองอย่างน้อย 2 รายการเพื่อจัดกลุ่ม');
-                    // Replaced alert with console.warn for better UX in a web app
                     console.warn('Please select at least 2 bookings to group.');
                     return;
                 }
 
-                // Replaced confirm with custom modal/message for better UX
                 if (!confirm(`คุณต้องการรวมการจองจำนวน ${bookingIds.length} รายการเข้าเป็นกลุ่มเดียวกันหรือไม่?`)) {
                     return;
                 }
@@ -501,17 +501,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     const result = await response.json();
 
                     if (result.success) {
-                        // alert(result.message || 'จัดกลุ่มการจองเรียบร้อยแล้ว!');
                         console.log(result.message || 'Bookings grouped successfully!');
                         window.location.reload();
                     } else {
-                        // alert('เกิดข้อผิดพลาด: ' + result.message);
                         console.error('Error grouping bookings:', result.message);
                     }
 
                 } catch (error) {
                     console.error('Error grouping bookings:', error);
-                    // alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
                     console.error('Connection error while grouping bookings.');
                 } finally {
                     setButtonLoading(this, false, 'group-selected-bookings-btn');
@@ -524,18 +521,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.warn('[BookingForm] Essential global JS variables are not defined.');
             }
 
-            // const isMultiRoomPage = multiRoomSelect_BookingForm && multiRoomSelect_BookingForm.offsetParent !== null;
-            // ***** START: MODIFICATION - For Zone F Deposit in Multi-Room *****
             const isMultiRoomPage = multiRoomSelect_BookingForm && multiRoomSelect_BookingForm.selectedOptions && multiRoomSelect_BookingForm.selectedOptions.length > 0;
             let showZoneFDepositForMultiRoom = false;
-            // ***** END: MODIFICATION - For Zone F Deposit in Multi-Room *****
 
 
-            // ***** START: MODIFICATION - Update nights input visual state based on conditions *****
             if (nightsInput_BookingForm) {
                 const isEditModeWithCheckoutDateActive = (typeof IS_EDIT_MODE_JS !== 'undefined' && IS_EDIT_MODE_JS && checkoutDatetimeInput_BookingForm && checkoutDatetimeInput_BookingForm.value);
 
-                let effectiveBookingTypeForNightsControl = 'overnight'; // Default assumption
+                let effectiveBookingTypeForNightsControl = 'overnight'; 
                 if (typeof IS_EDIT_MODE_JS !== 'undefined' && IS_EDIT_MODE_JS && typeof CURRENT_BOOKING_TYPE_EDIT_JS !== 'undefined') {
                     effectiveBookingTypeForNightsControl = CURRENT_BOOKING_TYPE_EDIT_JS;
                 } else if (bookingTypeSelect_BookingForm) {
@@ -546,34 +539,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (isEditModeWithCheckoutDateActive) {
                     updateNightsInputVisualState(true);
                 } else {
-                    // If not edit mode with checkout date, then readonly depends on booking type (overnight = editable, short_stay = group hidden)
-                    // The calculateAndUpdateBookingFormTotals function will handle hiding the group for 'short_stay'.
-                    // Here, we ensure that if it's 'overnight' and not date-driven, it's editable.
                     if (effectiveBookingTypeForNightsControl === 'overnight') {
                         updateNightsInputVisualState(false);
                     } else {
-                         // For short_stay, group will be hidden. Set visual state to non-readonly for consistency,
-                         // though it won't be visible.
                         updateNightsInputVisualState(false);
                     }
                 }
             }
-            // ***** END: MODIFICATION *****
 
 
             if (IS_EDIT_MODE_JS) {
                 if(bookingTypeGroup_BookingForm) bookingTypeGroup_BookingForm.style.display = 'none';
-                // if(zoneFDepositGroup) zoneFDepositGroup.style.display = 'none'; // Handled below with new logic
                 if (flexibleOvernightGroup) {
                     flexibleOvernightGroup.style.display = 'none';
                     const flexibleCheckbox = document.getElementById('flexible_overnight_mode');
                     if (flexibleCheckbox) flexibleCheckbox.checked = false;
                 }
-                // The logic for nightsInput_BookingForm.readOnly = true when checkoutDatetimeInput_BookingForm has value
-                // is now handled by the updateNightsInputVisualState call above.
             } else if (isMultiRoomPage || !roomSelect_BookingForm || !bookingTypeGroup_BookingForm || !bookingTypeSelect_BookingForm) {
                  if(bookingTypeGroup_BookingForm && isMultiRoomPage ) bookingTypeGroup_BookingForm.style.display = 'none';
-                 // if(zoneFDepositGroup) zoneFDepositGroup.style.display = 'none'; // Handled below with new logic
                 if (flexibleOvernightGroup) {
                     flexibleOvernightGroup.style.display = 'none';
                     const flexibleCheckbox = document.getElementById('flexible_overnight_mode');
@@ -600,14 +583,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         if(bookingTypeSelect_BookingForm) bookingTypeSelect_BookingForm.value = 'overnight';
                     }
                 }
-            } else if (!isMultiRoomPage && !IS_EDIT_MODE_JS) { // If not multi-room and not edit mode
+            } else if (!isMultiRoomPage && !IS_EDIT_MODE_JS) { 
                 if(bookingTypeGroup_BookingForm) bookingTypeGroup_BookingForm.style.display = 'none';
                 if (bookingTypeSelect_BookingForm) bookingTypeSelect_BookingForm.value = 'overnight';
             }
 
 
             if (customerNameInput && customerNameOptionalText && !IS_EDIT_MODE_JS) {
-                customerNameInput.required = !isZoneFSelected || isMultiRoomPage; // Zone F single room can be optional, Multi-room always required
+                customerNameInput.required = !isZoneFSelected || isMultiRoomPage; 
                 customerNameOptionalText.style.display = (isZoneFSelected && !isMultiRoomPage) ? 'inline' : 'none';
             }
             if (receiptInput && receiptOptionalText && receiptRequiredNote && !IS_EDIT_MODE_JS) {
@@ -618,7 +601,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // ***** START: MODIFICATION - Zone F Deposit Group for Single and Multi-Room *****
-            if (isMultiRoomPage && !IS_EDIT_MODE_JS && bookingTypeSelect_BookingForm) { // Removed bookingTypeSelect_BookingForm.value === 'overnight' check here, will be implied by multi-room
+            if (isMultiRoomPage && !IS_EDIT_MODE_JS && bookingTypeSelect_BookingForm) { 
                 const selectedRoomOptions = Array.from(multiRoomSelect_BookingForm.selectedOptions);
                 const hasZoneFRoomAskingDeposit = selectedRoomOptions.some(option => {
                     const roomDetails = ROOM_DETAILS_JS[option.value];
@@ -630,11 +613,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (zoneFDepositGroup && collectDepositZoneFCheckbox && !IS_EDIT_MODE_JS) {
-                if (showZoneFDepositForMultiRoom) { // << New condition for Multi-room
+                if (showZoneFDepositForMultiRoom) { 
                     zoneFDepositGroup.style.display = 'block';
-                    // You might want to adjust the label for collectDepositZoneFCheckbox or add a note
-                    // Example: document.querySelector('label[for="collect_deposit_zone_f"]').textContent = "เก็บค่ามัดจำสำหรับห้องโซน F ที่เลือก?";
-                } else if (isZoneFSelected && bookingTypeSelect_BookingForm && bookingTypeSelect_BookingForm.value === 'overnight' && currentRoomDetails && currentRoomDetails.ask_deposit_on_overnight == '1') { // Original condition for Single room
+                } else if (isZoneFSelected && bookingTypeSelect_BookingForm && bookingTypeSelect_BookingForm.value === 'overnight' && currentRoomDetails && currentRoomDetails.ask_deposit_on_overnight == '1') { 
                     zoneFDepositGroup.style.display = 'block';
                 }
                 else {
@@ -643,17 +624,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } else if (zoneFDepositGroup && !IS_EDIT_MODE_JS) {
                  zoneFDepositGroup.style.display = 'none';
-                 if(collectDepositZoneFCheckbox) collectDepositZoneFCheckbox.checked = false; // Ensure it's unchecked when hidden
+                 if(collectDepositZoneFCheckbox) collectDepositZoneFCheckbox.checked = false; 
             } else if (zoneFDepositGroup && IS_EDIT_MODE_JS) {
-                zoneFDepositGroup.style.display = 'none'; // Generally, in edit mode, this deposit option is not changed
+                zoneFDepositGroup.style.display = 'none'; 
             }
             // ***** END: MODIFICATION - Zone F Deposit Group for Single and Multi-Room *****
 
 
             if (flexibleOvernightGroup && bookingTypeSelect_BookingForm && !IS_EDIT_MODE_JS) {
                 const currentBookingTypeVal = bookingTypeSelect_BookingForm.value;
-                // const isMultiRoomActiveCurrently = multiRoomSelect_BookingForm && multiRoomSelect_BookingForm.selectedOptions && multiRoomSelect_BookingForm.selectedOptions.length > 0;
-                // Use isMultiRoomPage which is already correctly defined based on selected options
                 if (currentBookingTypeVal === 'overnight' && !isMultiRoomPage) {
                     flexibleOvernightGroup.style.display = 'block';
                 } else {
@@ -683,7 +662,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const isMultiMode = multiRoomSelect_BookingForm && multiRoomSelect_BookingForm.selectedOptions && multiRoomSelect_BookingForm.selectedOptions.length > 0;
             let currentSelectedRoomDetails = null;
-            let isCurrentRoomZoneF = false; // For single room mode
+            let isCurrentRoomZoneF = false; 
 
             const originalCheckinTimeForCalc_JS = (typeof IS_EDIT_MODE_JS !== 'undefined' && IS_EDIT_MODE_JS && typeof ORIGINAL_CHECKIN_DATETIME_EDIT_JS !== 'undefined' && ORIGINAL_CHECKIN_DATETIME_EDIT_JS)
                 ? new Date(ORIGINAL_CHECKIN_DATETIME_EDIT_JS.replace(' ', 'T'))
@@ -700,7 +679,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (!isMultiMode && bookingTypeSelect_BookingForm && bookingTypeGroup_BookingForm && bookingTypeGroup_BookingForm.style.display !== 'none') {
                 currentBookingType = bookingTypeSelect_BookingForm.value;
             } else if (isMultiMode) {
-                currentBookingType = 'overnight'; // Multi-room is always overnight for now
+                currentBookingType = 'overnight'; 
             }
 
             // ***** START: MODIFICATION - Update nights input visual state within calculation flow *****
@@ -710,19 +689,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     nightsInput_BookingForm.required = false;
                     nightsInput_BookingForm.value = '';
                     nights = 0;
-                    updateNightsInputVisualState(false); // Group is hidden, input conceptually editable
-                } else { // 'overnight'
+                    updateNightsInputVisualState(false); 
+                } else { 
                     nightsGroup_BookingForm.style.display = 'block';
                     nightsInput_BookingForm.required = true;
                     nights = parseInt(nightsInput_BookingForm.value) || 1;
                     if (nights < 1) nights = 1;
 
-                    // Readonly state for 'overnight' is determined by checkoutDatetimeInput_BookingForm.value
-                    // This will be set correctly when 'nights' are calculated from dates, or default to editable.
-                    // Initial updateNightsInputVisualState(false) here might be preemptive if dates will override.
-                    // The specific check for checkoutDatetimeInput_BookingForm.value below will set the final state.
                     if (!(typeof IS_EDIT_MODE_JS !== 'undefined' && IS_EDIT_MODE_JS && checkoutDatetimeInput_BookingForm && checkoutDatetimeInput_BookingForm.value)) {
-                        updateNightsInputVisualState(false); // If not date-driven, ensure it's editable
+                        updateNightsInputVisualState(false); 
                     }
                 }
             }
@@ -779,7 +754,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const originalDepositForEditStr = depositAmountDisplay_BookingForm ? depositAmountDisplay_BookingForm.textContent : '0';
                 depositAmount = parseFloat(originalDepositForEditStr) || 0;
 
-                if (isCurrentRoomZoneF) { // isCurrentRoomZoneF refers to single selected room here
+                if (isCurrentRoomZoneF) { 
                      if (depositAmount > 0) {
                         if (depositNoteText_BookingForm) depositNoteText_BookingForm.textContent = `(โซน F - มัดจำเดิม: ${String(Math.round(depositAmount))} บาท)`;
                      } else {
@@ -816,13 +791,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 depositAmount = 0;
                 let depositNoteTextParts = [];
 
-                // Calculate deposit for non-Zone F rooms or Zone F rooms not asking for deposit (always collected)
                 if (numNonZoneFOrNonAskingDepositRooms > 0) {
                     depositAmount += numNonZoneFOrNonAskingDepositRooms * (FIXED_DEPOSIT_AMOUNT_GLOBAL_JS || 0);
                     depositNoteTextParts.push(`มาตรฐานห้องละ ${String(Math.round(FIXED_DEPOSIT_AMOUNT_GLOBAL_JS || 0))} บาท สำหรับ ${numNonZoneFOrNonAskingDepositRooms} ห้อง (นอกโซน F หรือโซน F ที่ไม่ถามมัดจำ)`);
                 }
 
-                // Calculate deposit for Zone F rooms that ask for deposit, based on checkbox
                 if (numZoneFRoomsAskingDepositInMulti > 0) {
                     if (collectDepositZoneFCheckbox && collectDepositZoneFCheckbox.checked) {
                         depositAmount += numZoneFRoomsAskingDepositInMulti * (FIXED_DEPOSIT_AMOUNT_GLOBAL_JS || 0);
@@ -842,14 +815,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     checkinNowCheckbox_BookingForm.disabled = true;
                     checkinNowCheckbox_BookingForm.checked = false;
                 }
-            } else if (currentSelectedRoomDetails) { // Single room mode (not edit, not multi)
+            } else if (currentSelectedRoomDetails) { 
                 if (currentBookingType === 'short_stay' && currentSelectedRoomDetails.allow_short_stay == '1') {
                     currentRoomCostOnly = parseFloat(currentSelectedRoomDetails.price_short_stay) || 0;
                     depositAmount = 0;
                     const duration = currentSelectedRoomDetails.short_stay_duration_hours || DEFAULT_SHORT_STAY_HOURS_GLOBAL_JS || 3;
                     if (baseAmountNote_BookingForm) baseAmountNote_BookingForm.textContent = `ยอดสำหรับค่าห้องพัก (${duration} ชม.) ไม่รวมบริการเสริม`;
                     if (depositNoteText_BookingForm) depositNoteText_BookingForm.textContent = `(พักชั่วคราว ไม่มีค่ามัดจำ)`;
-                } else { // Single room, overnight
+                } else { 
                     currentRoomCostOnly = (parseFloat(currentSelectedRoomDetails.price_per_day) || 0) * nights;
                     if (isCurrentRoomZoneF && currentSelectedRoomDetails.ask_deposit_on_overnight == '1') {
                         if (collectDepositZoneFCheckbox && collectDepositZoneFCheckbox.checked) {
@@ -859,10 +832,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             depositAmount = 0;
                             if (depositNoteText_BookingForm) depositNoteText_BookingForm.textContent = `(โซน F - ไม่เก็บค่ามัดจำ)`;
                         }
-                    } else if (!isCurrentRoomZoneF) { // Not Zone F, standard deposit
+                    } else if (!isCurrentRoomZoneF) { 
                         depositAmount = FIXED_DEPOSIT_AMOUNT_GLOBAL_JS || 0;
                         if (depositNoteText_BookingForm) depositNoteText_BookingForm.textContent = `(มาตรฐาน ${String(Math.round(FIXED_DEPOSIT_AMOUNT_GLOBAL_JS || 0))} บาท สำหรับค้างคืน)`;
-                    } else { // Zone F but ask_deposit_on_overnight is not '1'
+                    } else { 
                         depositAmount = 0;
                          if (depositNoteText_BookingForm) depositNoteText_BookingForm.textContent = `(โซน F - ไม่มีการตั้งค่าให้ถามเก็บมัดจำ หรือไม่เลือกเก็บ)`;
                     }
@@ -918,7 +891,7 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log(`[CalcTotals] Mode: ${typeof IS_EDIT_MODE_JS !== 'undefined' && IS_EDIT_MODE_JS ? 'EDIT' : 'NEW'}, Type: ${currentBookingType}, ZoneF (single): ${isCurrentRoomZoneF}, MultiMode: ${isMultiMode}, Nights: ${nights}, RoomCost: ${currentRoomCostOnly}, Addons: ${currentTotalAddonPrice}, Deposit: ${depositAmount}, GrandTotalToPay: ${grandTotalToPay}, FinalPaidInput: ${finalAmountPaidInput_BookingForm ? finalAmountPaidInput_BookingForm.value : 'N/A'}`);
         }
 
-        if (roomSelect_BookingForm && !(multiRoomSelect_BookingForm && multiRoomSelect_BookingForm.offsetParent !== null && multiRoomSelect_BookingForm.selectedOptions.length > 0)) { // Check if multi-select is active
+        if (roomSelect_BookingForm && !(multiRoomSelect_BookingForm && multiRoomSelect_BookingForm.offsetParent !== null && multiRoomSelect_BookingForm.selectedOptions.length > 0)) { 
             roomSelect_BookingForm.addEventListener('change', () => {
                 updateBookingTypeVisibilityAndDefaults();
             });
@@ -1000,13 +973,13 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        if (typeof IS_EDIT_MODE_JS !== 'undefined') { // This covers edit mode initialization
+        if (typeof IS_EDIT_MODE_JS !== 'undefined') { 
             updateBookingTypeVisibilityAndDefaults();
-        } else if (multiRoomSelect_BookingForm && multiRoomSelect_BookingForm.selectedOptions && multiRoomSelect_BookingForm.selectedOptions.length > 0) { // Covers multi-room new booking
+        } else if (multiRoomSelect_BookingForm && multiRoomSelect_BookingForm.selectedOptions && multiRoomSelect_BookingForm.selectedOptions.length > 0) { 
             updateBookingTypeVisibilityAndDefaults();
-        } else if (roomSelect_BookingForm && roomSelect_BookingForm.value ) { // Covers single room new booking with room pre-selected or selected
+        } else if (roomSelect_BookingForm && roomSelect_BookingForm.value ) { 
              updateBookingTypeVisibilityAndDefaults();
-        } else { // Default fallback, e.g. new booking page with no room selected yet
+        } else { 
             updateBookingTypeVisibilityAndDefaults();
         }
 
@@ -1119,13 +1092,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     proofNeededForThisAction = true;
                 }
 
-                // Replaced alert with console.error/warn
                 if (proofNeededForThisAction && (!fileInput || !fileInput.files || fileInput.files.length === 0)) {
                   console.warn('Please select a file for deposit proof.'); 
-                  // Consider a custom modal or inline message for the user.
                   return;
                 }
-                // Replaced confirm with custom modal/message
                 if (!confirm(confirmMessage)) return;
 
                 setButtonLoading(submitCompleteBookingBtn, true, `submitCompleteBtn-${bookingId}`);
@@ -1143,16 +1113,13 @@ document.addEventListener('DOMContentLoaded', () => {
                   const response = await fetch(url, { method: 'POST', body: formData });
                   const data = await response.json();
                   if (data.success) {
-                    // alert(data.message || 'ดำเนินการเรียบร้อยแล้ว');
                     console.log(data.message || 'Operation completed successfully!');
                     window.location.reload();
                   } else {
-                    // alert(data.message || 'เกิดข้อผิดพลาด');
                     console.error('Error:', data.message || 'Unknown error');
                   }
                 } catch (err) {
                   console.error('[attachDetailEvents] Submit complete/deposit error:', err);
-                  // alert('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้');
                   console.error('Failed to connect to server.');
                 } finally {
                     setButtonLoading(submitCompleteBookingBtn, false, `submitCompleteBtn-${bookingId}`);
@@ -1165,7 +1132,6 @@ document.addEventListener('DOMContentLoaded', () => {
             completeNoRefundActionBtn.addEventListener('click', async () => {
                 const bookingId = completeNoRefundActionBtn.dataset.bookingId;
 
-                // Replaced confirm with custom modal/message
                 if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการ "ดำเนินการเช็คเอาท์ (ไม่คืนมัดจำ)" สำหรับการจอง ID: ${bookingId}? การดำเนินการนี้จะย้ายการจองไปประวัติโดยไม่มีการคืนเงินมัดจำ`)) {
                     return;
                 }
@@ -1184,16 +1150,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     const response = await fetch(url, { method: 'POST', body: formData });
                     const data = await response.json();
                     if (data.success) {
-                        // alert(data.message || 'ดำเนินการเช็คเอาท์ (ไม่คืนมัดจำ) เรียบร้อยแล้ว');
                         console.log(data.message || 'Checkout (no refund) completed successfully.');
                         window.location.reload();
                     } else {
-                        // alert(data.message || 'เกิดข้อผิดพลาด');
                         console.error('Error:', data.message || 'Unknown error');
                     }
                 } catch (err) {
                     console.error('[attachDetailEvents] Complete No Refund Action error:', err);
-                    // alert('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้');
                     console.error('Failed to connect to server.');
                 } finally {
                     setButtonLoading(completeNoRefundActionBtn, false, 'completeNoRefundActionBtn-' + bookingId);
@@ -1215,10 +1178,8 @@ document.addEventListener('DOMContentLoaded', () => {
             occupyBtnInModal.addEventListener('click', async (e) => {
                 e.preventDefault();
                 const bookingId = occupyBtnInModal.dataset.bookingId;
-                // Replaced alert with console.warn
                 if (!bookingId) { console.warn('Error: Booking ID not found.'); return; }
 
-                // Replaced confirm with custom modal/message
                 if (confirm(`คุณต้องการยืนยันการเช็คอินสำหรับการจอง ID: ${bookingId} หรือไม่?`)) {
                     const buttonId = occupyBtnInModal.id || `occupy-btn-modal-${bookingId}`;
                     setButtonLoading(occupyBtnInModal, true, buttonId);
@@ -1231,17 +1192,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                         const data = await response.json();
                         if (data.success) {
-                            // alert(data.message || 'เช็คอินสำเร็จ!');
-                            console.log(data.message || 'Check-in successful!');
+                            console.log(data.message || 'เช็คอินสำเร็จ!');
                             window.location.reload();
                         } else {
-                            // alert(data.message || 'เกิดข้อผิดพลาดในการเช็คอิน');
                             console.error('Check-in error:', data.message || 'Unknown error.');
                         }
                     } catch (err) {
                         console.error('[OccupyBtnInModal] API error:', err);
-                        // alert('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์เพื่อเช็คอินได้');
-                        console.error('Failed to connect to server for check-in.');
+                        console.error('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์เพื่อเช็คอินได้');
                     } finally {
                         setButtonLoading(occupyBtnInModal, false, buttonId);
                     }
@@ -1325,21 +1283,18 @@ document.addEventListener('DOMContentLoaded', () => {
                         const extensionDurationDetailsDisplay = modalBodyElement.querySelector('#extension_duration_details_display');
                         let paymentForExtensionInput = extendForm.querySelector('input[name="payment_for_extension"]');
 
-                        // ***** START: อ้างอิง Element ใหม่ และดึงยอดชำระเดิม *****
                         const currentPaidForExtendDisplay = modalBodyElement.querySelector('#current_paid_for_extend_display');
                         const paymentDueForExtensionDisplay = modalBodyElement.querySelector('#payment_due_for_extension_display');
 
-                        // สมมติว่ามี hidden input #js-current-total-paid ใน modalBodyElement หรือ data-attribute ใน extendForm
                         const currentAmountPaidOriginal = parseFloat(
-                            modalBodyElement.querySelector('#js-current-total-paid')?.value || // ลองหาจาก hidden input ที่มี id นี้ก่อน
-                            extendForm.dataset.currentAmountPaid || // ถ้าไม่มี ลองหาจาก data-attribute ของ extendForm
-                            '0' // ค่าเริ่มต้นถ้าไม่พบ
+                            modalBodyElement.querySelector('#js-current-total-paid')?.value || 
+                            extendForm.dataset.currentAmountPaid || 
+                            '0' 
                         ) || 0;
 
                         if (currentPaidForExtendDisplay) {
                             currentPaidForExtendDisplay.textContent = String(Math.round(currentAmountPaidOriginal));
                         }
-                        // ***** END: อ้างอิง Element ใหม่ และดึงยอดชำระเดิม *****
 
                         if (!paymentForExtensionInput) {
                             paymentForExtensionInput = document.createElement('input');
@@ -1354,11 +1309,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             if(newTotalAmountDisplay) newTotalAmountDisplay.textContent = String(Math.round(currentBooking_DB_ServiceTotalPrice_Ext || 0));
                             if(paymentForExtensionInput) paymentForExtensionInput.value = '0';
                             if (extensionDurationDetailsDisplay) extensionDurationDetailsDisplay.textContent = '-';
-                            // ***** START: Reset ยอดที่ต้องเรียกเก็บ หากเกิดข้อผิดพลาด *****
                             if (paymentDueForExtensionDisplay) {
                                 paymentDueForExtensionDisplay.textContent = '0';
                             }
-                            // ***** END: Reset ยอดที่ต้องเรียกเก็บ หากเกิดข้อผิดพลาด *****
                             return;
                         }
 
@@ -1471,13 +1424,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                         if(paymentForExtensionInput) paymentForExtensionInput.value = String(Math.round(calculatedExtensionCostOnly));
 
-                        // --- START: คำนวณและแสดง "ยอดที่ต้องเรียกเก็บจากลูกค้า (สำหรับการดำเนินการนี้)" ---
                         if (paymentDueForExtensionDisplay) {
-                            // ยอดที่ต้องเรียกเก็บคือ ค่าขยายเวลาครั้งนี้
                             paymentDueForExtensionDisplay.textContent = String(Math.round(calculatedExtensionCostOnly));
                         }
-                        // --- END: คำนวณและแสดงยอดที่ต้องเรียกเก็บ ---
-
                         console.log(`[ExtendCost] Type: ${type}, Extension Detail: ${extensionDetailsText}, Initial DB Service Total (Room+Addons): ${currentBooking_DB_ServiceTotalPrice_Ext}, Initial Short Stay Room Cost (if applicable): ${initialShortStayRoomCost_Ext}, Calculated Extension Cost (Payment Now): ${calculatedExtensionCostOnly}, New Total Booking Value (New Room+Addons): ${newTotalBookingValue ? String(Math.round(newTotalBookingValue)) : 'N/A'}, Current Paid Original: ${currentAmountPaidOriginal}, Payment Due for this Extension: ${calculatedExtensionCostOnly}`);
                     }
                     // ############# END OF MODIFIED FUNCTION #############
@@ -1500,20 +1449,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
 
-            // This event listener for extendTypeSelectLocal is now redundant as its logic is inside updateExtendCostAndPaymentScoped
-            // However, keeping it if it controls other UI elements not directly part of the calculation or if preferred.
-            // For this request, the core logic of show/hide/disable/enable is moved to updateExtendCostAndPaymentScoped.
-            // If this listener is removed, ensure extendTypeSelect.onchange calls updateExtendCostAndPaymentScoped. (It does)
-            /*
-            const extendTypeSelectLocal = modalBodyElement.querySelector('#extend_type');
-            if (extendTypeSelectLocal) {
-                extendTypeSelectLocal.addEventListener('change', function() {
-                    // This logic is now primarily handled within updateExtendCostAndPaymentScoped based on type
-                    // Calling updateExtendCostAndPaymentScoped here ensures UI consistency if this listener is kept.
-                    updateExtendCostAndPaymentScoped();
-                });
-            }
-            */
         }
 
 
@@ -1529,11 +1464,9 @@ document.addEventListener('DOMContentLoaded', () => {
             submitExtendBtn.addEventListener('click', async () => {
                 const formData = new FormData(extendForm);
 
-                // Replaced alert with console.warn
                 if (!formData.has('booking_id_extend') || !formData.get('booking_id_extend')) {
                     console.warn('Error: Booking ID for extension not found.'); return;
                 }
-                // Replaced confirm with custom modal/message
                 if (!confirm('ยืนยันการขยายเวลาการเข้าพักตามข้อมูลนี้?')) return;
 
                 setButtonLoading(submitExtendBtn, true, 'submitExtendBtn');
@@ -1543,23 +1476,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     const responseText = await response.text();
                     console.log("[ExtendStay Submit] Raw response:", responseText);
                     if (!response.ok) {
-                        // alert(`เกิดข้อผิดพลาดจากเซิร์ฟเวอร์: ${response.status}. ${responseText.substring(0,200)}`);
                         console.error(`Server error: ${response.status}. ${responseText.substring(0,200)}`);
                         throw new Error(`Server error: ${response.status}`);
                     }
                     const data = JSON.parse(responseText);
                     if (data.success) {
-                        // alert(data.message || 'ขยายเวลาการเข้าพักเรียบร้อยแล้ว');
                         console.log(data.message || 'Stay extended successfully.');
                         window.location.reload();
                     } else {
-                        // alert(data.message || 'เกิดข้อผิดพลาดในการขยายเวลา');
                         console.error('Extension error:', data.message || 'Unknown error.');
                     }
                 } catch (err) {
                     console.error('[ExtendStay] Submission/processing error:', err);
-                    // alert('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์เพื่อขยายเวลาได้ หรือการตอบกลับไม่ใช่ JSON ที่ถูกต้อง');
-                    console.error('Failed to connect to server for extension or invalid JSON response.');
+                    console.error('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์เพื่อขยายเวลาได้ หรือการตอบกลับไม่ใช่ JSON ที่ถูกต้อง');
                 } finally {
                     setButtonLoading(submitExtendBtn, false, 'submitExtendBtn');
                 }
@@ -1753,14 +1682,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 calculateAndUpdateTotalsInEditModal();
                 const formData = new FormData(editDetailsForm);
 
-                // Replaced alert with console.warn
                 if (!formData.has('booking_id_edit_details') || !formData.get('booking_id_edit_details')) {
                     console.warn('Error: Booking ID for editing details not found.'); return;
                 }
                 const adjType = formData.get('adjustment_type');
                 const adjAmount = parseFloat(formData.get('adjustment_amount')) || 0;
 
-                // Replaced alert with console.warn
                 if (adjType === 'add' && adjAmount > 0 && !formData.get('adjustment_payment_method')) {
                     console.warn('Please specify payment method for adding adjustment.'); return;
                 }
@@ -1768,7 +1695,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.warn('Please specify refund method for reducing/refunding adjustment.'); return;
                 }
 
-                // Replaced confirm with custom modal/message
                 if (!confirm('ยืนยันการแก้ไขหมายเหตุ, บริการเสริม และ/หรือปรับยอดชำระนี้?')) return;
 
                 setButtonLoading(submitEditDetailsBtn, true, 'submitEditDetailsBtn');
@@ -1777,23 +1703,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     const response = await fetch(url, { method: 'POST', body: formData });
                     const responseText = await response.text();
                     if (!response.ok) {
-                        // alert(`เกิดข้อผิดพลาดจากเซิร์ฟเวอร์: ${response.status}. ${responseText}`);
                         console.error(`Server error: ${response.status}. ${responseText}`);
                         throw new Error(`Server error: ${response.status}`);
                     }
                     const data = JSON.parse(responseText);
                     if (data.success) {
-                        // alert(data.message || 'แก้ไขรายละเอียดการจองเรียบร้อยแล้ว');
                         console.log(data.message || 'Booking details edited successfully.');
                         window.location.reload();
                     } else {
-                        // alert(data.message || 'เกิดข้อผิดพลาดในการแก้ไขรายละเอียด');
                         console.error('Error editing details:', data.message || 'Unknown error.');
                     }
                 } catch (err) {
                     console.error('[EditDetails] Submission/processing error:', err);
-                    // alert('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์เพื่อแก้ไขรายละเอียดได้ หรือการตอบกลับไม่ใช่ JSON');
-                    console.error('Failed to connect to server for editing details or invalid JSON response.');
+                    console.error('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์เพื่อแก้ไขรายละเอียดได้ หรือการตอบกลับไม่ใช่ JSON');
                 } finally {
                     setButtonLoading(submitEditDetailsBtn, false, 'submitEditDetailsBtn');
                 }
@@ -1819,8 +1741,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 newRoomSelect.disabled = true;
                 confirmMoveBtn.disabled = true;
 
-                hideModal(detailsModal); // ซ่อน modal รายละเอียดเดิม
-                showModal(moveRoomModal); // แสดง modal ย้ายห้อง
+                hideModal(detailsModal); 
+                showModal(moveRoomModal); 
 
                 try {
                     const response = await fetch(`/hotel_booking/pages/api.php?action=get_available_rooms_for_move&booking_id=${bookingId}`);
@@ -1846,16 +1768,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     newRoomSelect.innerHTML = `<option value="">เกิดข้อผิดพลาด: ${error.message}</option>`;
                 }
 
-                // ตั้งค่า event listener สำหรับปุ่มยืนยัน (ควรตั้งค่าใหม่ทุกครั้งที่เปิด modal เพื่อใช้ bookingId ที่ถูกต้อง)
                 confirmMoveBtn.onclick = async function() {
                     const newRoomId = newRoomSelect.value;
-                    // Replaced alert with console.warn
                     if (!newRoomId) {
                         console.warn('Please select a new room to move to.');
                         return;
                     }
 
-                    // Replaced confirm with custom modal/message
                     if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการย้ายการจองนี้ไปยังห้อง ${newRoomSelect.options[newRoomSelect.selectedIndex].text}?`)) {
                         return;
                     }
@@ -1872,16 +1791,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         const moveResult = await moveResponse.json();
 
                         if (moveResult.success) {
-                            // alert(moveResult.message || 'ย้ายห้องสำเร็จ!');
-                            console.log(moveResult.message || 'Room moved successfully!');
+                            console.log(moveResult.message || 'ย้ายห้องสำเร็จ!');
                             window.location.reload();
                         } else {
-                            // alert('เกิดข้อผิดพลาด: ' + moveResult.message);
                             console.error('Error moving room:', moveResult.message);
                         }
                     } catch (err) {
                         console.error('Move booking error:', err);
-                        // alert('การเชื่อมต่อล้มเหลว');
                         console.error('Connection failed while moving booking.');
                     } finally {
                         setButtonLoading(this, false, 'confirm-move-room-btn');
@@ -1927,11 +1843,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                     const data = await response.json();
                     if (data.success) {
-                        // alert(data.message || 'การจองถูกยกเลิก/ลบเรียบร้อยแล้ว');
-                        console.log(data.message || 'Booking cancelled/deleted successfully.');
+                        console.log(data.message || 'การจองถูกยกเลิก/ลบเรียบร้อยแล้ว');
                         window.location.reload();
                     } else {
-                        // alert(data.message || 'เกิดข้อผิดพลาดในการยกเลิก/ลบการจอง');
                         console.error('Error cancelling/deleting booking:', data.message || 'Unknown error.');
                         setButtonLoading(clickedDeleteButton, false, loadingKey);
                         clickedDeleteButton.textContent = actualOriginalButtonText;
@@ -1940,8 +1854,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 } catch (err) {
                     console.error('Cancel/Delete booking error:', err);
-                    // alert('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์เพื่อยกเลิก/ลบการจองได้');
-                    console.error('Failed to connect to server to cancel/delete booking.');
+                    console.error('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์เพื่อยกเลิก/ลบการจองได้');
                     setButtonLoading(clickedDeleteButton, false, loadingKey);
                     clickedDeleteButton.textContent = actualOriginalButtonText;
                     clickedDeleteButton.classList.remove('btn-danger-confirm');
@@ -1958,17 +1871,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // ========== START: MODIFICATION - ADDED LOGIC FOR TABLE CHECK-IN BUTTON ==========
         const clickedOccupyBtnTable = e.target.closest('.occupy-btn-table');
         if (clickedOccupyBtnTable) {
             e.preventDefault();
             const bookingId = clickedOccupyBtnTable.dataset.bookingId;
-            // Replaced alert with console.warn
             if (!bookingId) {
                 console.warn('Error: Booking ID for check-in not found.');
                 return;
             }
-            // Replaced confirm with custom modal/message
             if (confirm(`คุณต้องการยืนยันการเช็คอินสำหรับการจอง ID: ${bookingId} หรือไม่?`)) {
                 const buttonIdForLoading = clickedOccupyBtnTable.id || `occupy-tbl-${bookingId}`;
                 setButtonLoading(clickedOccupyBtnTable, true, buttonIdForLoading);
@@ -1981,24 +1891,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                     const data = await response.json();
                     if (data.success) {
-                        // alert(data.message || 'เช็คอินสำเร็จ!');
-                        console.log(data.message || 'Check-in successful!');
-                        fetchAndUpdateRoomStatuses(); // Refresh statuses after successful check-in
+                        console.log(data.message || 'เช็คอินสำเร็จ!');
+                        fetchAndUpdateRoomStatuses(); 
                     } else {
-                        // alert(data.message || 'เกิดข้อผิดพลาดในการเช็คอิน');
                         console.error('Check-in error:', data.message || 'Unknown error.');
                     }
                 } catch (err) {
                     console.error('[OccupyBtnTable] API error:', err);
-                    // alert('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์เพื่อเช็คอินได้');
                     console.error('Failed to connect to server for check-in.');
                 } finally {
                     setButtonLoading(clickedOccupyBtnTable, false, buttonIdForLoading);
                 }
             }
         }
-        // ========== END: MODIFICATION - ADDED LOGIC FOR TABLE CHECK-IN BUTTON ==========
-
 
         const globalReceiptBtn = e.target.closest('.receipt-btn-global, .proof-thumb, .receipt-thumbnail-table');
         if (globalReceiptBtn && imageModal && imageModalImage) {
@@ -2028,7 +1933,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const newPricePerDay = pricePerDayInput ? pricePerDayInput.value : null;
             const newPriceShortStay = priceShortStayInput ? priceShortStayInput.value : null;
 
-            // Replaced alert with console.warn
             if (newPricePerDay === null && newPriceShortStay === null) {
                 console.warn('No price data found to update or input name is incorrect.'); return;
             }
@@ -2049,15 +1953,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 const response = await fetch(API_BASE_URL, { method: 'POST', body: formData });
                 const data = await response.json();
                 if (data.success) {
-                    // alert(data.message || 'อัปเดตราคาห้องพักสำเร็จ!');
-                    console.log(data.message || 'Room price updated successfully!');
+                    console.log(data.message || 'อัปเดตราคาห้องพักสำเร็จ!');
                 } else {
-                    // alert('เกิดข้อผิดพลาด: ' + (data.message || 'ไม่สามารถอัปเดตราคาได้'));
                     console.error('Error updating room price:', data.message || 'Unknown error.');
                 }
             } catch (err) {
                 console.error('Update room price error:', err);
-                // alert('การเชื่อมต่อล้มเหลว หรือการตอบกลับจากเซิร์ฟเวอร์ไม่ถูกต้อง');
                 console.error('Connection failed or invalid server response.');
             } finally {
                 setButtonLoading(saveRoomPriceBtn, false, buttonId);
@@ -2067,7 +1968,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     /** 6) Common Modal Closing Logic **/
-    const allModals = [detailsModal, imageModal, depositModal, editAddonModal, moveRoomModal]; // Added moveRoomModal
+    const allModals = [detailsModal, imageModal, depositModal, editAddonModal, moveRoomModal]; 
 
     allModals.forEach(modalInstance => {
         if (modalInstance) {
@@ -2126,7 +2027,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const formData = new FormData(addAddonForm);
             const name = formData.get('name');
             const price = formData.get('price');
-            // Replaced alert with console.warn
             if (!name || !name.trim() || !price || parseFloat(price) < 0) {
                 console.warn('Please enter a valid name and non-negative price.'); return;
             }
@@ -2135,17 +2035,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const response = await fetch(`${API_BASE_URL}?action=add_addon_service`, { method: 'POST', body: formData });
                 const data = await response.json();
                 if (data.success) {
-                    // alert(data.message || "เพิ่มบริการเสริมสำเร็จ"); 
                     console.log(data.message || "Addon service added successfully.");
                     addAddonForm.reset(); 
                     location.reload();
                 } else { 
-                  // alert(`เพิ่มไม่สำเร็จ: ${data.message || 'ข้อผิดพลาดไม่ทราบสาเหตุ'}`); 
                   console.error(`Failed to add addon: ${data.message || 'Unknown error'}`);
                 }
             } catch (err) { 
               console.error('Add addon error:', err); 
-              // alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
               console.error('Connection error while adding addon.');
             } finally { if(submitAddAddonBtn) setButtonLoading(submitAddAddonBtn, false, 'submitAddAddonBtn'); }
         });
@@ -2174,7 +2071,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (target.classList.contains('toggle-addon-status-btn')) {
-                // Replaced confirm with custom modal/message
                 if (!confirm('คุณต้องการเปลี่ยนสถานะบริการเสริมนี้ใช่หรือไม่?')) return;
                 const buttonId = target.id || `toggleAddon-${addonId}`;
                 setButtonLoading(target, true, buttonId);
@@ -2185,16 +2081,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                     const data = await response.json();
                     if (data.success) { 
-                      // alert(data.message || "เปลี่ยนสถานะสำเร็จ"); 
                       console.log(data.message || "Addon status changed successfully.");
                       location.reload();
                     } else { 
-                      // alert(`เปลี่ยนสถานะไม่สำเร็จ: ${data.message || 'ข้อผิดพลาดไม่ทราบสาเหตุ'}`); 
                       console.error(`Failed to change addon status: ${data.message || 'Unknown error'}`);
                     }
                 } catch (err) { 
                   console.error('Toggle addon status error:', err); 
-                  // alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
                   console.error('Connection error while toggling addon status.');
                 } finally { setButtonLoading(target, false, buttonId); }
             }
@@ -2207,7 +2100,6 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             const formData = new FormData(editAddonModalForm);
             const name = formData.get('name'); const price = formData.get('price');
-            // Replaced alert with console.warn
             if (!name || !name.trim() || !price || parseFloat(price) < 0) {
                 console.warn('Please enter a valid name and non-negative price.'); return;
             }
@@ -2216,17 +2108,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const response = await fetch(`${API_BASE_URL}?action=update_addon_service`, { method: 'POST', body: formData });
                 const data = await response.json();
                 if (data.success) {
-                    // alert(data.message || "แก้ไขบริการเสริมสำเร็จ"); 
                     console.log(data.message || "Addon service updated successfully.");
                     hideModal(editAddonModal); 
                     location.reload();
                 } else { 
-                  // alert(`แก้ไขไม่สำเร็จ: ${data.message || 'ข้อผิดพลาดไม่ทราบสาเหตุ'}`); 
                   console.error(`Failed to update addon: ${data.message || 'Unknown error'}`);
                 }
             } catch (err) { 
               console.error('Update addon error:', err); 
-              // alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
               console.error('Connection error while updating addon.');
             } finally { if(submitEditAddonBtn) setButtonLoading(submitEditAddonBtn, false, 'submitEditAddonBtn'); }
         });
@@ -2238,7 +2127,6 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             const formData = new FormData(updateHourlyRateForm);
             const value = formData.get('setting_value'); const key = formData.get('setting_key');
-            // Replaced alert with console.warn
             if (value === null || value.trim() === '' || isNaN(parseFloat(value)) || parseFloat(value) < 0) {
                 console.warn('Please enter a valid non-negative hourly rate.'); return;
             }
@@ -2247,7 +2135,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const response = await fetch(`${API_BASE_URL}?action=update_system_setting`, { method: 'POST', body: formData });
                 const data = await response.json();
                 if (data.success) {
-                    // alert(data.message || "อัปเดตการตั้งค่าสำเร็จ");
                     console.log(data.message || "Setting updated successfully.");
                     if (key === 'hourly_extension_rate') {
                         HOURLY_RATE_JS = Math.round(parseFloat(value));
@@ -2255,18 +2142,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         if(displayElement) displayElement.textContent = String(Math.round(parseFloat(value)));
                     }
                 } else { 
-                  // alert(`อัปเดตราคาไม่สำเร็จ: ${data.message || 'ข้อผิดพลาดไม่ทราบสาเหตุ'}`); 
                   console.error(`Failed to update price: ${data.message || 'Unknown error'}`);
                 }
             } catch (err) { 
               console.error('Update hourly rate error:', err); 
-              // alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
               console.error('Connection error while updating hourly rate.');
             } finally { if(submitUpdateHourlyRateBtn) setButtonLoading(submitUpdateHourlyRateBtn, false, 'submitUpdateHourlyRateBtn'); }
         });
     }
 
-    // ========== START: MODIFIED fetchAndUpdateRoomStatuses FUNCTION ==========
     async function fetchAndUpdateRoomStatuses() {
         if (!document.querySelector('.rooms-grid') && !document.querySelector('#room-status-table-view')) {
             return;
@@ -2351,7 +2235,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                             // Nearing Checkout Icon SVG
                             let nearingCheckoutIconSVG = roomElementGrid.querySelector('.nearing-checkout-indicator-svg');
-                            if (isNearingCheckout && !isOverdueFromServer && newDisplayStatusFromServer === 'occupied') { // Show only for occupied
+                            if (isNearingCheckout && !isOverdueFromServer && newDisplayStatusFromServer === 'occupied') { 
                                 if (!nearingCheckoutIconSVG) {
                                     nearingCheckoutIconSVG = document.createElementNS("http://www.w3.org/2000/svg", "image");
                                     nearingCheckoutIconSVG.classList.add('nearing-checkout-indicator-svg');
@@ -2381,7 +2265,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (row) {
                             const currentDisplayStatusOnRow = row.dataset.displayStatus;
                             const currentIsOverdueOnRow = row.classList.contains('has-overdue-indicator-row');
-                            // Check if any relevant data has changed for the table view
                              if (currentDisplayStatusOnRow !== newDisplayStatusFromServer || 
                                  currentIsOverdueOnRow !== isOverdueFromServer ||
                                  (row.dataset.pendingPayment === 'true') !== hasPendingPayment ||
@@ -2425,7 +2308,6 @@ document.addEventListener('DOMContentLoaded', () => {
                                         pendingPaymentIndicatorTable.classList.add('pending-payment-indicator-table');
                                         pendingPaymentIndicatorTable.title = 'มียอดค้างชำระ!';
                                         pendingPaymentIndicatorTable.innerHTML = '<img src="/hotel_booking/assets/image/money_alert.png" alt="Pending Payment">';
-                                        // Insert after overdue or room name
                                         const existingOverdue = roomNameCellTable.querySelector('.overdue-indicator-table');
                                         if (existingOverdue) existingOverdue.insertAdjacentElement('afterend', pendingPaymentIndicatorTable);
                                         else roomNameCellTable.querySelector('strong').insertAdjacentElement('afterend', pendingPaymentIndicatorTable);
@@ -2443,7 +2325,6 @@ document.addEventListener('DOMContentLoaded', () => {
                                         nearingCheckoutIndicatorTable.classList.add('nearing-checkout-indicator-table');
                                         nearingCheckoutIndicatorTable.title = 'ใกล้หมดเวลาเช็คเอาท์!';
                                         nearingCheckoutIndicatorTable.innerHTML = '<img src="/hotel_booking/assets/image/clock_alert.png" alt="Nearing Checkout">';
-                                        // Insert after pending payment or overdue or room name
                                         const existingPending = row.querySelector('.pending-payment-indicator-table');
                                         const existingOverdue = roomNameCellTable.querySelector('.overdue-indicator-table');
                                         if (existingPending && existingPending.style.display !== 'none') existingPending.insertAdjacentElement('afterend', nearingCheckoutIndicatorTable);
@@ -2488,8 +2369,6 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error('[RoomStatusUpdate] Error fetching or processing room statuses:', error);
         }
     }
-    // ========== END: MODIFIED fetchAndUpdateRoomStatuses FUNCTION ==========
-
 
     const pathForPolling = window.location.pathname;
     if (pathForPolling.includes('/index.php') || pathForPolling === '/hotel_booking/' || pathForPolling === '/hotel_booking/pages/' || pathForPolling.endsWith('/hotel_booking/pages')) {
@@ -2518,51 +2397,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }, AUTO_REFRESH_INTERVAL);
     }
 
-    const calendarTable = document.querySelector('.calendar-table');
-    if (calendarTable && detailsModal && detailsModalBody) {
-        calendarTable.addEventListener('click', async (e) => {
-            const bookingGroupDiv = e.target.closest('.booking-group');
-            const customerNameActionSpan = e.target.closest('.calendar-customer-name-action');
-
-            if (customerNameActionSpan && bookingGroupDiv) {
-                const firstRoomId = bookingGroupDiv.dataset.firstRoomId;
-                if (firstRoomId) {
-                    console.log(`[CalendarClick] Customer name clicked. Room ID for details.php: ${firstRoomId}`);
-                    if(detailsModalBody) detailsModalBody.innerHTML = '<p style="text-align:center; padding:20px;">Loading room & booking details...</p>';
-                    showModal(detailsModal);
-
-                    try {
-                        const response = await fetch(`/hotel_booking/pages/details.php?id=${firstRoomId}`);
-                        if (!response.ok) {
-                              const errorText = await response.text();
-                              throw new Error(`HTTP error! status: ${response.status}, message: ${errorText.substring(0, 500)}`);
-                        }
-                        const html = await response.text();
-                        detailsModalBody.innerHTML = html;
-                        attachDetailEvents(detailsModalBody);
-                    } catch (err) {
-                        console.error('[CalendarClick] Failed to load details.php content for room:', err);
-                        if(detailsModalBody) detailsModalBody.innerHTML = '<p class="text-danger" style="padding:20px;">เกิดข้อผิดพลาดในการโหลดข้อมูลห้องพักและรายละเอียดการจอง: ' + err.message + '</p>';
-                    }
-                } else {
-                    console.warn('[CalendarClick] Customer name clicked, but no first-room-id found on booking group.');
-                    if(detailsModalBody) detailsModalBody.innerHTML = '<p class="text-warning" style="padding:20px;">ไม่พบข้อมูลห้องสำหรับแสดงรายละเอียด</p>';
-                    showModal(detailsModal);
-                }
-
-            } else if (bookingGroupDiv) {
-                const bookingIdsStr = bookingGroupDiv.dataset.bookingIds;
-                const bookingGroupId = bookingGroupDiv.dataset.bookingGroupId; // Get group ID if available
-                if (bookingIdsStr || bookingGroupId) {
-                    console.log(`[CalendarClick] Booking group area clicked. Booking IDs for group summary: ${bookingIdsStr}, Group ID: ${bookingGroupId}`);
-                    // Call the new global function
-                    openBookingGroupSummaryModal(bookingGroupId, bookingIdsStr);
-                } else {
-                     console.warn('[CalendarClick] Booking group clicked, but data-booking-ids or data-booking-group-id attribute is missing or empty.');
-                }
-            }
-        });
-    }
+    // Removed the redundant calendarTable event listener that was causing errors.
+    // The logic for handling clicks on customer names and booking groups in the calendar
+    // is now solely managed by the earlier, consolidated event listener within
+    // the `calendarPageContainer` block.
 
     if (typeof window.viewReceiptImage !== 'function') {
         window.viewReceiptImage = function(src) {
@@ -2615,28 +2453,20 @@ document.addEventListener('DOMContentLoaded', () => {
                         link.download = fileName;
                         link.href = image;
                         link.click();
-                        // Replaced alert with console.log for better UX
                         console.log('Browser does not support direct file sharing. Dashboard overview image downloaded. You can share it manually.');
-                        // alert('เบราว์เซอร์นี้ไม่รองรับการแชร์ไฟล์โดยตรง หรือไม่สามารถแชร์ได้ในขณะนี้ รูปภาพภาพรวม Dashboard ถูกดาวน์โหลดแล้ว คุณสามารถแชร์ด้วยตนเองได้ค่ะ');
                     }
                 } catch (err) {
                     document.body.style.backgroundColor = originalBodyBg;
                     console.error('Error generating or sharing dashboard image:', err);
-                    // Replaced alert with console.error
                     console.error('Error generating or sharing image: ' + err.message);
-                    // alert('เกิดข้อผิดพลาดในการสร้างหรือแชร์รูปภาพ: ' + err.message);
                 } finally {
                     setButtonLoading(shareDashboardBtn, false, buttonId);
                 }
             } else if (typeof html2canvas !== 'function') {
-                  // Replaced alert with console.error
                   console.error('Library for image export (html2canvas) is not loaded. Cannot share dashboard image.');
-                  // alert('Library for image export (html2canvas) is not loaded. Cannot share dashboard image.');
                   setButtonLoading(shareDashboardBtn, false, buttonId);
             } else {
-                  // Replaced alert with console.error
                   console.error('Could not find content to export for dashboard image.');
-                  // alert('Could not find content to export for dashboard image.');
                   setButtonLoading(shareDashboardBtn, false, buttonId);
             }
         });

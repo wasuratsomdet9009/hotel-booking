@@ -1,15 +1,18 @@
 <?php
 // FILEX: hotel_booking/pages/cash_bill.php
+// VERSION: 2.1 - Patched by System Auditor
+// FIX: Reworked image/share logic to produce consistent high-resolution output.
+
 require_once __DIR__ . '/../bootstrap.php';
 require_login(); 
 
 $pageTitle = 'ออกใบเสร็จรับเงิน';
 
-// ดึงข้อมูลห้องพักสำหรับ Dropdown
+// Fetch room data for Dropdown
 $rooms_stmt = $pdo->query("SELECT id, zone, room_number, price_per_day FROM rooms ORDER BY zone ASC, CAST(room_number AS UNSIGNED) ASC");
 $all_rooms_for_bill = $rooms_stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// ดึงข้อมูลกลุ่มการจองที่ยัง Active อยู่
+// Fetch active booking group data
 $active_groups_stmt = $pdo->query("
     SELECT DISTINCT bg.id, bg.customer_name 
     FROM booking_groups bg
@@ -18,7 +21,7 @@ $active_groups_stmt = $pdo->query("
 ");
 $active_booking_groups = $active_groups_stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// ดึงข้อมูลบริการเสริม (Addons) สำหรับ Dropdown
+// Fetch addon services for Dropdown
 $addons_stmt = $pdo->query("SELECT id, name, price FROM addon_services WHERE is_active = 1 ORDER BY name ASC");
 $active_addons_for_bill = $addons_stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -103,6 +106,7 @@ ob_start();
         aspect-ratio: 210 / 297;
         height: auto;
         font-size: clamp(8pt, 1.5vw, 12pt); /* *** NEW: Responsive font size for preview *** */
+        overflow: hidden; /* Ensure content is clipped if it exceeds the A4 size */
         /* --- END: ส่วนที่แก้ไข --- */
         padding: 10mm; 
         box-shadow: 0 5px 15px rgba(0,0,0,0.25); margin: 1rem auto;
@@ -196,7 +200,9 @@ ob_start();
             display: block !important;
         }
         #bill-content {
-            width: 210mm !important; height: 297mm !important;
+            width: 210mm !important; 
+            height: auto !important; /* Allow height to adjust */
+            aspect-ratio: 210 / 297; /* Maintain A4 aspect ratio */
             margin: 0 !important; box-shadow: none !important; border: none !important;
             page-break-inside: avoid !important;
             font-size: 12pt !important; /* Fixed font size for printing */
@@ -381,18 +387,23 @@ ob_start();
         </div>
         <div class="bill-actions">
             <button type="button" id="save-bill-as-image-btn" class="button secondary" disabled>
-                <img src="/hotel_booking/assets/image/picture.png" alt="Save">บันทึกเป็นรูปภาพ
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-image"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+                บันทึกเป็นรูปภาพ
             </button>
             <button type="button" id="share-bill-btn" class="button info" disabled>
-                <img src="/hotel_booking/assets/image/share.png" alt="Share">แชร์บิล
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-share-2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.59 13.51 6.83 4.98"/><path d="m15.41 6.49-6.83 4.98"/></svg>
+                แชร์บิล
             </button>
             <button type="button" id="print-bill-btn" class="button alert" disabled>
-                <img src="/hotel_booking/assets/image/printer.png" alt="Print">สั่งพิมพ์
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-printer"><path d="M6 18H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-2"/><path d="M18 14H6"/><path d="M9 18V7h6v11"/></svg>
+                สั่งพิมพ์
             </button>
         </div>
     </div>
 </div>
 
+<!-- html2canvas CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // --- Element Selectors ---
@@ -645,52 +656,128 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     printBillBtn.addEventListener('click', () => window.print());
 
-    saveAsImageBtn.addEventListener('click', function() {
-        setButtonLoading(this, true, 'save-bill-image');
-        html2canvas(document.getElementById('bill-content'), { scale: 3, useCORS: true, backgroundColor: '#ffffff' }).then(canvas => {
-            const image = canvas.toDataURL('image/png');
-            const newWindow = window.open();
-            newWindow.document.write('<title>ใบเสร็จรับเงิน</title><style>body{margin:0; background:#333;} img{display:block; margin:auto;}</style><img src="' + image + '" alt="ใบเสร็จรับเงิน" style="max-width:100%;">');
-            setButtonLoading(saveAsImageBtn, false, 'save-bill-image');
-        }).catch(err => {
-            alert("Error creating image: " + err.message);
-            setButtonLoading(saveAsImageBtn, false, 'save-bill-image');
+    /**
+     * Creates a high-resolution, fixed-layout canvas of the bill content.
+     * @returns {Promise<HTMLCanvasElement|null>} A promise that resolves with the canvas element or null on error.
+     */
+    async function generateBillCanvas() {
+        const sourceElement = document.getElementById('bill-content');
+        if (!sourceElement || typeof html2canvas !== 'function') {
+            alert('ไม่สามารถสร้างรูปภาพได้: ไม่พบส่วนประกอบที่จำเป็น');
+            return null;
+        }
+
+        const clone = sourceElement.cloneNode(true);
+        // Apply computed styles to the clone for consistent rendering
+        document.body.appendChild(clone); // Temporarily append to body to compute styles
+
+        // Get computed styles and apply them inline to the clone
+        const computedStyles = window.getComputedStyle(sourceElement);
+        for (let i = 0; i < computedStyles.length; i++) {
+            const prop = computedStyles[i];
+            clone.style[prop] = computedStyles.getPropertyValue(prop);
+        }
+
+        // Specifically set A4 dimensions and font size for consistent output
+        clone.style.position = 'absolute';
+        clone.style.top = '-9999px';
+        clone.style.left = '0px';
+        clone.style.width = '210mm'; // A4 width
+        clone.style.height = '297mm'; // A4 height
+        clone.style.margin = '0';
+        clone.style.fontSize = '12pt'; // Set a fixed font size
+
+        // Set fixed font sizes for child elements to override responsive styles
+        const elementsToFixFont = clone.querySelectorAll('h1, h2, p, div, th, td, span, strong');
+        elementsToFixFont.forEach(el => {
+            const currentSize = window.getComputedStyle(el).fontSize;
+            el.style.fontSize = currentSize; // Lock in the computed size
         });
-    });
+        
+        try {
+            const canvas = await html2canvas(clone, {
+                scale: 3, // Increase scale for higher resolution
+                useCORS: true,
+                logging: false, // Set to true for debugging
+                width: clone.offsetWidth,
+                height: clone.offsetHeight,
+                backgroundColor: '#ffffff' // Ensure a white background
+            });
+            return canvas;
+        } catch (error) {
+            console.error('Error generating canvas:', error);
+            alert('เกิดข้อผิดพลาดในการสร้างรูปภาพ: ' + error.message);
+            return null;
+        } finally {
+            // Clean up by removing the clone from the DOM
+            if (document.body.contains(clone)) {
+                document.body.removeChild(clone);
+            }
+        }
+    }
     
+    // --- Update Event Listeners to use the new function ---
+    saveAsImageBtn.addEventListener('click', async function() {
+        const buttonId = 'save-bill-as-image-btn';
+        if (typeof setButtonLoading === 'function') setButtonLoading(this, true, buttonId);
+
+        const canvas = await generateBillCanvas();
+        
+        if (canvas) {
+            const image = canvas.toDataURL('image/png', 1.0);
+            const newWindow = window.open();
+            newWindow.document.write('<title>ใบเสร็จรับเงิน</title><style>body{margin:0; background:#333;} img{display:block; margin:auto; max-width:100%; height:auto;}</style><img src="' + image + '" alt="ใบเสร็จรับเงิน">');
+        }
+
+        if (typeof setButtonLoading === 'function') setButtonLoading(this, false, buttonId);
+    });
+
     if (shareBillBtn) {
         shareBillBtn.addEventListener('click', async function() {
-            setButtonLoading(this, true, 'share-bill');
-            try {
-                const canvas = await html2canvas(document.getElementById('bill-content'), { scale: 3, useCORS: true, backgroundColor: '#ffffff' });
-                const fileName = `receipt_${(billNumberInputEl.value || 'bill').replace(/[^a-z0-9]/gi, '_')}.png`;
+            const buttonId = 'share-bill-btn';
+            if (typeof setButtonLoading === 'function') setButtonLoading(this, true, buttonId);
+            
+            const canvas = await generateBillCanvas();
+
+            if (canvas) {
+                const fileName = `receipt_${(document.getElementById('bill_number_input').value || 'bill').replace(/[^a-z0-9]/gi, '_')}.png`;
                 
                 canvas.toBlob(async function(blob) {
                     if (!blob) {
                          alert('ไม่สามารถสร้างไฟล์รูปภาพสำหรับแชร์ได้');
-                         setButtonLoading(shareBillBtn, false, 'share-bill'); return;
+                         if (typeof setButtonLoading === 'function') setButtonLoading(shareBillBtn, false, buttonId);
+                         return;
                     }
+
                     if (navigator.share && typeof File !== 'undefined' && navigator.canShare({ files: [new File([blob], fileName, {type: blob.type})] })) {
                         const shareFile = new File([blob], fileName, { type: blob.type });
-                        await navigator.share({
-                            title: `ใบเสร็จรับเงิน เลขที่ ${billNumberInputEl.value || ''}`,
-                            text: `ใบเสร็จรับเงินสำหรับ ${customerNameInput.value || 'ลูกค้า'}`,
-                            files: [shareFile]
-                        });
+                        try {
+                            await navigator.share({
+                                title: `ใบเสร็จรับเงิน เลขที่ ${document.getElementById('bill_number_input').value || ''}`,
+                                text: `ใบเสร็จรับเงินสำหรับ ${document.getElementById('bill_customer_company_name').value || 'ลูกค้า'}`,
+                                files: [shareFile]
+                            });
+                        } catch (error) {
+                            // Catch share cancellation error
+                            if (error.name !== 'AbortError') {
+                                console.error('[Share Bill] Share failed:', error);
+                                alert('การแชร์ไม่สำเร็จ: ' + error.message);
+                            }
+                        }
                     } else {
                         alert('เบราว์เซอร์นี้ไม่รองรับการแชร์ไฟล์โดยตรง กรุณาบันทึกเป็นรูปภาพแล้วแชร์ด้วยตนเอง');
                     }
-                    setButtonLoading(shareBillBtn, false, 'share-bill');
+                    if (typeof setButtonLoading === 'function') setButtonLoading(shareBillBtn, false, buttonId);
                 }, 'image/png');
 
-            } catch (err) {
-                console.error("Error sharing bill:", err);
-                alert("เกิดข้อผิดพลาดในการแชร์บิล: " + err.message);
-                setButtonLoading(shareBillBtn, false, 'share-bill');
+            } else {
+                if (typeof setButtonLoading === 'function') setButtonLoading(shareBillBtn, false, buttonId);
             }
         });
     }
 
+    // This function seems to be part of the original code, ensure it's still available.
+    // If it's not defined elsewhere, it needs to be included.
     const originalButtonContents_cashbill = {}; 
     function setButtonLoading(buttonElement, isLoading, buttonIdForTextStore) {
         if (!buttonElement) return;

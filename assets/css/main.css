@@ -161,11 +161,11 @@
   --dt-color-booking-entry-regular-hover-bg: #2a3a4a;
   --dt-color-booking-roomnames-lighttheme: var(--dt-color-text-muted);
   --dt-color-upload-label-active-bg: #2a2a2a;
-  --dt-color-switch-component-track-bg: #3a5f75;
-  --dt-color-switch-component-slider-bg: rgba(136, 192, 228, 0.65);
-  --dt-color-switch-component-slider-on-bg: rgba(136, 192, 228, 1);
-  --dt-color-switch-component-slider-shadow-inset: rgba(0, 0, 0, 0.3);
-  --dt-color-switch-component-slider-shadow-highlight: rgba(255, 255, 255, 0.1);
+  --color-switch-component-track-bg: #3a5f75;
+  --color-switch-component-slider-bg: rgba(136, 192, 228, 0.65);
+  --color-switch-component-slider-on-bg: rgba(136, 192, 228, 1);
+  --color-switch-component-slider-shadow-inset: rgba(0, 0, 0, 0.3);
+  --color-switch-component-slider-shadow-highlight: rgba(255, 255, 255, 0.1);
   --dt-color-scrollbar-thumb-bg: #555;
   --dt-color-scrollbar-thumb-hover-bg: #777;
 
@@ -1409,7 +1409,15 @@ body.dark-theme .calendar-table td.calendar-day.empty { opacity: 0.7; }
 .date-number { font-size: 0.85em; font-weight: 600; color: var(--color-text); text-align: right; padding: 3px 5px; position: absolute; top: 4px; right: 4px; width: auto; min-width: 1.6em; height: 1.6em; line-height: 1.6em; border-radius: 50%; background-color: transparent; z-index: 2; }
 .calendar-table td.calendar-day.today .date-number { color: var(--color-black); background-color: var(--color-warning-dark); }
 body.dark-theme .calendar-table td.calendar-day.today .date-number { color: var(--color-black); }
-.booking-entries-area { margin-top: 2em; max-height: calc(130px - 2.2em - 28px - 8px); overflow-y: auto; padding-right: 4px; position: relative; z-index: 1; }
+/* Booking Entries Styling */
+.booking-entries-area { /* This is for DESKTOP only now */
+    margin-top: 2em;
+    max-height: calc(130px - 2.2em - 28px - 8px);
+    overflow-y: auto;
+    padding-right: 4px;
+    position: relative;
+    z-index: 4; /* ปรับค่า z-index ให้สูงกว่าปุ่มเพิ่มการจอง */
+}
 .booking-entries-area::-webkit-scrollbar { width: 6px; }
 .booking-entries-area::-webkit-scrollbar-thumb { background: var(--color-scrollbar-thumb-bg); border-radius: 3px; }
 .booking-entries-area::-webkit-scrollbar-thumb:hover { background: var(--color-scrollbar-thumb-hover-bg); }
@@ -1425,7 +1433,14 @@ body.dark-theme .highlighted-transaction { color: var(--dt-color-text); }
 .regular-booking-entry:hover { background-color: var(--color-booking-entry-regular-hover-bg); }
 .regular-booking-entry .booking-customer-name-highlight { color: var(--color-info-dark); }
 .regular-booking-entry .booking-room-names { color: var(--color-booking-roomnames-lighttheme); }
-.calendar-add-booking-area { position: absolute; bottom: 5px; right: 5px; z-index: 10; }
+/* FAB Button Styling */
+.calendar-add-booking-area {
+    position: absolute;
+    bottom: 5px;
+    right: 5px;
+    z-index: 10; /* เพิ่ม: ปรับค่า z-index ให้สูงขึ้นอีก */
+    pointer-events: none; /* เพิ่ม: ทำให้พื้นที่ว่างของ container ไม่ขวางการคลิก */
+}
 a.calendar-add-btn[href*="index.php"] { background-color: var(--color-secondary); color: var(--color-white); border: 1px solid var(--color-secondary-dark); font-size: 0.7rem !important; padding: 3px 6px !important; border-radius: var(--border-radius-sm); width: auto; display: inline-block; margin: 2px; }
 a.calendar-add-btn[href*="index.php"]:hover { background-color: var(--color-secondary-dark); }
 .fab-options { background-color: var(--color-calendar-fab-options-bg); box-shadow: var(--shadow-md); border-radius: var(--border-radius-md); padding: 0.5rem; }
@@ -1519,7 +1534,13 @@ label[for="receipt"] { display: block; padding: 1.5rem 1rem; background-color: v
 */
 
 /* FAB (Floating Action Button) */
-.calendar-fab-container { position: relative; display: flex; justify-content: flex-end; align-items: flex-end; }
+.calendar-fab-container {
+    position: relative;
+    display: flex;
+    justify-content: flex-end;
+    align-items: flex-end;
+    pointer-events: auto; /* เพิ่ม: ทำให้เฉพาะส่วนปุ่มและเมนูภายในสามารถคลิกได้ */
+}
 .fab-main-btn { background-color: var(--color-primary); color: var(--color-white); border: none; border-radius: 50%; width: 40px; height: 40px; font-size: 20px; cursor: pointer; box-shadow: var(--shadow-md); z-index: 12; display: flex; justify-content: center; align-items: center; padding: 0; }
 .fab-main-btn:hover { background-color: var(--color-primary-dark); transform: scale(1.1); box-shadow: var(--shadow-lg); }
 .fab-main-btn svg { width: 18px; height: 18px; fill: currentColor; }
