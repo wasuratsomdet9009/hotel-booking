@@ -1,6 +1,8 @@
 <?php
 // FILEX: hotel_booking/pages/api.php
-// pages/api.php
+// VERSION: 3.1 - Telegram Integration by Senior System Auditor
+// DESC: Added triggers to send Telegram notifications on status-changing events.
+
 require_once __DIR__ . '/../bootstrap.php'; // Defines CHECKOUT_TIME_STR, FIXED_DEPOSIT_AMOUNT, DEFAULT_SHORT_STAY_DURATION_HOURS, HOURLY_EXTENSION_RATE, and hopefully get_current_user_id() and process_uploaded_image_with_compression()
 header('Content-Type: application/json; charset=utf-8');
 
@@ -166,7 +168,7 @@ switch ($action) {
                     // Flexible overnight logic (kept as original)
                     $checkin_hour = (int)$checkin_datetime_obj->format('H');
                     $checkin_date_Y_m_d = $checkin_datetime_obj->format('Y-m-d');
-                    $noon_on_checkin_day_obj = new \DateTime($checkin_date_Y_m_d . ' ' . CHECKOUT_TIME_STR, new \DateTimeZone('Asia/Bangkok'));
+                    $noon_on_checkin_day_obj = new \DateTime($checkin_date_Y_m_d . ' ' . CHECKOUT_TIME_STR, new \DateTimeZone('Asia/Bangkoks'));
                     if ($checkin_hour >= 1 && $checkin_hour < 11) { 
                         $checkout_datetime_calculated_obj = clone $noon_on_checkin_day_obj;
                         error_log("[API Create Flexible Overnight EARLY CHECK-IN] Check-in at {$checkin_hour}:00. Checkout forced to: " . $checkout_datetime_calculated_obj->format('Y-m-d H:i:s'));
@@ -717,6 +719,17 @@ switch ($action) {
             }
 
             $pdo->commit();
+            
+            // --- START: Telegram Notification Trigger ---
+            try {
+                if (function_exists('sendTelegramRoomStatusUpdate')) {
+                    sendTelegramRoomStatusUpdate($pdo);
+                }
+            } catch (Exception $tg_e) {
+                error_log("Telegram notification failed after booking creation: " . $tg_e->getMessage());
+            }
+            // --- END: Telegram Notification Trigger ---
+
             $successMessage = $booking_mode === 'multi' ? 'จองหลายห้องพักเรียบร้อย! (' . count($createdBookingIds) . ' ห้อง)' : 'จองห้องพักเรียบร้อย!'; // Multi-room booking successful! ({count} rooms) : Room booking successful!
             // ** MODIFICATION START: ส่ง booking_ids กลับไปเสมอ เพื่อให้ client ใช้ได้ ** // Always return booking_ids so the client can use them
             echo json_encode(['success' => true, 'message' => $successMessage, 'booking_ids' => $createdBookingIds, 'booking_group_id' => $bookingGroupId, 'redirect_url' => '/hotel_booking/pages/index.php']);
@@ -1242,6 +1255,15 @@ switch ($action) {
             $stmtUpdateBooking->execute($bindings);
 
             $pdo->commit();
+            // --- START: Telegram Notification Trigger ---
+            try {
+                if (function_exists('sendTelegramRoomStatusUpdate')) {
+                    sendTelegramRoomStatusUpdate($pdo);
+                }
+            } catch (Exception $tg_e) {
+                error_log("Telegram notification failed after booking update ('update_booking_with_addons'): " . $tg_e->getMessage());
+            }
+            // --- END: Telegram Notification Trigger ---
             echo json_encode(['success' => true, 'message' => 'แก้ไขการจองเรียบร้อยแล้ว', 'booking_id' => $bookingId, 'redirect_url' => '/hotel_booking/pages/index.php']); // Booking edited successfully
             exit;
 
@@ -1343,6 +1365,15 @@ switch ($action) {
 
                 if ($stmtRoomStatus->rowCount() > 0) {
                     $pdo->commit();
+                    // --- START: Telegram Notification Trigger ---
+                    try {
+                        if (function_exists('sendTelegramRoomStatusUpdate')) {
+                            sendTelegramRoomStatusUpdate($pdo);
+                        }
+                    } catch (Exception $tg_e) {
+                        error_log("Telegram notification failed after booking update ('occupy'): " . $tg_e->getMessage());
+                    }
+                    // --- END: Telegram Notification Trigger ---
                     echo json_encode(['success' => true, 'message' => 'เช็คอินห้องพักเรียบร้อย!']); // Room checked in successfully!
                 } else {
                     $currentRoomStatusStmt = $pdo->prepare("SELECT status FROM rooms WHERE id = ?");
@@ -1596,6 +1627,15 @@ switch ($action) {
                 // --- End of user-requested modifications ---
 
                 $pdo->commit(); 
+                // --- START: Telegram Notification Trigger ---
+                try {
+                    if (function_exists('sendTelegramRoomStatusUpdate')) {
+                        sendTelegramRoomStatusUpdate($pdo);
+                    }
+                } catch (Exception $tg_e) {
+                    error_log("Telegram notification failed after booking update ('return_and_complete'): " . $tg_e->getMessage());
+                }
+                // --- END: Telegram Notification Trigger ---
                 // Use the simplified success message as requested
                 echo json_encode(['success' => true, 'message' => 'ดำเนินการเช็คเอาท์และย้ายข้อมูลไปประวัติเรียบร้อยแล้ว', 'archived_id' => $archivedBookingId]); // Checkout completed and data moved to history
                 exit;
@@ -1666,6 +1706,15 @@ switch ($action) {
                     $pdo->prepare("UPDATE rooms SET status = ? WHERE id = ?")->execute([$newRoomStatus, $roomId]);
 
                     $pdo->commit();
+                    // --- START: Telegram Notification Trigger ---
+                    try {
+                        if (function_exists('sendTelegramRoomStatusUpdate')) {
+                            sendTelegramRoomStatusUpdate($pdo);
+                        }
+                    } catch (Exception $tg_e) {
+                        error_log("Telegram notification failed after booking update ('delete'): " . $tg_e->getMessage());
+                    }
+                    // --- END: Telegram Notification Trigger ---
                     echo json_encode(['success' => true, 'message' => 'ลบการจองเรียบร้อยแล้ว']); // Booking deleted successfully
                 } else {
                     $pdo->rollBack();
@@ -1736,6 +1785,15 @@ switch ($action) {
             $stmtUpdateBookings->execute($updateParams);
             
             $pdo->commit();
+            // --- START: Telegram Notification Trigger ---
+            try {
+                if (function_exists('sendTelegramRoomStatusUpdate')) {
+                    sendTelegramRoomStatusUpdate($pdo);
+                }
+            } catch (Exception $tg_e) {
+                error_log("Telegram notification failed after grouping bookings: " . $tg_e->getMessage());
+            }
+            // --- END: Telegram Notification Trigger ---
             echo json_encode(['success' => true, 'message' => 'จัดกลุ่มการจอง ' . count($bookingIds) . ' รายการเรียบร้อยแล้ว', 'new_group_id' => $newBookingGroupId]); // Grouped bookings successfully
 
         } catch (Exception $e) {
@@ -2008,6 +2066,15 @@ switch ($action) {
             ]);
 
             $pdo->commit();
+            // --- START: Telegram Notification Trigger ---
+            try {
+                if (function_exists('sendTelegramRoomStatusUpdate')) {
+                    sendTelegramRoomStatusUpdate($pdo);
+                }
+            } catch (Exception $tg_e) {
+                error_log("Telegram notification failed after extending stay: " . $tg_e->getMessage());
+            }
+            // --- END: Telegram Notification Trigger ---
             $successMessage = 'ดำเนินการเรียบร้อยแล้ว'; // Operation completed
             if ($extendType === 'upgrade_to_overnight') {
                 $successMessage = 'อัปเกรดเป็นค้างคืนเรียบร้อย (ยอดรวมค่าห้อง '.$new_total_price_for_booking_record.' บ. รวมมัดจำ)'; // Upgraded to overnight successfully (total room cost {new_total_price_for_booking_record} Baht including deposit)
@@ -2280,6 +2347,15 @@ switch ($action) {
                 $stmtUpdate->execute($bindings);
 
                 $pdo->commit();
+                // --- START: Telegram Notification Trigger ---
+                try {
+                    if (function_exists('sendTelegramRoomStatusUpdate')) {
+                        sendTelegramRoomStatusUpdate($pdo);
+                    }
+                } catch (Exception $tg_e) {
+                    error_log("Telegram notification failed after editing booking details: " . $tg_e->getMessage());
+                }
+                // --- END: Telegram Notification Trigger ---
                 echo json_encode(['success' => true, 'message' => 'แก้ไขรายละเอียดการจองเรียบร้อยแล้ว']); // Booking details edited successfully
             } elseif ($addons_structure_changed) { 
                 // If only addons changed, just update timestamps
@@ -2288,6 +2364,15 @@ switch ($action) {
                 $stmtTsUpdate->execute([':user_id' => $current_user_id, ':booking_id' => $bookingIdToEdit]);
 
                 $pdo->commit();
+                // --- START: Telegram Notification Trigger ---
+                try {
+                    if (function_exists('sendTelegramRoomStatusUpdate')) {
+                        sendTelegramRoomStatusUpdate($pdo);
+                    }
+                } catch (Exception $tg_e) {
+                    error_log("Telegram notification failed after editing booking addons: " . $tg_e->getMessage());
+                }
+                // --- END: Telegram Notification Trigger ---
                 echo json_encode(['success' => true, 'message' => 'แก้ไขรายการเสริมเรียบร้อยแล้ว']); // Add-ons edited successfully
             } else {
                 $pdo->rollBack();
@@ -2371,6 +2456,15 @@ switch ($action) {
                 $stmtPriceUpdate = $pdo->prepare($sqlPriceUpdate);
                 $stmtPriceUpdate->execute($updateBindingsPrice); 
                 $pdo->commit(); 
+                // --- START: Telegram Notification Trigger ---
+                try {
+                    if (function_exists('sendTelegramRoomStatusUpdate')) {
+                        sendTelegramRoomStatusUpdate($pdo);
+                    }
+                } catch (Exception $tg_e) {
+                    error_log("Telegram notification failed after updating room price: " . $tg_e->getMessage());
+                }
+                // --- END: Telegram Notification Trigger ---
                 echo json_encode(['success' => true, 'message' => 'อัปเดตราคาห้องพัก ID: ' . htmlspecialchars($roomIdForPriceUpdate) . ' เรียบร้อยแล้ว']); // Room price updated successfully
             } else {
                 $pdo->rollBack(); 
@@ -2447,6 +2541,15 @@ switch ($action) {
 
             if ($stmt->rowCount() > 0) {
                 $pdo->commit();
+                // --- START: Telegram Notification Trigger ---
+                try {
+                    if (function_exists('sendTelegramRoomStatusUpdate')) {
+                        sendTelegramRoomStatusUpdate($pdo);
+                    }
+                } catch (Exception $tg_e) {
+                    error_log("Telegram notification failed after updating system setting: " . $tg_e->getMessage());
+                }
+                // --- END: Telegram Notification Trigger ---
                 echo json_encode(['success' => true, 'message' => 'อัปเดตการตั้งค่า "' . htmlspecialchars($key) . '" เรียบร้อยแล้ว']); // Setting updated successfully
             } else {
                 $checkStmt = $pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key = ?");
@@ -2526,6 +2629,15 @@ switch ($action) {
             $stmt->execute([$name, $price]); 
             $newAddonId = $pdo->lastInsertId();
             $pdo->commit();
+            // --- START: Telegram Notification Trigger ---
+            try {
+                if (function_exists('sendTelegramRoomStatusUpdate')) {
+                    sendTelegramRoomStatusUpdate($pdo);
+                }
+            } catch (Exception $tg_e) {
+                error_log("Telegram notification failed after adding addon service: " . $tg_e->getMessage());
+            }
+            // --- END: Telegram Notification Trigger ---
             echo json_encode(['success' => true, 'message' => 'เพิ่มบริการเสริม "'.htmlspecialchars($name).'" เรียบร้อยแล้ว', 'new_addon_id' => $newAddonId, 'name' => $name, 'price' => $price, 'is_active' => 1]); // Add-on service added successfully
             exit;
         } catch (PDOException $e) {
@@ -2534,8 +2646,7 @@ switch ($action) {
                 http_response_code(409); 
                 echo json_encode(['success' => false, 'message' => 'ชื่อบริการเสริมนี้มีอยู่แล้ว: "' . htmlspecialchars($name) . '"']); // Add-on service name already exists
             } else {
-                http_response_code(500);
-                error_log("[API AddAddon] PDO Error: " . $e->getMessage());
+                http_response_code(500); error_log("[API AddAddon] PDO Error: " . $e->getMessage());
                 echo json_encode(['success' => false, 'message' => 'เกิดข้อผิดพลาดฐานข้อมูลขณะเพิ่มบริการเสริม: ' . $e->getMessage()]); // Database error while adding add-on service
             }
             exit;
@@ -2574,6 +2685,15 @@ switch ($action) {
 
             if ($stmt->rowCount() > 0) {
                 $pdo->commit();
+                // --- START: Telegram Notification Trigger ---
+                try {
+                    if (function_exists('sendTelegramRoomStatusUpdate')) {
+                        sendTelegramRoomStatusUpdate($pdo);
+                    }
+                } catch (Exception $tg_e) {
+                    error_log("Telegram notification failed after updating addon service: " . $tg_e->getMessage());
+                }
+                // --- END: Telegram Notification Trigger ---
                 echo json_encode(['success' => true, 'message' => 'แก้ไขบริการเสริม ID: '.htmlspecialchars($id).' เรียบร้อยแล้ว']); // Add-on service edited successfully
             } else {
                 $checkStmt = $pdo->prepare("SELECT COUNT(*) FROM addon_services WHERE id = ? AND name = ? AND price = ?");
@@ -2638,6 +2758,15 @@ switch ($action) {
             $stmt->execute([$username, $password_hash, $role]);
             $newUserId = $pdo->lastInsertId();
             $pdo->commit();
+            // --- START: Telegram Notification Trigger ---
+            try {
+                if (function_exists('sendTelegramRoomStatusUpdate')) {
+                    sendTelegramRoomStatusUpdate($pdo);
+                }
+            } catch (Exception $tg_e) {
+                error_log("Telegram notification failed after adding user: " . $tg_e->getMessage());
+            }
+            // --- END: Telegram Notification Trigger ---
             echo json_encode(['success' => true, 'message' => 'เพิ่มผู้ใช้ "'.htmlspecialchars($username).'" เรียบร้อยแล้ว', 'user_id' => $newUserId]); // User added successfully
             exit;
         } catch (PDOException $e) {
@@ -2682,6 +2811,15 @@ switch ($action) {
             $stmt = $pdo->prepare("UPDATE users SET is_active = ? WHERE id = ?");
             $stmt->execute([$new_status, $userId]);
             $pdo->commit();
+            // --- START: Telegram Notification Trigger ---
+            try {
+                if (function_exists('sendTelegramRoomStatusUpdate')) {
+                    sendTelegramRoomStatusUpdate($pdo);
+                }
+            } catch (Exception $tg_e) {
+                error_log("Telegram notification failed after toggling user status: " . $tg_e->getMessage());
+            }
+            // --- END: Telegram Notification Trigger ---
             $status_text = $new_status === 1 ? "เปิดใช้งาน" : "ปิดใช้งาน"; // Activated : Deactivated
             echo json_encode(['success' => true, 'message' => 'เปลี่ยนสถานะผู้ใช้เป็น "'.$status_text.'" เรียบร้อยแล้ว', 'new_status' => $new_status]); // User status changed successfully
             exit;
@@ -2722,6 +2860,15 @@ switch ($action) {
 
             if ($stmtUpdatePass->rowCount() > 0) {
                 $pdo->commit();
+                // --- START: Telegram Notification Trigger ---
+                try {
+                    if (function_exists('sendTelegramRoomStatusUpdate')) {
+                        sendTelegramRoomStatusUpdate($pdo);
+                    }
+                } catch (Exception $tg_e) {
+                    error_log("Telegram notification failed after resetting admin password: " . $tg_e->getMessage());
+                }
+                // --- END: Telegram Notification Trigger ---
                 echo json_encode(['success' => true, 'message' => 'ตั้งรหัสผ่านใหม่สำหรับผู้ใช้ ID: '.htmlspecialchars($userIdToReset).' เรียบร้อยแล้ว']); // New password set successfully for user ID: {$userIdToReset}
             } else {
                  $pdo->rollBack();
@@ -2758,6 +2905,15 @@ switch ($action) {
             $stmt = $pdo->prepare("UPDATE addon_services SET is_active = ?, updated_at = NOW() WHERE id = ?");
             $stmt->execute([$new_status, $id]);
             $pdo->commit();
+            // --- START: Telegram Notification Trigger ---
+            try {
+                if (function_exists('sendTelegramRoomStatusUpdate')) {
+                    sendTelegramRoomStatusUpdate($pdo);
+                }
+            } catch (Exception $tg_e) {
+                error_log("Telegram notification failed after toggling addon service status: " . $tg_e->getMessage());
+            }
+            // --- END: Telegram Notification Trigger ---
             $status_text = $new_status === 1 ? "เปิดใช้งาน" : "ปิดใช้งาน"; // Activated : Deactivated
             echo json_encode(['success' => true, 'message' => 'เปลี่ยนสถานะบริการเสริมเป็น "'.$status_text.'" เรียบร้อยแล้ว', 'new_status' => $new_status]); // Add-on service status changed successfully
             exit;
@@ -3001,6 +3157,15 @@ switch ($action) {
             $pdo->prepare("UPDATE rooms SET status = ? WHERE id = ?")->execute([$new_status, $new_room_id]);
 
             $pdo->commit();
+            // --- START: Telegram Notification Trigger ---
+            try {
+                if (function_exists('sendTelegramRoomStatusUpdate')) {
+                    sendTelegramRoomStatusUpdate($pdo);
+                }
+            } catch (Exception $tg_e) {
+                error_log("Telegram notification failed after moving booking: " . $tg_e->getMessage());
+            }
+            // --- END: Telegram Notification Trigger ---
             echo json_encode(['success' => true, 'message' => 'ย้ายห้องพักเรียบร้อยแล้ว']); // Room moved successfully
 
         } catch (Exception $e) {

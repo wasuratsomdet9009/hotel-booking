@@ -1,18 +1,23 @@
 <?php
 // FILEX: hotel_booking/pages/cash_bill.php
-// VERSION: 2.1 - Patched by System Auditor
-// FIX: Reworked image/share logic to produce consistent high-resolution output.
+// VERSION: 3.1 - Printing System Revamp by Senior System Auditor
+// DESC: A completely redesigned cash bill generation system focusing on efficiency,
+//       print/image export quality, and a flexible item-based workflow.
+//       Uses the "Clone & Render" technique for perfect image exports on all devices.
+//       MOD: Replaced window.print() with a new, robust print-window generation method.
 
 require_once __DIR__ . '/../bootstrap.php';
 require_login(); 
 
-$pageTitle = 'ออกใบเสร็จรับเงิน';
+$pageTitle = 'ออกใบเสร็จรับเงิน/ต้นฉบับ';
 
-// Fetch room data for Dropdown
+// --- Data Fetching for UI Controls ---
+
+// Fetch all rooms for manual item selection
 $rooms_stmt = $pdo->query("SELECT id, zone, room_number, price_per_day FROM rooms ORDER BY zone ASC, CAST(room_number AS UNSIGNED) ASC");
 $all_rooms_for_bill = $rooms_stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Fetch active booking group data
+// Fetch active booking groups to pre-fill bill data
 $active_groups_stmt = $pdo->query("
     SELECT DISTINCT bg.id, bg.customer_name 
     FROM booking_groups bg
@@ -21,11 +26,12 @@ $active_groups_stmt = $pdo->query("
 ");
 $active_booking_groups = $active_groups_stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Fetch addon services for Dropdown
+// Fetch active addon services for manual item selection
 $addons_stmt = $pdo->query("SELECT id, name, price FROM addon_services WHERE is_active = 1 ORDER BY name ASC");
 $active_addons_for_bill = $addons_stmt->fetchAll(PDO::FETCH_ASSOC);
 
 
+// --- Utility Functions & Defaults ---
 $current_thai_year = date('Y') + 543;
 $default_bill_number_prefix = "01"; 
 
@@ -33,20 +39,7 @@ if (!function_exists('toThaiDateString')) {
     function toThaiDateString($dateInput) {
         if (empty($dateInput)) return 'N/A';
         try {
-            $date = null;
-            if ($dateInput instanceof DateTime) {
-                $date = $dateInput;
-            } elseif (is_string($dateInput)) {
-                $date = new DateTime($dateInput);
-            } elseif (is_numeric($dateInput) && $dateInput > 0) { 
-                 $date = new DateTime("@{$dateInput}");
-            }
-
-            if (!$date || !($date instanceof DateTime) || $date->format('U') < 0) {
-                error_log("toThaiDateString: Could not parse dateInput: " . print_r($dateInput, true));
-                return 'รูปแบบวันที่ผิดพลาด';
-            }
-            
+            $date = $dateInput instanceof DateTime ? $dateInput : new DateTime($dateInput);
             $thaiMonths = [
                 1 => 'มกราคม', 2 => 'กุมภาพันธ์', 3 => 'มีนาคม', 4 => 'เมษายน',
                 5 => 'พฤษภาคม', 6 => 'มิถุนายน', 7 => 'กรกฎาคม', 8 => 'สิงหาคม',
@@ -54,8 +47,7 @@ if (!function_exists('toThaiDateString')) {
             ];
             return $date->format('j') . ' ' . $thaiMonths[(int)$date->format('n')] . ' ' . ($date->format('Y') + 543);
         } catch (Exception $e) {
-            error_log("toThaiDateString Exception: " . $e->getMessage() . " for input: " . print_r($dateInput, true));
-            return 'รูปแบบวันที่ผิดพลาด (Exc)';
+            return 'รูปแบบวันที่ผิดพลาด';
         }
     }
 }
@@ -70,7 +62,7 @@ ob_start();
 ?>
 
 <style>
-    /* General Styles for Cash Bill Page */
+    /* General Styles */
     .cash-bill-container { max-width: 900px; margin: 0 auto; }
     .bill-form-section, .bill-preview-section {
         background-color: var(--color-surface); padding: 1.5rem;
@@ -96,51 +88,34 @@ ob_start();
     #bill-content-wrapper {
         padding: 20px; background-color: #525659;
         display: flex; justify-content: center; align-items: flex-start; 
-        overflow-y: auto; max-height: 80vh;
+        overflow-y: auto; max-height: 80vh; border-radius: var(--border-radius-md);
     }
     #bill-content {
         font-family: 'Sarabun', sans-serif; background-color: #fff; color: #000;
-        /* --- START: ส่วนที่แก้ไขสำหรับขนาดและสัดส่วน A4 --- */
-        max-width: 210mm;
-        width: 100%;
-        aspect-ratio: 210 / 297;
-        height: auto;
-        font-size: clamp(8pt, 1.5vw, 12pt); /* *** NEW: Responsive font size for preview *** */
-        overflow: hidden; /* Ensure content is clipped if it exceeds the A4 size */
-        /* --- END: ส่วนที่แก้ไข --- */
+        width: 210mm;
+        height: 297mm;
+        font-size: 12pt;
+        overflow: hidden; 
         padding: 10mm; 
-        box-shadow: 0 5px 15px rgba(0,0,0,0.25); margin: 1rem auto;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.25);
         box-sizing: border-box; 
         display: flex; flex-direction: column; 
         position: relative;
     }
     
     .bill-body {
-        border: 1.5px solid #333;
-        padding: 8mm;
-        width: 100%;
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-        position: relative;
-        z-index: 2;
+        border: 1.5px solid #333; padding: 8mm; width: 100%; height: 100%;
+        display: flex; flex-direction: column; position: relative; z-index: 2;
     }
     
     #bill-content::after {
-        content: 'ต้นฉบับ';
-        position: absolute;
-        top: 50%;
-        left: 50%;
+        content: 'ต้นฉบับ'; position: absolute; top: 50%; left: 50%;
         transform: translate(-50%, -50%) rotate(-45deg);
-        font-size: 150pt;
-        font-weight: 800;
-        color: rgba(0, 0, 0, 0.04);
-        z-index: 1;
-        pointer-events: none;
+        font-size: 150pt; font-weight: 800; color: rgba(0, 0, 0, 0.04);
+        z-index: 1; pointer-events: none;
     }
 
     #bill-content header { text-align: center; margin-bottom: 5mm; flex-shrink: 0;}
-    #bill-content .logo-container { margin-bottom: 2mm; min-height: 50px; }
     #bill-content .logo-container img { max-width: 150px; max-height: 50px; object-fit: contain; }
     #bill-content h1 { font-size: 1.5em; margin: 0 0 1mm 0; color: #000; } 
     #bill-content h2 { font-size: 1.2em; margin: 1mm 0; color: #000; } 
@@ -150,73 +125,38 @@ ob_start();
     #bill-content .customer-info p { margin: 1mm 0; } 
     hr.section-divider { border: 0; border-top: 1px solid #000; margin: 4mm 0; }
     
-    #bill-content .line-items { flex-grow: 1; margin-bottom: 5mm; border-top: 1px solid #000; border-bottom: 1px solid #000; padding-top: 1mm; padding-bottom: 1mm;}
+    #bill-content .line-items { flex-grow: 1; margin-bottom: 5mm; border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 1mm 0;}
     #bill-content .line-items-table { width: 100%; border-collapse: collapse; font-size: 0.9em; } 
     #bill-content .line-items-table th, #bill-content .line-items-table td { 
-        border: none; padding: 1.5mm 1mm; text-align: left; 
-        vertical-align: top;
+        border: none; padding: 1.5mm 1mm; text-align: left; vertical-align: top;
     }
     #bill-content .line-items-table th { font-weight: bold; border-bottom: 1px solid #999;}
     #bill-content .line-items-table td { border-bottom: 1px dotted #ccc; }
     #bill-content .line-items-table tr:last-child td { border-bottom: none; }
     
-    #bill-content .line-items-table .col-desc { width: 55%; }
-    #bill-content .line-items-table .col-qty { width: 15%; text-align: center; }
-    #bill-content .line-items-table .col-unit-price { width: 15%; text-align: right; }
-    #bill-content .line-items-table .col-amount { width: 15%; text-align: right; }
+    #bill-content .col-desc { width: 55%; }
+    #bill-content .col-qty { width: 15%; text-align: center; }
+    #bill-content .col-unit-price { width: 15%; text-align: right; }
+    #bill-content .col-amount { width: 15%; text-align: right; }
 
     #bill-content .checkin-checkout-info { font-size: 0.9em; margin-bottom: 5mm; flex-shrink: 0; } 
-    #bill-content .checkin-checkout-info p { margin: 1mm 0; } 
     #bill-content .totals { text-align: right; margin-top: auto; padding-top: 3mm; font-size: 1em; flex-shrink: 0;} 
     #bill-content .totals table { width: 50%; margin-left: auto; border-collapse: collapse; } 
     #bill-content .totals td { padding: 1.5mm; } 
     #bill-content .totals .grand-total td { font-weight: bold; font-size: 1.2em; border-top: 1px solid #000; border-bottom: 3px double #000;}
-    #bill-content .signatures { display: flex; justify-content: space-between; margin-top: 15mm; font-size: 0.9em; flex-shrink: 0;} 
-    #bill-content .signature-box { text-align: center; width: 45%; }
+    #bill-content .signatures { display: flex; justify-content: center; margin-top: 15mm; font-size: 0.9em; flex-shrink: 0;} 
+    #bill-content .signature-box { text-align: center; width: 50%; } 
     #bill-content .signature-line { border-bottom: 1px dotted #000; height: 12mm; margin: 2mm 0 1mm 0; } 
     #bill-content .signature-box p { margin: 0; line-height: 1.4; }
     #bill-content .note-footer {text-align: center; font-size: 0.7em; margin-top: 5mm; color: #555; flex-shrink: 0;}
     #bill-content .thank-you-note {text-align: center; font-weight: bold; font-size: 1em; margin-top: 8mm; flex-shrink: 0;}
 
     .bill-actions { margin-top: 1rem; display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;}
-    .bill-actions button img { width: 16px; height: 16px; margin-right: 8px; vertical-align: middle; }
+    .bill-actions button img, .bill-actions button svg { width: 16px; height: 16px; margin-right: 8px; vertical-align: middle; }
     .bill-actions button:disabled { opacity: 0.6; cursor: not-allowed; }
     
     .form-group small.input-hint {font-size: 0.8em; color: var(--color-text-muted);}
 
-    @media print {
-        @page { size: A4; margin: 0; }
-        body, html {
-            background-color: #fff !important; 
-            -webkit-print-color-adjust: exact !important; 
-            print-color-adjust: exact !important;
-        }
-        body * { visibility: hidden; }
-        #bill-content-wrapper, #bill-content, #bill-content * { visibility: visible; }
-        #bill-content-wrapper {
-            position: absolute !important; top: 0 !important; left: 0 !important;
-            width: 100% !important; height: auto !important;
-            background: none !important; padding: 0 !important; margin: 0 !important;
-            display: block !important;
-        }
-        #bill-content {
-            width: 210mm !important; 
-            height: auto !important; /* Allow height to adjust */
-            aspect-ratio: 210 / 297; /* Maintain A4 aspect ratio */
-            margin: 0 !important; box-shadow: none !important; border: none !important;
-            page-break-inside: avoid !important;
-            font-size: 12pt !important; /* Fixed font size for printing */
-        }
-        /* Adjust specific font sizes for print */
-        #bill-content h1 { font-size: 18pt !important; }
-        #bill-content h2 { font-size: 14pt !important; }
-        #bill-content .address-phone p, #bill-content .bill-meta, #bill-content .customer-info, #bill-content .line-items-table, #bill-content .checkin-checkout-info, #bill-content .signatures { font-size: 11pt !important; }
-        #bill-content .totals { font-size: 12pt !important; }
-        #bill-content .totals .grand-total td { font-size: 14pt !important; }
-        #bill-content .thank-you-note { font-size: 12pt !important; }
-        #bill-content .note-footer { font-size: 9pt !important; }
-        .bill-form-section, .bill-actions, .site-header, .site-footer { display: none !important; }
-    }
 </style>
 
 <div class="cash-bill-container">
@@ -373,11 +313,6 @@ ob_start();
                             <div class="signature-line"></div>
                             <p>(............................................)</p>
                         </div>
-                        <div class="signature-box">
-                            <p>ผู้จ่ายเงิน/ผู้เข้าพัก</p>
-                            <div class="signature-line"></div>
-                            <p>(............................................)</p>
-                        </div>
                     </section>
                      <p class="note-footer">
                         เอกสารนี้ออกโดยระบบอัตโนมัติ - โรงแรมภัทรรีสอร์ท
@@ -402,11 +337,9 @@ ob_start();
     </div>
 </div>
 
-<!-- html2canvas CDN -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // --- Element Selectors ---
     const groupSelect = document.getElementById('select_booking_group');
     const itemTypeSelector = document.getElementById('item-type-selector');
     const roomFields = document.getElementById('room-fields');
@@ -442,7 +375,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     let billItems = [];
 
-    // --- Event Listeners ---
     itemTypeSelector.addEventListener('click', function(e) {
         if (e.target.tagName === 'BUTTON') {
             const type = e.target.dataset.type;
@@ -490,7 +422,23 @@ document.addEventListener('DOMContentLoaded', function() {
     checkinDateInput.addEventListener('change', calculateCheckoutDate);
     nightsInput.addEventListener('input', calculateCheckoutDate);
 
-    // --- Core Functions ---
+    groupSelect.addEventListener('change', async function() {
+        const groupId = this.value;
+        if (!groupId) {
+            billItems = []; customerNameInput.value = ''; customerAddressInput.value = ''; customerTaxIdInput.value = '';
+            renderAllItems(); return;
+        }
+        try {
+            const response = await fetch(`/hotel_booking/pages/api.php?action=get_group_details_for_bill&booking_group_id=${groupId}`);
+            const data = await response.json();
+            if (data.success) {
+                customerNameInput.value = data.group_info.customer_name || '';
+                billItems = data.bookings.map(booking => ({ id: `room-${booking.id}`, type: 'room', description: `ค่าห้องพัก ${booking.zone}${booking.room_number}`, quantity: parseInt(booking.nights, 10), unitPrice: parseFloat(booking.price_per_night), itemTotal: parseFloat(booking.price_per_night) * parseInt(booking.nights, 10), checkin: booking.checkin_datetime.split(' ')[0], checkout: booking.checkout_datetime_calculated.split(' ')[0] }));
+                renderAllItems();
+            } else { alert('Error: ' + data.message); }
+        } catch (error) { console.error('Error:', error); alert('เกิดข้อผิดพลาดในการเชื่อมต่อ'); }
+    });
+    
     function renderAllItems() {
         addedItemsTableBody.innerHTML = '';
         let grandTotal = 0;
@@ -546,66 +494,43 @@ document.addEventListener('DOMContentLoaded', function() {
             const groupedRoomItems = {};
             const serviceItems = billItems.filter(item => item.type === 'service');
             
-            // Group room items
             billItems.filter(item => item.type === 'room').forEach(item => {
-                const groupKey = `${item.unitPrice}_${item.quantity}`; // Group by price and nights
+                const groupKey = `${item.unitPrice}_${item.quantity}`; 
                 if (!groupedRoomItems[groupKey]) {
-                    groupedRoomItems[groupKey] = {
-                        roomNames: [],
-                        zone: item.zone, // Assume same zone for simplicity in this grouping
-                        quantity: item.quantity,
-                        unitPrice: item.unitPrice,
-                        itemTotalSum: 0,
-                        checkin: item.checkin,
-                        checkout: item.checkout
-                    };
+                    groupedRoomItems[groupKey] = { roomNames: [], quantity: item.quantity, unitPrice: item.unitPrice, itemTotalSum: 0 };
                 }
                 const roomNumberOnly = item.description.replace('ค่าห้องพัก ', '');
                 groupedRoomItems[groupKey].roomNames.push(roomNumberOnly);
                 groupedRoomItems[groupKey].itemTotalSum += item.itemTotal;
-
                 const checkin = new Date(item.checkin);
                 const checkout = new Date(item.checkout);
                 if (!overallMinCheckin || checkin < overallMinCheckin) overallMinCheckin = checkin;
                 if (!overallMaxCheckout || checkout > overallMaxCheckout) overallMaxCheckout = checkout;
             });
 
-            // Render grouped room items
             Object.values(groupedRoomItems).forEach(group => {
                 const row = previewLineItemsBody.insertRow();
-                const desc = `ค่าห้องพัก ${group.roomNames.join(', ')}`;
-                row.insertCell(0).textContent = desc;
+                row.insertCell(0).textContent = `ค่าห้องพัก ${group.roomNames.join(', ')}`;
                 row.cells[0].className = 'col-desc';
-                
-                const qtyCell = row.insertCell(1);
-                qtyCell.textContent = `${group.quantity} คืน`;
-                qtyCell.className = 'col-qty';
-                
-                const unitPriceCell = row.insertCell(2);
-                unitPriceCell.textContent = group.unitPrice.toLocaleString('th-TH', { minimumFractionDigits: 2 });
-                unitPriceCell.className = 'col-unit-price';
-                
-                const amountCell = row.insertCell(3);
-                amountCell.textContent = group.itemTotalSum.toLocaleString('th-TH', { minimumFractionDigits: 2 });
-                amountCell.className = 'col-amount';
-
+                row.insertCell(1).textContent = `${group.quantity} คืน`;
+                row.cells[1].className = 'col-qty';
+                row.insertCell(2).textContent = group.unitPrice.toLocaleString('th-TH', { minimumFractionDigits: 2 });
+                row.cells[2].className = 'col-unit-price';
+                row.insertCell(3).textContent = group.itemTotalSum.toLocaleString('th-TH', { minimumFractionDigits: 2 });
+                row.cells[3].className = 'col-amount';
                 currentPreviewGrandTotal += group.itemTotalSum;
             });
             
-            // Render service items
             serviceItems.forEach(item => {
-                 const row = previewLineItemsBody.insertRow();
+                const row = previewLineItemsBody.insertRow();
                 row.insertCell(0).textContent = item.description;
                 row.cells[0].className = 'col-desc';
-                const qtyCell = row.insertCell(1);
-                qtyCell.textContent = item.quantity;
-                qtyCell.className = 'col-qty';
-                const unitPriceCell = row.insertCell(2);
-                unitPriceCell.textContent = item.unitPrice.toLocaleString('th-TH', { minimumFractionDigits: 2 });
-                unitPriceCell.className = 'col-unit-price';
-                const amountCell = row.insertCell(3);
-                amountCell.textContent = item.itemTotal.toLocaleString('th-TH', { minimumFractionDigits: 2 });
-                amountCell.className = 'col-amount';
+                row.insertCell(1).textContent = item.quantity;
+                row.cells[1].className = 'col-qty';
+                row.insertCell(2).textContent = item.unitPrice.toLocaleString('th-TH', { minimumFractionDigits: 2 });
+                row.cells[2].className = 'col-unit-price';
+                row.insertCell(3).textContent = item.itemTotal.toLocaleString('th-TH', { minimumFractionDigits: 2 });
+                row.cells[3].className = 'col-amount';
                 currentPreviewGrandTotal += item.itemTotal;
             });
         }
@@ -614,23 +539,6 @@ document.addEventListener('DOMContentLoaded', function() {
         previewCheckoutDate.textContent = overallMaxCheckout ? toThaiDateForJS(overallMaxCheckout) : '-';
         previewGrandTotal.textContent = currentPreviewGrandTotal.toLocaleString('th-TH', { minimumFractionDigits: 2 });
     }
-    
-    groupSelect.addEventListener('change', async function() {
-        const groupId = this.value;
-        if (!groupId) {
-            billItems = []; customerNameInput.value = ''; customerAddressInput.value = ''; customerTaxIdInput.value = '';
-            renderAllItems(); return;
-        }
-        try {
-            const response = await fetch(`/hotel_booking/pages/api.php?action=get_group_details_for_bill&booking_group_id=${groupId}`);
-            const data = await response.json();
-            if (data.success) {
-                customerNameInput.value = data.group_info.customer_name || '';
-                billItems = data.bookings.map(booking => ({ id: `room-${booking.id}`, type: 'room', description: `ค่าห้องพัก ${booking.zone}${booking.room_number}`, quantity: parseInt(booking.nights, 10), unitPrice: parseFloat(booking.price_per_night), itemTotal: parseFloat(booking.price_per_night) * parseInt(booking.nights, 10), checkin: booking.checkin_datetime.split(' ')[0], checkout: booking.checkout_datetime_calculated.split(' ')[0] }));
-                renderAllItems();
-            } else { alert('Error: ' + data.message); }
-        } catch (error) { console.error('Error:', error); alert('เกิดข้อผิดพลาดในการเชื่อมต่อ'); }
-    });
 
     function calculateCheckoutDate() {
         if (!checkinDateInput.value || !nightsInput.value) { checkoutDateInput.value = ''; return; }
@@ -643,6 +551,7 @@ document.addEventListener('DOMContentLoaded', function() {
             checkoutDateInput.value = checkout.toISOString().split('T')[0];
         } catch (e) { checkoutDateInput.value = ''; }
     }
+
     function toThaiDateForJS(dateInput) {
         if (!dateInput) return 'N/A';
         const date = new Date(dateInput);
@@ -650,85 +559,132 @@ document.addEventListener('DOMContentLoaded', function() {
         const thaiMonths = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
         return `${date.getDate()} ${thaiMonths[date.getMonth()]} ${date.getFullYear() + 543}`;
     }
+
     function updateActionButtonsState() {
         const hasItems = billItems.length > 0;
-        saveAsImageBtn.disabled = !hasItems; shareBillBtn.disabled = !hasItems; printBillBtn.disabled = !hasItems;
+        saveAsImageBtn.disabled = !hasItems; 
+        shareBillBtn.disabled = !hasItems; 
+        printBillBtn.disabled = !hasItems;
     }
-    printBillBtn.addEventListener('click', () => window.print());
 
-    /**
-     * Creates a high-resolution, fixed-layout canvas of the bill content.
-     * @returns {Promise<HTMLCanvasElement|null>} A promise that resolves with the canvas element or null on error.
-     */
+    // --- START: New Printing Logic ---
+    printBillBtn.addEventListener('click', function() {
+        const billContentNode = document.getElementById('bill-content');
+        if (!billContentNode) {
+            alert('ผิดพลาด: ไม่พบเนื้อหาสำหรับพิมพ์');
+            return;
+        }
+
+        const printWindow = window.open('', '_blank', 'width=880,height=900,scrollbars=yes,resizable=yes');
+        
+        printWindow.document.write(`
+            <html>
+                <head>
+                    <title>พิมพ์ใบเสร็จรับเงิน</title>
+                    <link rel="preconnect" href="https://fonts.googleapis.com">
+                    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+                    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700;800&display=swap" rel="stylesheet">
+                    <style>
+                        body { font-family: 'Sarabun', sans-serif; margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                        @page { size: A4; margin: 0; }
+                        #bill-content {
+                            width: 210mm; height: 297mm; padding: 10mm; box-sizing: border-box; display: flex; flex-direction: column; position: relative;
+                            background-color: #fff; color: #000; font-size: 12pt;
+                        }
+                        .bill-body { border: 1.5px solid #333; padding: 8mm; width: 100%; height: 100%; display: flex; flex-direction: column; position: relative; z-index: 2; box-sizing: border-box; }
+                        #bill-content::after { content: 'ต้นฉบับ'; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-45deg); font-size: 150pt; font-weight: 800; color: rgba(0, 0, 0, 0.04); z-index: 1; pointer-events: none; }
+                        header { text-align: center; margin-bottom: 5mm; flex-shrink: 0;}
+                        .logo-container img { max-width: 150px; max-height: 50px; object-fit: contain; }
+                        h1 { font-size: 1.5em; margin: 0 0 1mm 0; color: #000; } 
+                        h2 { font-size: 1.2em; margin: 1mm 0; color: #000; } 
+                        .address-phone p { margin: 0.5mm 0; font-size: 0.9em; line-height: 1.4; } 
+                        .bill-meta { display: flex; justify-content: space-between; margin-bottom: 5mm; font-size: 0.9em; flex-shrink: 0;}
+                        .customer-info { border: 1px solid #ccc; padding: 2mm 3mm; margin-bottom: 5mm; font-size: 0.9em; flex-shrink: 0;}
+                        .customer-info p { margin: 1mm 0; } 
+                        hr.section-divider { border: 0; border-top: 1px solid #000; margin: 4mm 0; }
+                        .line-items { flex-grow: 1; margin-bottom: 5mm; border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 1mm 0;}
+                        .line-items-table { width: 100%; border-collapse: collapse; font-size: 0.9em; } 
+                        .line-items-table th, .line-items-table td { border: none; padding: 1.5mm 1mm; text-align: left; vertical-align: top; }
+                        .line-items-table th { font-weight: bold; border-bottom: 1px solid #999;}
+                        .line-items-table td { border-bottom: 1px dotted #ccc; }
+                        .line-items-table tr:last-child td { border-bottom: none; }
+                        .col-desc { width: 55%; } .col-qty { width: 15%; text-align: center; } .col-unit-price { width: 15%; text-align: right; } .col-amount { width: 15%; text-align: right; }
+                        .checkin-checkout-info { font-size: 0.9em; margin-bottom: 5mm; flex-shrink: 0; } 
+                        .totals { text-align: right; margin-top: auto; padding-top: 3mm; font-size: 1em; flex-shrink: 0;} 
+                        .totals table { width: 50%; margin-left: auto; border-collapse: collapse; } 
+                        .totals td { padding: 1.5mm; } 
+                        .totals .grand-total td { font-weight: bold; font-size: 1.2em; border-top: 1px solid #000; border-bottom: 3px double #000;}
+                        .signatures { display: flex; justify-content: center; margin-top: 15mm; font-size: 0.9em; flex-shrink: 0;} 
+                        .signature-box { text-align: center; width: 50%; } 
+                        .signature-line { border-bottom: 1px dotted #000; height: 12mm; margin: 2mm 0 1mm 0; } 
+                        .signature-box p { margin: 0; line-height: 1.4; }
+                        .note-footer {text-align: center; font-size: 0.7em; margin-top: 5mm; color: #555; flex-shrink: 0;}
+                        .thank-you-note {text-align: center; font-weight: bold; font-size: 1em; margin-top: 8mm; flex-shrink: 0;}
+                    </style>
+                </head>
+                <body>
+                    <div id="bill-content">
+                        ${billContentNode.innerHTML}
+                    </div>
+                </body>
+            </html>
+        `);
+
+        printWindow.document.close();
+        setTimeout(() => {
+            try {
+                printWindow.focus();
+                printWindow.print();
+                printWindow.close();
+            } catch (e) {
+                console.error("Print failed:", e);
+                alert("ไม่สามารถสั่งพิมพ์ได้ อาจถูกบล็อกโดยเบราว์เซอร์");
+            }
+        }, 1000); // 1 second delay
+    });
+    // --- END: New Printing Logic ---
+
     async function generateBillCanvas() {
         const sourceElement = document.getElementById('bill-content');
         if (!sourceElement || typeof html2canvas !== 'function') {
             alert('ไม่สามารถสร้างรูปภาพได้: ไม่พบส่วนประกอบที่จำเป็น');
             return null;
         }
-
         const clone = sourceElement.cloneNode(true);
-        // Apply computed styles to the clone for consistent rendering
-        document.body.appendChild(clone); // Temporarily append to body to compute styles
-
-        // Get computed styles and apply them inline to the clone
-        const computedStyles = window.getComputedStyle(sourceElement);
-        for (let i = 0; i < computedStyles.length; i++) {
-            const prop = computedStyles[i];
-            clone.style[prop] = computedStyles.getPropertyValue(prop);
-        }
-
-        // Specifically set A4 dimensions and font size for consistent output
         clone.style.position = 'absolute';
         clone.style.top = '-9999px';
         clone.style.left = '0px';
-        clone.style.width = '210mm'; // A4 width
-        clone.style.height = '297mm'; // A4 height
+        clone.style.width = '210mm';
+        clone.style.height = '297mm';
         clone.style.margin = '0';
-        clone.style.fontSize = '12pt'; // Set a fixed font size
-
-        // Set fixed font sizes for child elements to override responsive styles
-        const elementsToFixFont = clone.querySelectorAll('h1, h2, p, div, th, td, span, strong');
-        elementsToFixFont.forEach(el => {
-            const currentSize = window.getComputedStyle(el).fontSize;
-            el.style.fontSize = currentSize; // Lock in the computed size
-        });
-        
+        clone.style.fontSize = '12pt';
+        clone.style.fontFamily = "'Sarabun', sans-serif";
+        clone.style.color = '#000';
+        document.body.appendChild(clone);
         try {
-            const canvas = await html2canvas(clone, {
-                scale: 3, // Increase scale for higher resolution
-                useCORS: true,
-                logging: false, // Set to true for debugging
-                width: clone.offsetWidth,
-                height: clone.offsetHeight,
-                backgroundColor: '#ffffff' // Ensure a white background
-            });
+            const canvas = await html2canvas(clone, { scale: 3, useCORS: true, logging: false, width: clone.offsetWidth, height: clone.offsetHeight, backgroundColor: '#ffffff' });
             return canvas;
         } catch (error) {
             console.error('Error generating canvas:', error);
             alert('เกิดข้อผิดพลาดในการสร้างรูปภาพ: ' + error.message);
             return null;
         } finally {
-            // Clean up by removing the clone from the DOM
-            if (document.body.contains(clone)) {
-                document.body.removeChild(clone);
-            }
+            if (document.body.contains(clone)) { document.body.removeChild(clone); }
         }
     }
     
-    // --- Update Event Listeners to use the new function ---
     saveAsImageBtn.addEventListener('click', async function() {
         const buttonId = 'save-bill-as-image-btn';
         if (typeof setButtonLoading === 'function') setButtonLoading(this, true, buttonId);
-
         const canvas = await generateBillCanvas();
-        
         if (canvas) {
             const image = canvas.toDataURL('image/png', 1.0);
-            const newWindow = window.open();
-            newWindow.document.write('<title>ใบเสร็จรับเงิน</title><style>body{margin:0; background:#333;} img{display:block; margin:auto; max-width:100%; height:auto;}</style><img src="' + image + '" alt="ใบเสร็จรับเงิน">');
+            const link = document.createElement('a');
+            const fileName = `bill_${(document.getElementById('bill_number_input').value || 'receipt').replace(/[\/\\]/g, '-')}.png`;
+            link.download = fileName;
+            link.href = image;
+            link.click();
         }
-
         if (typeof setButtonLoading === 'function') setButtonLoading(this, false, buttonId);
     });
 
@@ -736,19 +692,15 @@ document.addEventListener('DOMContentLoaded', function() {
         shareBillBtn.addEventListener('click', async function() {
             const buttonId = 'share-bill-btn';
             if (typeof setButtonLoading === 'function') setButtonLoading(this, true, buttonId);
-            
             const canvas = await generateBillCanvas();
-
             if (canvas) {
-                const fileName = `receipt_${(document.getElementById('bill_number_input').value || 'bill').replace(/[^a-z0-9]/gi, '_')}.png`;
-                
+                const fileName = `receipt_${(document.getElementById('bill_number_input').value || 'receipt').replace(/[\/\\]/g, '-')}.png`;
                 canvas.toBlob(async function(blob) {
                     if (!blob) {
                          alert('ไม่สามารถสร้างไฟล์รูปภาพสำหรับแชร์ได้');
                          if (typeof setButtonLoading === 'function') setButtonLoading(shareBillBtn, false, buttonId);
                          return;
                     }
-
                     if (navigator.share && typeof File !== 'undefined' && navigator.canShare({ files: [new File([blob], fileName, {type: blob.type})] })) {
                         const shareFile = new File([blob], fileName, { type: blob.type });
                         try {
@@ -758,26 +710,22 @@ document.addEventListener('DOMContentLoaded', function() {
                                 files: [shareFile]
                             });
                         } catch (error) {
-                            // Catch share cancellation error
                             if (error.name !== 'AbortError') {
                                 console.error('[Share Bill] Share failed:', error);
                                 alert('การแชร์ไม่สำเร็จ: ' + error.message);
                             }
                         }
                     } else {
-                        alert('เบราว์เซอร์นี้ไม่รองรับการแชร์ไฟล์โดยตรง กรุณาบันทึกเป็นรูปภาพแล้วแชร์ด้วยตนเอง');
+                        alert('เบราว์เซอร์นี้ไม่รองรับการแชร์ไฟล์โดยตรง กรุณาใช้ปุ่ม "บันทึกเป็นรูปภาพ" แล้วแชร์ด้วยตนเอง');
                     }
                     if (typeof setButtonLoading === 'function') setButtonLoading(shareBillBtn, false, buttonId);
                 }, 'image/png');
-
             } else {
                 if (typeof setButtonLoading === 'function') setButtonLoading(shareBillBtn, false, buttonId);
             }
         });
     }
 
-    // This function seems to be part of the original code, ensure it's still available.
-    // If it's not defined elsewhere, it needs to be included.
     const originalButtonContents_cashbill = {}; 
     function setButtonLoading(buttonElement, isLoading, buttonIdForTextStore) {
         if (!buttonElement) return;
