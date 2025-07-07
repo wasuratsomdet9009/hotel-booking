@@ -221,7 +221,7 @@ function sendTelegramRoomStatusUpdate(PDO $pdo) {
                         $status_icon = '❌';
                         if (!empty($room['customer_name'])) {
                             $name_parts = explode(' ', $room['customer_name']);
-                            $customer_info = ' คุณ' . htmlspecialchars($name_parts[0]);
+                            $customer_info = ' ' . htmlspecialchars($name_parts[0]);
                         }
                         break;
                 }

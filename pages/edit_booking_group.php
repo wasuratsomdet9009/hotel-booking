@@ -21,9 +21,9 @@ if (!$groupData) {
     exit;
 }
 
-// 2. Fetch Associated Bookings in this Group
+// 2. Fetch Associated Bookings in this Group (Modified to include amount_paid)
 $stmtBookings = $pdo->prepare("
-    SELECT b.id, b.checkin_datetime, b.checkout_datetime_calculated, b.total_price, r.zone, r.room_number
+    SELECT b.id, b.checkin_datetime, b.checkout_datetime_calculated, b.total_price, b.amount_paid, r.zone, r.room_number
     FROM bookings b
     JOIN rooms r ON b.room_id = r.id
     WHERE b.booking_group_id = ?
@@ -114,16 +114,18 @@ ob_start();
     </div>
 </form>
 
+<!-- START: Modified Section for Feature #1 -->
 <section class="settings-section" style="margin-top: 2rem;">
-    <h3><i class="fas fa-bed"></i> การจองรายห้องในกลุ่มนี้</h3>
+    <h3><i class="fas fa-bed"></i> การจองและยอดชำระรายห้องในกลุ่มนี้</h3>
     <div class="table-responsive">
-        <table class="report-table">
+        <table class="report-table" id="room-payment-table">
             <thead>
                 <tr>
                     <th>ห้อง</th>
                     <th>เช็คอิน</th>
                     <th>เช็คเอาท์</th>
                     <th class="right-aligned">ราคาเฉพาะห้องนี้ (บาท)</th>
+                    <th class="right-aligned">ยอดชำระของห้องนี้ (บาท)</th>
                     <th class="text-center">ดำเนินการ</th>
                 </tr>
             </thead>
@@ -134,8 +136,15 @@ ob_start();
                         <td><?= h(date('d/m/Y H:i', strtotime($booking['checkin_datetime']))) ?></td>
                         <td><?= h(date('d/m/Y H:i', strtotime($booking['checkout_datetime_calculated']))) ?></td>
                         <td class="right-aligned"><?= h(number_format((float)$booking['total_price'], 0)) ?></td>
+                        <td class="right-aligned">
+                            <input type="number" class="form-control form-control-sm amount-paid-input"
+                                   value="<?= h(round((float)$booking['amount_paid'])) ?>"
+                                   data-booking-id="<?= h($booking['id']) ?>"
+                                   style="max-width: 120px; text-align: right; display: inline-block;">
+                        </td>
                         <td class="text-center actions-cell">
-                            <a href="booking.php?edit_booking_id=<?= h($booking['id']) ?>" class="button-small info">แก้ไขห้องนี้</a>
+                             <button type="button" class="button-small success save-payment-btn" data-booking-id="<?= h($booking['id']) ?>">บันทึกยอด</button>
+                             <a href="booking.php?edit_booking_id=<?= h($booking['id']) ?>" class="button-small info">แก้ไขหลัก</a>
                         </td>
                     </tr>
                 <?php endforeach; ?>
@@ -143,15 +152,44 @@ ob_start();
         </table>
     </div>
 </section>
+<!-- END: Modified Section for Feature #1 -->
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('edit-group-form');
     const saveBtn = document.getElementById('save-group-changes-btn');
+    const roomPaymentTable = document.getElementById('room-payment-table');
+
+
+    // Helper function for loading state on buttons
+    const originalButtonContents = {};
+    function setButtonLoading(buttonElement, isLoading, buttonIdForTextStore) {
+        if (!buttonElement) return;
+        const key = buttonIdForTextStore || buttonElement.id || `btn-${Date.now()}-${Math.random()}`;
+        if (isLoading) {
+            if (!buttonElement.classList.contains('loading')) {
+                if (originalButtonContents[key] === undefined) {
+                    originalButtonContents[key] = buttonElement.innerHTML;
+                }
+                buttonElement.innerHTML = '<span class="spinner-sm"></span>';
+                buttonElement.classList.add('loading');
+                buttonElement.disabled = true;
+            }
+        } else {
+            if (buttonElement.classList.contains('loading')) {
+                if (originalButtonContents[key] !== undefined) {
+                    buttonElement.innerHTML = originalButtonContents[key];
+                }
+                buttonElement.classList.remove('loading');
+                buttonElement.disabled = false;
+            }
+        }
+    }
+
 
     form.addEventListener('submit', async function(e) {
         e.preventDefault();
-        if (typeof setButtonLoading === 'function') setButtonLoading(saveBtn, true, 'save-group-changes-btn');
+        setButtonLoading(saveBtn, true, 'save-group-changes-btn');
 
         const formData = new FormData(form);
 
@@ -169,7 +207,7 @@ document.addEventListener('DOMContentLoaded', function() {
             console.error('Error updating group:', error);
             alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
         } finally {
-            if (typeof setButtonLoading === 'function') setButtonLoading(saveBtn, false, 'save-group-changes-btn');
+            setButtonLoading(saveBtn, false, 'save-group-changes-btn');
         }
     });
 
@@ -180,7 +218,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             if (!receiptId || !confirm('คุณแน่ใจหรือไม่ว่าต้องการลบสลิปนี้?')) return;
 
-            if (typeof setButtonLoading === 'function') setButtonLoading(button, true, `delete-receipt-${receiptId}`);
+            setButtonLoading(button, true, `delete-receipt-${receiptId}`);
 
             try {
                 const formData = new FormData();
@@ -202,7 +240,7 @@ document.addEventListener('DOMContentLoaded', function() {
                  console.error('Error deleting receipt:', error);
                  alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
             } finally {
-                 if (typeof setButtonLoading === 'function') setButtonLoading(button, false, `delete-receipt-${receiptId}`);
+                 setButtonLoading(button, false, `delete-receipt-${receiptId}`);
             }
         }
     });
@@ -215,6 +253,68 @@ document.addEventListener('DOMContentLoaded', function() {
             displayArea.textContent = 'ไฟล์ที่เลือก: ' + fileNames;
         }
     });
+    
+    // START: JavaScript for Feature #1
+    if (roomPaymentTable) {
+        roomPaymentTable.addEventListener('click', async function(e) {
+            if (e.target.classList.contains('save-payment-btn')) {
+                const button = e.target;
+                const bookingId = button.dataset.bookingId;
+                const input = document.querySelector(`.amount-paid-input[data-booking-id="${bookingId}"]`);
+                const newAmountPaid = input.value;
+
+                if (newAmountPaid === null || newAmountPaid.trim() === '' || !/^-?\d+(\.\d+)?$/.test(newAmountPaid)) {
+                    alert('กรุณากรอกยอดชำระเป็นตัวเลขที่ถูกต้อง');
+                    input.focus();
+                    return;
+                }
+
+                setButtonLoading(button, true, `save-payment-${bookingId}`);
+                
+                try {
+                    const formData = new FormData();
+                    formData.append('action', 'update_booking_payment');
+                    formData.append('booking_id', bookingId);
+                    formData.append('new_amount_paid', newAmountPaid);
+
+                    const response = await fetch('/hotel_booking/pages/api.php', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const resultText = await response.text();
+                    try {
+                        const result = JSON.parse(resultText);
+                        if (result.success) {
+                            // Visual feedback for success
+                            const originalText = "บันทึกยอด";
+                            button.innerHTML = 'บันทึกแล้ว!';
+                            button.classList.remove('success');
+                            button.classList.add('info');
+                            setTimeout(() => {
+                                button.innerHTML = originalText;
+                                button.classList.remove('info');
+                                button.classList.add('success');
+                            }, 2500);
+                        } else {
+                             alert(result.message || 'เกิดข้อผิดพลาดในการบันทึก');
+                        }
+                    } catch(jsonError) {
+                         console.error('JSON Parse Error:', jsonError);
+                         console.error('Response Text:', resultText);
+                         alert('เกิดข้อผิดพลาดในการประมวลผลการตอบกลับจากเซิร์ฟเวอร์');
+                    }
+                } catch (error) {
+                    console.error('Error updating payment:', error);
+                    alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+                } finally {
+                    setButtonLoading(button, false, `save-payment-${bookingId}`);
+                }
+            }
+        });
+    }
+    // END: JavaScript for Feature #1
+
 });
 </script>
 

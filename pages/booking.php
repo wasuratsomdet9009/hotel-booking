@@ -427,16 +427,11 @@ ob_start();
     <div id="booking-section-4" class="booking-section">
         <h4 class="section-title">ขั้นตอนที่ 4: บริการเสริม (Add-ons)</h4>
 
-        <?php // ***** START: โค้ดที่แก้ไขและเพิ่มเติม ***** ?>
-
         <?php if ($isMultiRoomMode): ?>
             <div id="multi-room-addon-manager">
                 <p class="text-muted">กรุณาเลือกห้องพักในขั้นตอนที่ 1 ก่อน เพื่อจัดการบริการเสริม</p>
-                
-                <?php // ส่วนนี้จะถูกสร้างโดย JavaScript เมื่อมีการเลือกห้อง ?>
             </div>
         <?php else: ?>
-            <?php // โค้ดสำหรับโหมดห้องเดียว (Single Room Mode) ยังคงเดิม ?>
             <?php if (!empty($active_addons)): ?>
             <div class="form-group">
                 <label>บริการเสริม (Add-ons):</label>
@@ -474,8 +469,6 @@ ob_start();
             <?php endif; ?>
         <?php endif; ?>
 
-        <?php // ***** END: โค้ดที่แก้ไขและเพิ่มเติม ***** ?>
-
         <div class="navigation-buttons">
             <button type="button" class="button outline-secondary prev-step-btn">&laquo; ย้อนกลับ</button>
             <button type="button" class="button next-step-btn">ถัดไป &raquo;</button>
@@ -504,7 +497,8 @@ ob_start();
             <p><strong>ค่ามัดจำ:</strong> <span id="deposit-amount-display"><?= ($editBookingId && $bookingData) ? $deposit_amount_for_edit_js : '0' ?></span> บาท <span id="deposit_note_text" class="text-muted">(มาตรฐาน <?= h(number_format(FIXED_DEPOSIT_AMOUNT,0)) ?> บาท สำหรับการจองค้างคืน นอกโซน F)</span></p> <hr>
             <p style="font-size: 1.1rem;"><strong>ยอดรวมที่ต้องชำระ/มูลค่าการจอง:</strong> <strong id="grand-total-price-display" style="color: var(--color-primary-dark);"><?= ($editBookingId && $bookingData) ? $grand_total_amount_for_edit_js : '0' ?></strong> บาท</p>
         </div>
-
+        
+        <!-- START: Modified Section for Feature #2 -->
         <div class="form-group" style="margin-top: 1rem;">
             <label for="final_amount_paid">ยอดชำระแล้วทั้งหมด (บาท):</label>
             <input type="number" name="amount_paid" id="final_amount_paid" step="1" min="0" value="<?= ($editBookingId && $bookingData) ? h($final_amount_paid_for_edit_js) : '0' ?>" class="form-control" data-amount-paid-manually-set="false">
@@ -514,6 +508,17 @@ ob_start();
                 <small class="text-muted" style="display:block; margin-top:0.25rem;"><em>สำหรับสร้างใหม่: กรอกยอดที่ลูกค้าชำระจริง หากไม่กรอก ระบบจะใช้ยอดรวมที่คำนวณได้</em></small>
             <?php endif; ?>
         </div>
+
+        <?php if (!$editBookingId): // Show only on new bookings ?>
+        <div class="form-group">
+            <label class="checkbox-btn" for="pay_later_checkbox">
+                ยังไม่ชำระเงิน (จ่ายทีหลัง)
+                <input id="pay_later_checkbox" name="pay_later" type="checkbox" value="1">
+                <span class="checkmark"></span>
+            </label>
+        </div>
+        <?php endif; ?>
+        <!-- END: Modified Section for Feature #2 -->
 
         <div class="form-group">
             <label for="payment_method">วิธีการชำระเงิน</label>
@@ -584,7 +589,7 @@ ob_start();
 </form>
 
 <style>
-/* CSS สำหรับ Progress Bar และ Sections */
+/* CSS for Progress Bar and Sections */
 .progress-bar-steps {
     display: flex;
     justify-content: space-between;
@@ -772,7 +777,29 @@ ob_start();
         const previewsContainer = document.getElementById('receipt-previews-container');
         let uploadedFileObjects = [];
 
-        // ***** START: โค้ดส่วนใหม่สำหรับ Multi-Room Add-ons *****
+        // START: JavaScript for Feature #2
+        const payLaterCheckbox = document.getElementById('pay_later_checkbox');
+        if (payLaterCheckbox) {
+            payLaterCheckbox.addEventListener('change', function() {
+                const finalAmountPaidInput = document.getElementById('final_amount_paid');
+                const grandTotalPriceDisplay = document.getElementById('grand-total-price-display');
+
+                if (this.checked) {
+                    finalAmountPaidInput.value = '0';
+                    finalAmountPaidInput.readOnly = true;
+                    // When pay later is checked, it should not be considered a manual entry
+                    finalAmountPaidInput.dataset.amountPaidManuallySet = 'false';
+                } else {
+                    finalAmountPaidInput.readOnly = false;
+                    // When unchecked, set amount paid back to the calculated grand total
+                    finalAmountPaidInput.value = grandTotalPriceDisplay.textContent;
+                }
+                 // Manually trigger summary update
+                updateSummaryReview();
+            });
+        }
+        // END: JavaScript for Feature #2
+
         const multiRoomAddonManager = document.getElementById('multi-room-addon-manager');
         const activeAddonsData = <?php echo json_encode($active_addons ?? []); ?>;
 
@@ -917,7 +944,6 @@ ob_start();
         `;
         document.head.appendChild(multiAddonStyle);
 
-        // ***** END: โค้ดส่วนใหม่สำหรับ Multi-Room Add-ons *****
 
         // --- Helper and Logic Functions ---
         const originalButtonContents = {};
@@ -1010,6 +1036,7 @@ ob_start();
             const customerNameInput = document.getElementById('customer_name');
             const shortStayDurationInput_BookingForm = document.getElementById('short_stay_duration_hours');
             const paymentMethodSelect_BookingForm = document.getElementById('payment_method');
+            const finalAmountPaidInput = document.getElementById('final_amount_paid');
             
             document.getElementById('summary_room').textContent = IS_MULTI_ROOM_MODE_JS ? 
                 Array.from(multiRoomSelect_BookingForm.selectedOptions).map(opt => opt.text.split(' (')[0]).join(', ') : 
@@ -1033,7 +1060,7 @@ ob_start();
 
             document.getElementById('summary_type').textContent = bookingTypeSelect_BookingForm.options[bookingTypeSelect_BookingForm.selectedIndex]?.text.split(' (')[0] || 'N/A';
             document.getElementById('summary_grand_total').textContent = grandTotalPriceDisplay_BookingForm.textContent;
-            document.getElementById('summary_amount_paid').textContent = finalAmountPaidInput_BookingForm_Local.value;
+            document.getElementById('summary_amount_paid').textContent = finalAmountPaidInput.value;
             document.getElementById('summary_payment_method').textContent = paymentMethodSelect_BookingForm.value || 'N/A';
         }
         
@@ -1064,7 +1091,7 @@ ob_start();
                 if (totalAddonPriceDisplay) totalAddonPriceDisplay.textContent = Math.round(multiAddonTotal);
                 const grandTotal = baseAmount + multiAddonTotal + depositAmount;
                 if (grandTotalPriceDisplay) grandTotalPriceDisplay.textContent = Math.round(grandTotal);
-                if (finalAmountPaidInput && finalAmountPaidInput.dataset.amountPaidManuallySet !== 'true') {
+                if (finalAmountPaidInput && finalAmountPaidInput.dataset.amountPaidManuallySet !== 'true' && !payLaterCheckbox.checked) {
                     finalAmountPaidInput.value = Math.round(grandTotal);
                 }
             }
@@ -1073,7 +1100,6 @@ ob_start();
             updateSummaryReview();
         }
 
-        // --- START: *** ส่วนที่แก้ไข proceedWithActualSubmission และการเรียกใช้ *** ---
         async function proceedWithActualSubmission(formData, formActionUrlParam, submitButton, isMultiMode, actionType) {
             console.log('[ProceedSubmit booking.php] Starting actual submission.');
             console.log('[ProceedSubmit booking.php] formActionUrlParam received:', formActionUrlParam);
@@ -1151,7 +1177,6 @@ ob_start();
                 await proceedWithActualSubmission(formData, resolvedFormActionUrl, mainSubmitButton, isMultiModeForSubmit, currentActionForSubmit);
             }
         });
-        // --- END: *** ส่วนที่แก้ไข proceedWithActualSubmission และการเรียกใช้ *** ---
 
         // --- Event Listeners Initialization ---
         document.querySelectorAll('.next-step-btn').forEach(button => {

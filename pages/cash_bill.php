@@ -1,10 +1,8 @@
 <?php
 // FILEX: hotel_booking/pages/cash_bill.php
-// VERSION: 3.1 - Printing System Revamp by Senior System Auditor
-// DESC: A completely redesigned cash bill generation system focusing on efficiency,
-//       print/image export quality, and a flexible item-based workflow.
-//       Uses the "Clone & Render" technique for perfect image exports on all devices.
-//       MOD: Replaced window.print() with a new, robust print-window generation method.
+// VERSION: 3.3 - Holiday Surcharge Feature by Senior System Auditor
+// DESC: Added a global checkbox for holiday surcharges (+100 per room/night).
+//       The bill now dynamically recalculates when this option is toggled.
 
 require_once __DIR__ . '/../bootstrap.php';
 require_login(); 
@@ -12,12 +10,9 @@ require_login();
 $pageTitle = 'ออกใบเสร็จรับเงิน/ต้นฉบับ';
 
 // --- Data Fetching for UI Controls ---
-
-// Fetch all rooms for manual item selection
 $rooms_stmt = $pdo->query("SELECT id, zone, room_number, price_per_day FROM rooms ORDER BY zone ASC, CAST(room_number AS UNSIGNED) ASC");
 $all_rooms_for_bill = $rooms_stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Fetch active booking groups to pre-fill bill data
 $active_groups_stmt = $pdo->query("
     SELECT DISTINCT bg.id, bg.customer_name 
     FROM booking_groups bg
@@ -26,7 +21,6 @@ $active_groups_stmt = $pdo->query("
 ");
 $active_booking_groups = $active_groups_stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Fetch active addon services for manual item selection
 $addons_stmt = $pdo->query("SELECT id, name, price FROM addon_services WHERE is_active = 1 ORDER BY name ASC");
 $active_addons_for_bill = $addons_stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -83,7 +77,10 @@ ob_start();
     #added-items-table th { background-color: var(--color-table-head-bg); }
     #added-items-table .action-cell { width: 80px; text-align: center; }
     #added-items-table .number-cell { text-align: right; width: 120px; }
-
+    .editable-cell { cursor: pointer; }
+    .editable-cell:hover { background-color: var(--color-primary-light); }
+    .editable-cell input { width: 100%; box-sizing: border-box; text-align: right; padding: 2px 4px; }
+    
     /* Bill Preview Styles */
     #bill-content-wrapper {
         padding: 20px; background-color: #525659;
@@ -93,7 +90,7 @@ ob_start();
     #bill-content {
         font-family: 'Sarabun', sans-serif; background-color: #fff; color: #000;
         width: 210mm;
-        height: 297mm;
+        min-height: 297mm;
         font-size: 12pt;
         overflow: hidden; 
         padding: 10mm; 
@@ -156,7 +153,6 @@ ob_start();
     .bill-actions button:disabled { opacity: 0.6; cursor: not-allowed; }
     
     .form-group small.input-hint {font-size: 0.8em; color: var(--color-text-muted);}
-
 </style>
 
 <div class="cash-bill-container">
@@ -198,6 +194,15 @@ ob_start();
                 <input type="text" id="bill_customer_tax_id" class="form-control">
             </div>
         </div>
+
+        <!-- ***** START: NEW HOLIDAY SURCHARGE CHECKBOX ***** -->
+        <div class="form-group" style="grid-column: 1 / -1; background-color: #fffbe6; padding: 0.75rem; border-radius: 5px; border: 1px solid #ffe58f; margin-top: 1rem;">
+            <label class="checkbox-btn" for="holiday_surcharge_checkbox" style="display: flex; align-items: center; cursor: pointer;">
+                <input type="checkbox" id="holiday_surcharge_checkbox" style="margin-right: 10px;">
+                <span style="font-weight: bold;">คิดค่าบริการเพิ่มสำหรับวันหยุดนักขัตฤกษ์ (+100 บาท ต่อห้อง/คืน)</span>
+            </label>
+        </div>
+        <!-- ***** END: NEW HOLIDAY SURCHARGE CHECKBOX ***** -->
         
         <hr style="margin: 1.5rem 0;">
         
@@ -209,9 +214,12 @@ ob_start();
             </div>
             
             <div id="room-fields" style="display:none; margin-top:1rem; border-top:1px dashed #ccc; padding-top:1rem;">
-                <div class="form-grid">
-                    <div class="form-group"><label for="bill_room_select">เลือกห้องพัก:</label><select id="bill_room_select" class="form-control"><option value="">-- เลือกห้อง --</option><?php foreach ($all_rooms_for_bill as $room): ?><option value="<?= h($room['id']) ?>" data-price="<?= h($room['price_per_day']) ?>" data-zone="<?= h($room['zone']) ?>"><?= h($room['zone'] . $room['room_number']) ?> (<?= h(number_format((float)$room['price_per_day'], 0)) ?> บ./คืน)</option><?php endforeach; ?></select></div>
+                <div class="form-grid" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));">
+                    <div class="form-group" style="grid-column: 1 / -1;"><label for="bill_room_select">เลือกห้องพัก:</label><select id="bill_room_select" class="form-control"><option value="">-- เลือกห้อง --</option><?php foreach ($all_rooms_for_bill as $room): ?><option value="<?= h($room['id']) ?>" data-price="<?= h($room['price_per_day']) ?>" data-zone="<?= h($room['zone']) ?>"><?= h($room['zone'] . $room['room_number']) ?> (<?= h(number_format((float)$room['price_per_day'], 0)) ?> บ./คืน)</option><?php endforeach; ?></select></div>
                     <div class="form-group"><label for="bill_room_nights">จำนวนคืน:</label><input type="number" id="bill_room_nights" value="1" min="1" class="form-control"></div>
+                    
+                    <div class="form-group"><label for="bill_room_price">ราคา/คืน (แก้ไขได้):</label><input type="number" id="bill_room_price" step="any" min="0" class="form-control"></div>
+                    
                     <div class="form-group"><label for="bill_checkin_date">วันที่เช็คอิน:</label><input type="date" id="bill_checkin_date" value="<?= date('Y-m-d') ?>" class="form-control"></div>
                     <div class="form-group"><label for="bill_checkout_date">วันที่เช็คเอาท์:</label><input type="date" id="bill_checkout_date" value="<?= date('Y-m-d', strtotime('+1 day')) ?>" class="form-control"></div>
                 </div>
@@ -340,6 +348,7 @@ ob_start();
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // --- Element Selectors ---
     const groupSelect = document.getElementById('select_booking_group');
     const itemTypeSelector = document.getElementById('item-type-selector');
     const roomFields = document.getElementById('room-fields');
@@ -348,6 +357,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const nightsInput = document.getElementById('bill_room_nights');
     const checkinDateInput = document.getElementById('bill_checkin_date');
     const checkoutDateInput = document.getElementById('bill_checkout_date');
+    const roomPriceInput = document.getElementById('bill_room_price');
     const addRoomBtn = document.getElementById('add-room-to-bill-btn');
     const serviceSelect = document.getElementById('bill_service_select');
     const serviceNameInput = document.getElementById('bill_service_name');
@@ -372,14 +382,25 @@ document.addEventListener('DOMContentLoaded', function() {
     const saveAsImageBtn = document.getElementById('save-bill-as-image-btn');
     const shareBillBtn = document.getElementById('share-bill-btn');
     const printBillBtn = document.getElementById('print-bill-btn');
+    const holidaySurchargeCheckbox = document.getElementById('holiday_surcharge_checkbox'); // ***** NEW *****
 
     let billItems = [];
 
+    // --- Event Listeners ---
     itemTypeSelector.addEventListener('click', function(e) {
         if (e.target.tagName === 'BUTTON') {
             const type = e.target.dataset.type;
             roomFields.style.display = type === 'room' ? 'block' : 'none';
             serviceFields.style.display = type === 'service' ? 'block' : 'none';
+        }
+    });
+
+    roomSelect.addEventListener('change', function() {
+        const selectedOption = this.options[this.selectedIndex];
+        if (selectedOption.value && roomPriceInput) {
+            roomPriceInput.value = parseFloat(selectedOption.dataset.price || 0).toFixed(2);
+        } else if (roomPriceInput) {
+            roomPriceInput.value = '';
         }
     });
 
@@ -398,7 +419,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!name || isNaN(qty) || qty < 1 || isNaN(price)) {
             alert('กรุณากรอกข้อมูลรายการบริการให้ครบถ้วนและถูกต้อง (ราคาต้องเป็นตัวเลข)'); return;
         }
-        billItems.push({ id: `service-${Date.now()}`, type: 'service', description: name, quantity: qty, unitPrice: price, itemTotal: qty * price });
+        billItems.push({ id: `service-${Date.now()}`, type: 'service', description: name, quantity: qty, unitPrice: price });
         renderAllItems();
         serviceNameInput.value = ''; serviceQtyInput.value = '1'; servicePriceInput.value = ''; serviceSelect.value = '';
     });
@@ -408,15 +429,57 @@ document.addEventListener('DOMContentLoaded', function() {
         const nights = parseInt(nightsInput.value);
         const checkin = checkinDateInput.value;
         const checkout = checkoutDateInput.value;
-        if (!roomId || isNaN(nights) || nights < 1 || !checkin || !checkout) {
-            alert('กรุณาเลือกห้องพัก, จำนวนคืน, และวันที่ให้ถูกต้อง'); return;
+        const pricePerNight = parseFloat(roomPriceInput.value);
+
+        if (!roomId || isNaN(nights) || nights < 1 || !checkin || !checkout || isNaN(pricePerNight) || pricePerNight < 0) {
+            alert('กรุณาเลือกห้องพัก, จำนวนคืน, วันที่, และราคาต่อคืนให้ถูกต้อง'); return;
         }
         const selectedRoomOption = roomSelect.options[roomSelect.selectedIndex];
         const roomName = selectedRoomOption.text.split(' (')[0];
-        const pricePerNight = parseFloat(selectedRoomOption.dataset.price);
-        billItems.push({ id: `room-${Date.now()}`, type: 'room', description: `ค่าห้องพัก ${roomName}`, quantity: nights, unitPrice: pricePerNight, itemTotal: pricePerNight * nights, checkin: checkin, checkout: checkout });
+        
+        billItems.push({ id: `room-${Date.now()}`, type: 'room', description: `ค่าห้องพัก ${roomName}`, quantity: nights, unitPrice: pricePerNight, checkin: checkin, checkout: checkout });
         renderAllItems();
     });
+
+    addedItemsTableBody.addEventListener('click', function(e) {
+        const cell = e.target.closest('.editable-cell');
+        if (!cell || cell.querySelector('input')) return;
+
+        const row = cell.closest('tr');
+        const itemId = row.querySelector('.remove-item-btn').dataset.itemId;
+        const fieldToEdit = cell.dataset.field;
+        const itemIndex = billItems.findIndex(item => item.id === itemId);
+        if (itemIndex === -1) return;
+
+        const originalValue = billItems[itemIndex][fieldToEdit];
+        cell.innerHTML = '';
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.value = originalValue;
+        input.className = 'form-control';
+        input.style.width = '100%';
+        input.style.textAlign = 'right';
+        cell.appendChild(input);
+        input.focus();
+        input.select();
+
+        const saveChange = () => {
+            const newValue = parseFloat(input.value);
+            if (!isNaN(newValue) && newValue >= 0) {
+                billItems[itemIndex][fieldToEdit] = newValue;
+            }
+            renderAllItems();
+        };
+
+        input.addEventListener('blur', saveChange);
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') saveChange();
+            else if (e.key === 'Escape') renderAllItems();
+        });
+    });
+
+    // ***** NEW EVENT LISTENER FOR HOLIDAY CHECKBOX *****
+    holidaySurchargeCheckbox.addEventListener('change', renderAllItems);
 
     [customerNameInput, customerAddressInput, customerTaxIdInput, billNumberInputEl].forEach(input => input.addEventListener('input', updatePreview));
     checkinDateInput.addEventListener('change', calculateCheckoutDate);
@@ -433,42 +496,61 @@ document.addEventListener('DOMContentLoaded', function() {
             const data = await response.json();
             if (data.success) {
                 customerNameInput.value = data.group_info.customer_name || '';
-                billItems = data.bookings.map(booking => ({ id: `room-${booking.id}`, type: 'room', description: `ค่าห้องพัก ${booking.zone}${booking.room_number}`, quantity: parseInt(booking.nights, 10), unitPrice: parseFloat(booking.price_per_night), itemTotal: parseFloat(booking.price_per_night) * parseInt(booking.nights, 10), checkin: booking.checkin_datetime.split(' ')[0], checkout: booking.checkout_datetime_calculated.split(' ')[0] }));
+                billItems = data.bookings.map(booking => ({ id: `room-${booking.id}`, type: 'room', description: `ค่าห้องพัก ${booking.zone}${booking.room_number}`, quantity: parseInt(booking.nights, 10), unitPrice: parseFloat(booking.price_per_night), checkin: booking.checkin_datetime.split(' ')[0], checkout: booking.checkout_datetime_calculated.split(' ')[0] }));
                 renderAllItems();
             } else { alert('Error: ' + data.message); }
         } catch (error) { console.error('Error:', error); alert('เกิดข้อผิดพลาดในการเชื่อมต่อ'); }
     });
     
+    // ***** MODIFIED: Centralized Calculation Logic *****
     function renderAllItems() {
         addedItemsTableBody.innerHTML = '';
         let grandTotal = 0;
+        const isHoliday = holidaySurchargeCheckbox.checked;
+        const holidaySurchargeAmount = 100;
+
         if (billItems.length === 0) {
             addedItemsTableBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted"><i>- ยังไม่มีรายการ -</i></td></tr>';
         } else {
             billItems.forEach(item => {
+                // Recalculate itemTotal every time based on its properties
+                let currentItemTotal = item.quantity * item.unitPrice;
+                let displayDescription = item.description;
+
+                if (item.type === 'room' && isHoliday) {
+                    currentItemTotal += item.quantity * holidaySurchargeAmount;
+                    displayDescription += ' (วันหยุดนักขัตฤกษ์)';
+                }
+                
                 const row = addedItemsTableBody.insertRow();
-                row.insertCell().textContent = item.description;
+                row.insertCell().textContent = displayDescription;
+                
                 const qtyCell = row.insertCell();
                 qtyCell.textContent = item.quantity;
-                qtyCell.className = 'number-cell';
+                qtyCell.className = 'number-cell editable-cell';
+                qtyCell.dataset.field = 'quantity';
+
                 const unitPriceCell = row.insertCell();
                 unitPriceCell.textContent = item.unitPrice.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                unitPriceCell.className = 'number-cell';
+                unitPriceCell.className = 'number-cell editable-cell';
+                unitPriceCell.dataset.field = 'unitPrice';
+
                 const totalCell = row.insertCell();
-                totalCell.textContent = item.itemTotal.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                totalCell.textContent = currentItemTotal.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                 totalCell.className = 'number-cell';
+
                 const actionCell = row.insertCell();
                 actionCell.className = 'action-cell';
                 const removeBtn = document.createElement('button');
                 removeBtn.textContent = 'ลบ';
-                removeBtn.className = 'button-small alert';
+                removeBtn.className = 'button-small alert remove-item-btn';
                 removeBtn.dataset.itemId = item.id;
                 removeBtn.onclick = function() {
                     billItems = billItems.filter(bItem => bItem.id !== this.dataset.itemId);
                     renderAllItems();
                 };
                 actionCell.appendChild(removeBtn);
-                grandTotal += item.itemTotal;
+                grandTotal += currentItemTotal;
             });
         }
         billGrandTotalSpan.textContent = grandTotal.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -476,6 +558,7 @@ document.addEventListener('DOMContentLoaded', function() {
         updateActionButtonsState();
     }
 
+    // ***** MODIFIED: Centralized Calculation Logic for Preview *****
     function updatePreview() {
         previewBillNumber.textContent = billNumberInputEl.value || 'N/A';
         previewBillDate.textContent = toThaiDateForJS(new Date());
@@ -487,51 +570,41 @@ document.addEventListener('DOMContentLoaded', function() {
         let currentPreviewGrandTotal = 0;
         let overallMinCheckin = null;
         let overallMaxCheckout = null;
+        const isHoliday = holidaySurchargeCheckbox.checked;
+        const holidaySurchargeAmount = 100;
 
         if (billItems.length === 0) {
             previewLineItemsBody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#888; padding: 5mm;"><i>- ยังไม่มีรายการ -</i></td></tr>';
         } else {
-            const groupedRoomItems = {};
-            const serviceItems = billItems.filter(item => item.type === 'service');
-            
-            billItems.filter(item => item.type === 'room').forEach(item => {
-                const groupKey = `${item.unitPrice}_${item.quantity}`; 
-                if (!groupedRoomItems[groupKey]) {
-                    groupedRoomItems[groupKey] = { roomNames: [], quantity: item.quantity, unitPrice: item.unitPrice, itemTotalSum: 0 };
-                }
-                const roomNumberOnly = item.description.replace('ค่าห้องพัก ', '');
-                groupedRoomItems[groupKey].roomNames.push(roomNumberOnly);
-                groupedRoomItems[groupKey].itemTotalSum += item.itemTotal;
-                const checkin = new Date(item.checkin);
-                const checkout = new Date(item.checkout);
-                if (!overallMinCheckin || checkin < overallMinCheckin) overallMinCheckin = checkin;
-                if (!overallMaxCheckout || checkout > overallMaxCheckout) overallMaxCheckout = checkout;
-            });
+            billItems.forEach(item => {
+                let itemTotalForPreview = item.quantity * item.unitPrice;
+                let descriptionForPreview = item.description;
 
-            Object.values(groupedRoomItems).forEach(group => {
+                if (item.type === 'room') {
+                    const checkin = new Date(item.checkin);
+                    const checkout = new Date(item.checkout);
+                    if (!overallMinCheckin || checkin < overallMinCheckin) overallMinCheckin = checkin;
+                    if (!overallMaxCheckout || checkout > overallMaxCheckout) overallMaxCheckout = checkout;
+
+                    if (isHoliday) {
+                        itemTotalForPreview += item.quantity * holidaySurchargeAmount;
+                        descriptionForPreview += ' (วันหยุดนักขัตฤกษ์)';
+                    }
+                }
+                
                 const row = previewLineItemsBody.insertRow();
-                row.insertCell(0).textContent = `ค่าห้องพัก ${group.roomNames.join(', ')}`;
+                row.insertCell(0).textContent = descriptionForPreview;
                 row.cells[0].className = 'col-desc';
-                row.insertCell(1).textContent = `${group.quantity} คืน`;
-                row.cells[1].className = 'col-qty';
-                row.insertCell(2).textContent = group.unitPrice.toLocaleString('th-TH', { minimumFractionDigits: 2 });
-                row.cells[2].className = 'col-unit-price';
-                row.insertCell(3).textContent = group.itemTotalSum.toLocaleString('th-TH', { minimumFractionDigits: 2 });
-                row.cells[3].className = 'col-amount';
-                currentPreviewGrandTotal += group.itemTotalSum;
-            });
-            
-            serviceItems.forEach(item => {
-                const row = previewLineItemsBody.insertRow();
-                row.insertCell(0).textContent = item.description;
-                row.cells[0].className = 'col-desc';
-                row.insertCell(1).textContent = item.quantity;
-                row.cells[1].className = 'col-qty';
-                row.insertCell(2).textContent = item.unitPrice.toLocaleString('th-TH', { minimumFractionDigits: 2 });
-                row.cells[2].className = 'col-unit-price';
-                row.insertCell(3).textContent = item.itemTotal.toLocaleString('th-TH', { minimumFractionDigits: 2 });
-                row.cells[3].className = 'col-amount';
-                currentPreviewGrandTotal += item.itemTotal;
+                const qtyCell = row.insertCell(1);
+                qtyCell.textContent = `${item.quantity}${item.type === 'room' ? ' คืน' : ''}`;
+                qtyCell.className = 'col-qty';
+                const unitPriceCell = row.insertCell(2);
+                unitPriceCell.textContent = item.unitPrice.toLocaleString('th-TH', { minimumFractionDigits: 2 });
+                unitPriceCell.className = 'col-unit-price';
+                const amountCell = row.insertCell(3);
+                amountCell.textContent = itemTotalForPreview.toLocaleString('th-TH', { minimumFractionDigits: 2 });
+                amountCell.className = 'col-amount';
+                currentPreviewGrandTotal += itemTotalForPreview;
             });
         }
         
@@ -539,7 +612,7 @@ document.addEventListener('DOMContentLoaded', function() {
         previewCheckoutDate.textContent = overallMaxCheckout ? toThaiDateForJS(overallMaxCheckout) : '-';
         previewGrandTotal.textContent = currentPreviewGrandTotal.toLocaleString('th-TH', { minimumFractionDigits: 2 });
     }
-
+    
     function calculateCheckoutDate() {
         if (!checkinDateInput.value || !nightsInput.value) { checkoutDateInput.value = ''; return; }
         try {
@@ -567,82 +640,20 @@ document.addEventListener('DOMContentLoaded', function() {
         printBillBtn.disabled = !hasItems;
     }
 
-    // --- START: New Printing Logic ---
     printBillBtn.addEventListener('click', function() {
         const billContentNode = document.getElementById('bill-content');
         if (!billContentNode) {
             alert('ผิดพลาด: ไม่พบเนื้อหาสำหรับพิมพ์');
             return;
         }
-
         const printWindow = window.open('', '_blank', 'width=880,height=900,scrollbars=yes,resizable=yes');
-        
-        printWindow.document.write(`
-            <html>
-                <head>
-                    <title>พิมพ์ใบเสร็จรับเงิน</title>
-                    <link rel="preconnect" href="https://fonts.googleapis.com">
-                    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-                    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700;800&display=swap" rel="stylesheet">
-                    <style>
-                        body { font-family: 'Sarabun', sans-serif; margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                        @page { size: A4; margin: 0; }
-                        #bill-content {
-                            width: 210mm; height: 297mm; padding: 10mm; box-sizing: border-box; display: flex; flex-direction: column; position: relative;
-                            background-color: #fff; color: #000; font-size: 12pt;
-                        }
-                        .bill-body { border: 1.5px solid #333; padding: 8mm; width: 100%; height: 100%; display: flex; flex-direction: column; position: relative; z-index: 2; box-sizing: border-box; }
-                        #bill-content::after { content: 'ต้นฉบับ'; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-45deg); font-size: 150pt; font-weight: 800; color: rgba(0, 0, 0, 0.04); z-index: 1; pointer-events: none; }
-                        header { text-align: center; margin-bottom: 5mm; flex-shrink: 0;}
-                        .logo-container img { max-width: 150px; max-height: 50px; object-fit: contain; }
-                        h1 { font-size: 1.5em; margin: 0 0 1mm 0; color: #000; } 
-                        h2 { font-size: 1.2em; margin: 1mm 0; color: #000; } 
-                        .address-phone p { margin: 0.5mm 0; font-size: 0.9em; line-height: 1.4; } 
-                        .bill-meta { display: flex; justify-content: space-between; margin-bottom: 5mm; font-size: 0.9em; flex-shrink: 0;}
-                        .customer-info { border: 1px solid #ccc; padding: 2mm 3mm; margin-bottom: 5mm; font-size: 0.9em; flex-shrink: 0;}
-                        .customer-info p { margin: 1mm 0; } 
-                        hr.section-divider { border: 0; border-top: 1px solid #000; margin: 4mm 0; }
-                        .line-items { flex-grow: 1; margin-bottom: 5mm; border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 1mm 0;}
-                        .line-items-table { width: 100%; border-collapse: collapse; font-size: 0.9em; } 
-                        .line-items-table th, .line-items-table td { border: none; padding: 1.5mm 1mm; text-align: left; vertical-align: top; }
-                        .line-items-table th { font-weight: bold; border-bottom: 1px solid #999;}
-                        .line-items-table td { border-bottom: 1px dotted #ccc; }
-                        .line-items-table tr:last-child td { border-bottom: none; }
-                        .col-desc { width: 55%; } .col-qty { width: 15%; text-align: center; } .col-unit-price { width: 15%; text-align: right; } .col-amount { width: 15%; text-align: right; }
-                        .checkin-checkout-info { font-size: 0.9em; margin-bottom: 5mm; flex-shrink: 0; } 
-                        .totals { text-align: right; margin-top: auto; padding-top: 3mm; font-size: 1em; flex-shrink: 0;} 
-                        .totals table { width: 50%; margin-left: auto; border-collapse: collapse; } 
-                        .totals td { padding: 1.5mm; } 
-                        .totals .grand-total td { font-weight: bold; font-size: 1.2em; border-top: 1px solid #000; border-bottom: 3px double #000;}
-                        .signatures { display: flex; justify-content: center; margin-top: 15mm; font-size: 0.9em; flex-shrink: 0;} 
-                        .signature-box { text-align: center; width: 50%; } 
-                        .signature-line { border-bottom: 1px dotted #000; height: 12mm; margin: 2mm 0 1mm 0; } 
-                        .signature-box p { margin: 0; line-height: 1.4; }
-                        .note-footer {text-align: center; font-size: 0.7em; margin-top: 5mm; color: #555; flex-shrink: 0;}
-                        .thank-you-note {text-align: center; font-weight: bold; font-size: 1em; margin-top: 8mm; flex-shrink: 0;}
-                    </style>
-                </head>
-                <body>
-                    <div id="bill-content">
-                        ${billContentNode.innerHTML}
-                    </div>
-                </body>
-            </html>
-        `);
-
+        printWindow.document.write(`<html><head><title>พิมพ์ใบเสร็จรับเงิน</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700;800&display=swap" rel="stylesheet"><style>body{font-family:'Sarabun',sans-serif;margin:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}@page{size:A4;margin:0}#bill-content{width:210mm;height:297mm;padding:10mm;box-sizing:border-box;display:flex;flex-direction:column;position:relative;background-color:#fff;color:#000;font-size:12pt}.bill-body{border:1.5px solid #333;padding:8mm;width:100%;height:100%;display:flex;flex-direction:column;position:relative;z-index:2;box-sizing:border-box}#bill-content::after{content:'ต้นฉบับ';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-45deg);font-size:150pt;font-weight:800;color:rgba(0,0,0,.04);z-index:1;pointer-events:none}header{text-align:center;margin-bottom:5mm;flex-shrink:0}.logo-container img{max-width:150px;max-height:50px;object-fit:contain}h1{font-size:1.5em;margin:0 0 1mm;color:#000}h2{font-size:1.2em;margin:1mm 0;color:#000}.address-phone p{margin:.5mm 0;font-size:.9em;line-height:1.4}.bill-meta{display:flex;justify-content:space-between;margin-bottom:5mm;font-size:.9em;flex-shrink:0}.customer-info{border:1px solid #ccc;padding:2mm 3mm;margin-bottom:5mm;font-size:.9em;flex-shrink:0}.customer-info p{margin:1mm 0}hr.section-divider{border:0;border-top:1px solid #000;margin:4mm 0}.line-items{flex-grow:1;margin-bottom:5mm;border-top:1px solid #000;border-bottom:1px solid #000;padding:1mm 0}.line-items-table{width:100%;border-collapse:collapse;font-size:.9em}.line-items-table th,.line-items-table td{border:none;padding:1.5mm 1mm;text-align:left;vertical-align:top}.line-items-table th{font-weight:700;border-bottom:1px solid #999}.line-items-table td{border-bottom:1px dotted #ccc}.line-items-table tr:last-child td{border-bottom:none}.col-desc{width:55%}.col-qty{width:15%;text-align:center}.col-unit-price{width:15%;text-align:right}.col-amount{width:15%;text-align:right}.checkin-checkout-info{font-size:.9em;margin-bottom:5mm;flex-shrink:0}.totals{text-align:right;margin-top:auto;padding-top:3mm;font-size:1em;flex-shrink:0}.totals table{width:50%;margin-left:auto;border-collapse:collapse}.totals td{padding:1.5mm}.totals .grand-total td{font-weight:700;font-size:1.2em;border-top:1px solid #000;border-bottom:3px double #000}.signatures{display:flex;justify-content:center;margin-top:15mm;font-size:.9em;flex-shrink:0}.signature-box{text-align:center;width:50%}.signature-line{border-bottom:1px dotted #000;height:12mm;margin:2mm 0 1mm}.signature-box p{margin:0;line-height:1.4}.note-footer{text-align:center;font-size:.7em;margin-top:5mm;color:#555;flex-shrink:0}.thank-you-note{text-align:center;font-weight:700;font-size:1em;margin-top:8mm;flex-shrink:0}</style></head><body><div id="bill-content">${billContentNode.innerHTML}</div></body></html>`);
         printWindow.document.close();
         setTimeout(() => {
-            try {
-                printWindow.focus();
-                printWindow.print();
-                printWindow.close();
-            } catch (e) {
-                console.error("Print failed:", e);
-                alert("ไม่สามารถสั่งพิมพ์ได้ อาจถูกบล็อกโดยเบราว์เซอร์");
-            }
-        }, 1000); // 1 second delay
+            try { printWindow.focus(); printWindow.print(); printWindow.close(); } 
+            catch (e) { console.error("Print failed:", e); alert("ไม่สามารถสั่งพิมพ์ได้ อาจถูกบล็อกโดยเบราว์เซอร์"); }
+        }, 1000);
     });
-    // --- END: New Printing Logic ---
 
     async function generateBillCanvas() {
         const sourceElement = document.getElementById('bill-content');
@@ -655,7 +666,8 @@ document.addEventListener('DOMContentLoaded', function() {
         clone.style.top = '-9999px';
         clone.style.left = '0px';
         clone.style.width = '210mm';
-        clone.style.height = '297mm';
+        clone.style.height = 'auto';
+        clone.style.minHeight = '297mm';
         clone.style.margin = '0';
         clone.style.fontSize = '12pt';
         clone.style.fontFamily = "'Sarabun', sans-serif";
