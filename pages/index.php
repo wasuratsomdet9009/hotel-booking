@@ -6,6 +6,7 @@ require_login();
 $pageTitle = 'Dashboard โรงแรม';
 
 // --- START: New Automatic Archiving for OVERDUE ZONE F Bookings (WITH DEPOSIT CHECK) ---
+
 try {
     $pdo->beginTransaction();
 
