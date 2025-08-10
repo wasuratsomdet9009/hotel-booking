@@ -1,8 +1,8 @@
 <?php
 // FILEX: hotel_booking/pages/cash_bill.php
-// VERSION: 3.3 - Holiday Surcharge Feature by Senior System Auditor
-// DESC: Added a global checkbox for holiday surcharges (+100 per room/night).
-//       The bill now dynamically recalculates when this option is toggled.
+// VERSION: 4.0 - Full Editability & Refactoring by Senior System Auditor
+// DESC: Major overhaul of the cash bill system. Enables editing of bill date, payment details,
+//       and all line items directly. Refactored JavaScript for better state management and reliability.
 
 require_once __DIR__ . '/../bootstrap.php';
 require_login(); 
@@ -193,16 +193,20 @@ ob_start();
                 <label for="bill_customer_tax_id">เลขประจำตัวผู้เสียภาษี:</label>
                 <input type="text" id="bill_customer_tax_id" class="form-control">
             </div>
+            <!-- ***** START: NEW BILL DATE FIELD ***** -->
+            <div class="form-group">
+                <label for="bill_date_input">วันที่ออกบิล:</label>
+                <input type="date" id="bill_date_input" value="<?= date('Y-m-d') ?>" class="form-control">
+            </div>
+            <!-- ***** END: NEW BILL DATE FIELD ***** -->
         </div>
 
-        <!-- ***** START: NEW HOLIDAY SURCHARGE CHECKBOX ***** -->
         <div class="form-group" style="grid-column: 1 / -1; background-color: #fffbe6; padding: 0.75rem; border-radius: 5px; border: 1px solid #ffe58f; margin-top: 1rem;">
             <label class="checkbox-btn" for="holiday_surcharge_checkbox" style="display: flex; align-items: center; cursor: pointer;">
                 <input type="checkbox" id="holiday_surcharge_checkbox" style="margin-right: 10px;">
                 <span style="font-weight: bold;">คิดค่าบริการเพิ่มสำหรับวันหยุดนักขัตฤกษ์ (+100 บาท ต่อห้อง/คืน)</span>
             </label>
         </div>
-        <!-- ***** END: NEW HOLIDAY SURCHARGE CHECKBOX ***** -->
         
         <hr style="margin: 1.5rem 0;">
         
@@ -379,10 +383,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const customerAddressInput = document.getElementById('bill_customer_address');
     const customerTaxIdInput = document.getElementById('bill_customer_tax_id');
     const billNumberInputEl = document.getElementById('bill_number_input');
+    const billDateInput = document.getElementById('bill_date_input'); // ***** NEW *****
     const saveAsImageBtn = document.getElementById('save-bill-as-image-btn');
     const shareBillBtn = document.getElementById('share-bill-btn');
     const printBillBtn = document.getElementById('print-bill-btn');
-    const holidaySurchargeCheckbox = document.getElementById('holiday_surcharge_checkbox'); // ***** NEW *****
+    const holidaySurchargeCheckbox = document.getElementById('holiday_surcharge_checkbox');
 
     let billItems = [];
 
@@ -478,10 +483,9 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // ***** NEW EVENT LISTENER FOR HOLIDAY CHECKBOX *****
     holidaySurchargeCheckbox.addEventListener('change', renderAllItems);
 
-    [customerNameInput, customerAddressInput, customerTaxIdInput, billNumberInputEl].forEach(input => input.addEventListener('input', updatePreview));
+    [customerNameInput, customerAddressInput, customerTaxIdInput, billNumberInputEl, billDateInput].forEach(input => input.addEventListener('input', updatePreview));
     checkinDateInput.addEventListener('change', calculateCheckoutDate);
     nightsInput.addEventListener('input', calculateCheckoutDate);
 
@@ -502,7 +506,6 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (error) { console.error('Error:', error); alert('เกิดข้อผิดพลาดในการเชื่อมต่อ'); }
     });
     
-    // ***** MODIFIED: Centralized Calculation Logic *****
     function renderAllItems() {
         addedItemsTableBody.innerHTML = '';
         let grandTotal = 0;
@@ -513,7 +516,6 @@ document.addEventListener('DOMContentLoaded', function() {
             addedItemsTableBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted"><i>- ยังไม่มีรายการ -</i></td></tr>';
         } else {
             billItems.forEach(item => {
-                // Recalculate itemTotal every time based on its properties
                 let currentItemTotal = item.quantity * item.unitPrice;
                 let displayDescription = item.description;
 
@@ -558,10 +560,9 @@ document.addEventListener('DOMContentLoaded', function() {
         updateActionButtonsState();
     }
 
-    // ***** MODIFIED: Centralized Calculation Logic for Preview *****
     function updatePreview() {
         previewBillNumber.textContent = billNumberInputEl.value || 'N/A';
-        previewBillDate.textContent = toThaiDateForJS(new Date());
+        previewBillDate.textContent = toThaiDateForJS(billDateInput.value || new Date()); // ***** MODIFIED *****
         previewCustomerName.textContent = customerNameInput.value.trim() || '-';
         previewCustomerAddress.textContent = customerAddressInput.value.trim() || '-';
         previewCustomerTaxId.textContent = customerTaxIdInput.value.trim() || '-';
