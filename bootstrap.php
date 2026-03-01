@@ -78,12 +78,7 @@ define('DEFAULT_SHORT_STAY_DURATION_HOURS', 3);
 
 // --- START: Telegram Notification Configuration ---
 define('TELEGRAM_BOT_TOKEN', '7207889837:AAFnxRBIiAqZUdJDU0Fc9FI0pcV5iIW1_mI');
-// **สำคัญ:** กรุณาใส่ Chat ID ที่ถูกต้องที่นี่
-// วิธีหา Chat ID:
-// 1. เพิ่มบอท @RawDataBot เข้าไปในกลุ่ม Telegram ของคุณ
-// 2. คุณจะเห็นข้อความ JSON, มองหา `chat` -> `id` ซึ่งจะเป็นตัวเลขติดลบ (เช่น -1001234567890)
-// 3. นำตัวเลขนั้นมาใส่ที่นี่
-define('TELEGRAM_CHAT_ID', '-4879004248'); // <-- ใส่ Chat ID ของคุณที่นี่
+define('TELEGRAM_CHAT_ID', '-4879004248');
 // --- END: Telegram Notification Configuration ---
 
 $default_fixed_deposit_val = 100;
@@ -98,7 +93,7 @@ try {
     ]);
 } catch (PDOException $e) {
     error_log('Database connection failed: ' . $e->getMessage());
-    exit('ระบบขัดข้อง: ไม่สามารถเชื่อมต่อฐานข้อมูลได้ในขณะนี้ (DB_CONN_FAIL). กรุณาตรวจสอบการตั้งค่า DB_HOST, DB_NAME, DB_USER, DB_PASS ใน bootstrap.php ว่าถูกต้องสำหรับสภาพแวดล้อมของ ReadyIDC และชื่อฐานข้อมูล `resortbn_booking` หรือติดต่อผู้ดูแลระบบ');
+    exit('ระบบขัดข้อง: ไม่สามารถเชื่อมต่อฐานข้อมูลได้ในขณะนี้...');
 }
 
 function get_system_setting_value($pdoConn, $key, $default = null) {
@@ -129,7 +124,6 @@ try {
 } catch (PDOException $e) {
     if (!defined('FIXED_DEPOSIT_AMOUNT')) define('FIXED_DEPOSIT_AMOUNT', $default_fixed_deposit_val);
     if (!defined('HOURLY_RATE')) define('HOURLY_RATE', $default_hourly_rate_val);
-    error_log("Critical: Could not load system settings from database. Using default values. Error: " . $e->getMessage());
 }
 
 if (!defined('API_BASE_URL_PHP')) {
@@ -152,16 +146,9 @@ define('WATERMARK_PATH', dirname(__DIR__) . '/assets/image/watermark.png');
 
 /**
  * Sends a room status update to Telegram.
- * This function queries the current state of all rooms and sends a formatted message.
- *
- * @param PDO $pdo The PDO database connection object.
- * @return void
  */
 function sendTelegramRoomStatusUpdate(PDO $pdo) {
-    if (!defined('TELEGRAM_BOT_TOKEN') || !defined('TELEGRAM_CHAT_ID') || TELEGRAM_CHAT_ID === '-100XXXXXXXXXX' || empty(TELEGRAM_BOT_TOKEN)) {
-        error_log("Telegram notifications are not configured (TOKEN or CHAT_ID is missing/default).");
-        return;
-    }
+    if (!defined('TELEGRAM_BOT_TOKEN') || !defined('TELEGRAM_CHAT_ID') || empty(TELEGRAM_BOT_TOKEN)) return;
 
     try {
         $sql = "
@@ -183,11 +170,12 @@ function sendTelegramRoomStatusUpdate(PDO $pdo) {
                     SELECT b_latest.id FROM bookings b_latest WHERE b_latest.room_id = b_inner.room_id
                     ORDER BY 
                         (CASE 
-                            WHEN b_latest.checkin_datetime <= NOW() AND NOW() < b_latest.checkout_datetime_calculated THEN 1 
-                            WHEN DATE(b_latest.checkin_datetime) = CURDATE() THEN 2
-                            ELSE 3
+                            WHEN NOW() >= b_latest.checkout_datetime_calculated THEN 1
+                            WHEN b_latest.checkin_datetime <= NOW() AND NOW() < b_latest.checkout_datetime_calculated THEN 2
+                            WHEN DATE(b_latest.checkin_datetime) = CURDATE() THEN 3
+                            ELSE 4
                         END), 
-                        b_latest.checkin_datetime DESC,
+                        b_latest.checkin_datetime ASC,
                         b_latest.id DESC
                     LIMIT 1
                 )
@@ -211,13 +199,9 @@ function sendTelegramRoomStatusUpdate(PDO $pdo) {
             foreach ($roomsInZone as $room) {
                 $customer_info = '';
                 switch ($room['display_status']) {
-                    case 'free':
-                        $status_icon = '✅';
-                        break;
-                    case 'f_short_occupied':
-                        $status_icon = '⭕️';
-                        break;
-                    default: // 'occupied', 'booked', 'overdue_occupied'
+                    case 'free': $status_icon = '✅'; break;
+                    case 'f_short_occupied': $status_icon = '⭕️'; break;
+                    default: 
                         $status_icon = '❌';
                         if (!empty($room['customer_name'])) {
                             $name_parts = explode(' ', $room['customer_name']);
@@ -231,40 +215,24 @@ function sendTelegramRoomStatusUpdate(PDO $pdo) {
         }
         
         $telegramApiUrl = "https://api.telegram.org/bot" . TELEGRAM_BOT_TOKEN . "/sendMessage";
-        $post_fields = [
-            'chat_id' => TELEGRAM_CHAT_ID,
-            'text' => $message,
-            'parse_mode' => 'HTML'
-        ];
+        $post_fields = ['chat_id' => TELEGRAM_CHAT_ID, 'text' => $message, 'parse_mode' => 'HTML'];
 
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, $telegramApiUrl);
         curl_setopt($ch, CURLOPT_POST, 1);
         curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($post_fields));
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        $server_output = curl_exec($ch);
-        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_exec($ch);
         curl_close($ch);
-
-        if ($http_code !== 200) {
-            error_log("Telegram API error. HTTP Code: {$http_code}. Response: {$server_output}");
-        } else {
-            error_log("Successfully sent Telegram status update.");
-        }
     } catch (Exception $e) {
         error_log("Failed to send Telegram notification: " . $e->getMessage());
     }
 }
 
-
 function process_uploaded_image_with_compression($tmpFilePath, $destinationPath, $originalFilename) {
-    if (!file_exists($tmpFilePath) || !is_uploaded_file($tmpFilePath)) {
-        return false;
-    }
+    if (!file_exists($tmpFilePath) || !is_uploaded_file($tmpFilePath)) return false;
     $fileSize = @filesize($tmpFilePath);
-    if ($fileSize === false) {
-        return move_uploaded_file($tmpFilePath, $destinationPath);
-    }
+    if ($fileSize === false) return move_uploaded_file($tmpFilePath, $destinationPath);
     $fileExtension = strtolower(pathinfo($originalFilename, PATHINFO_EXTENSION));
     $supportedImageTypes = ['jpg', 'jpeg', 'png'];
 
@@ -275,15 +243,146 @@ function process_uploaded_image_with_compression($tmpFilePath, $destinationPath,
             elseif ($fileExtension === 'png') { $image = @imagecreatefrompng($tmpFilePath); if ($image) { imagesavealpha($image, true); $compressionSuccess = @imagepng($image, $destinationPath, IMAGE_COMPRESSION_LEVEL_PNG); } }
             if ($image) imagedestroy($image);
             if ($compressionSuccess) return true;
-        } catch (Exception $e) { /* Fall through to move original */ }
+        } catch (Exception $e) {}
     }
     return move_uploaded_file($tmpFilePath, $destinationPath);
 }
 
+function getNextReceiptNumber(PDO $pdo) {
+    try {
+        $date = new DateTime("now", new DateTimeZone("Asia/Bangkok"));
+        $thaiYearShort = (int)$date->format('Y') + 543 - 2500; 
+        $prefix = 'RE' . $thaiYearShort . '-';
+        $pdo->beginTransaction();
+        $stmt = $pdo->prepare("SELECT MAX(CAST(SUBSTRING(receipt_number, 6) AS UNSIGNED)) FROM generated_receipts WHERE receipt_number LIKE ? FOR UPDATE");
+        $stmt->execute([$prefix . '%']);
+        $maxNum = (int)$stmt->fetchColumn();
+        $nextNum = $maxNum + 1;
+        $newReceiptNumber = $prefix . str_pad((string)$nextNum, 5, '0', STR_PAD_LEFT);
+        $pdo->commit();
+        return $newReceiptNumber;
+    } catch (Exception $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        return 'ERR-' . time() . rand(100, 999); 
+    }
+}
+
+/**
+ * [REFACTORED V3 - OVERDUE PRIORITY FIX]
+ * ดึงข้อมูลสถานะห้องพักโดยให้ความสำคัญกับ Overdue (เกินกำหนดคืนห้อง) สูงสุด
+ */
+function fetchRoomStatuses(PDO $pdo) {
+    $sql = "
+        WITH RankedBookings AS (
+            SELECT
+                b.*,
+                -- ปรับลำดับความสำคัญใหม่ตามคำขอ: 1=Overdue, 2=Active, 3=BookedToday, 4=Future
+                ROW_NUMBER() OVER(
+                    PARTITION BY b.room_id
+                    ORDER BY
+                        (CASE
+                            -- 1. Overdue (ต้องจัดการด่วนที่สุด)
+                            WHEN NOW() >= b.checkout_datetime_calculated THEN 1 
+                            -- 2. Active (กำลังพักอยู่และยังไม่ถึงเวลาออก)
+                            WHEN b.checkin_datetime <= NOW() AND NOW() < b.checkout_datetime_calculated THEN 2
+                            -- 3. รอเช็คอินวันนี้
+                            WHEN DATE(b.checkin_datetime) = CURDATE() THEN 3
+                            -- 4. จองล่วงหน้าอื่นๆ
+                            ELSE 4
+                        END) ASC,
+                        b.checkin_datetime ASC,
+                        b.id DESC
+                ) as rn
+            FROM bookings b
+            -- กรองดูย้อนหลังนานขึ้น (30 วัน) เพื่อกันพลาดกรณีเคสตกค้าง
+            WHERE b.checkout_datetime_calculated > DATE_SUB(NOW(), INTERVAL 30 DAY)
+        )
+        SELECT
+            r.id, r.zone, r.room_number, r.status AS db_actual_status,
+            r.price_per_day, r.price_short_stay, r.allow_short_stay,
+            r.short_stay_duration_hours, r.ask_deposit_on_overnight, r.price_per_hour_extension,
+
+            rb.id AS current_booking_id,
+            rb.customer_name AS current_customer_name,
+            rb.customer_phone AS current_customer_phone,
+            rb.checkin_datetime AS current_booking_checkin_datetime,
+            rb.checkout_datetime_calculated AS current_booking_checkout_datetime_calculated,
+            rb.booking_type AS current_booking_type,
+            rb.receipt_path AS current_receipt_path,
+            rb.nights AS current_booking_nights,
+            rb.price_per_night AS current_booking_price_per_night,
+            rb.total_price AS current_booking_total_price,
+            rb.amount_paid AS current_booking_amount_paid,
+            rb.deposit_amount AS current_booking_deposit_amount,
+            rb.extended_hours AS current_booking_extended_hours,
+            rb.payment_method AS current_booking_payment_method,
+            rb.extended_payment_method AS current_booking_extended_payment_method,
+            rb.notes AS current_booking_notes,
+            rb.booking_group_id AS current_booking_group_id,
+
+            (CASE WHEN rb.id IS NOT NULL AND NOW() >= rb.checkout_datetime_calculated THEN 1 ELSE 0 END) AS is_overdue,
+            
+            (CASE WHEN rb.id IS NOT NULL AND rb.checkin_datetime <= NOW() AND NOW() < rb.checkout_datetime_calculated
+                  AND TIMESTAMPDIFF(MINUTE, NOW(), rb.checkout_datetime_calculated) <= 60
+                  AND TIMESTAMPDIFF(MINUTE, NOW(), rb.checkout_datetime_calculated) > 0
+             THEN 1 ELSE 0 END) AS is_nearing_checkout,
+             
+            (CASE WHEN rb.id IS NOT NULL AND rb.total_price > rb.amount_paid THEN 1 ELSE 0 END) AS has_pending_payment,
+
+            -- Logic การแสดงผลสถานะ (Display Status) ปรับให้สอดคล้องกัน
+            CASE
+                -- 1. Overdue ต้องแดงเข้มก่อนเสมอ (Priority สูงสุด)
+                WHEN rb.id IS NOT NULL AND NOW() >= rb.checkout_datetime_calculated THEN 'overdue_occupied'
+                
+                -- 2. Occupied (กำลังพัก)
+                WHEN rb.id IS NOT NULL AND rb.checkin_datetime <= NOW() THEN 
+                    CASE WHEN r.zone = 'F' AND rb.booking_type = 'short_stay' THEN 'f_short_occupied' ELSE 'occupied' END
+
+                -- 3. Booked (รอเช็คอินวันนี้)
+                WHEN rb.id IS NOT NULL AND DATE(rb.checkin_datetime) = CURDATE() THEN 'booked'
+
+                -- 4. Advance Booking (จองล่วงหน้า)
+                WHEN rb.id IS NOT NULL AND rb.checkin_datetime > NOW() THEN 
+                     CASE WHEN r.status = 'free' THEN 'advance_booking' ELSE r.status END
+
+                ELSE 'free'
+            END AS display_status,
+
+            (SELECT b_rel.id FROM bookings b_rel
+             WHERE b_rel.room_id = r.id AND b_rel.checkout_datetime_calculated > NOW()
+             ORDER BY b_rel.checkin_datetime ASC LIMIT 1) as relevant_booking_id
+
+        FROM rooms r
+        LEFT JOIN RankedBookings rb ON r.id = rb.room_id AND rb.rn = 1
+        ORDER BY r.zone ASC, CAST(r.room_number AS UNSIGNED) ASC
+    ";
+    
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute();
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+// +++ Centralized Helper Functions +++
 if (!function_exists('set_success_message')) {
     function set_success_message($message) { $_SESSION['success_message'] = $message; }
 }
 if (!function_exists('set_error_message')) {
     function set_error_message($message) { $_SESSION['error_message'] = $message; }
+}
+if (!function_exists('toThaiDateString')) {
+    function toThaiDateString($dateInput) {
+        if (empty($dateInput)) return 'N/A';
+        try {
+            $date = $dateInput instanceof DateTime ? $dateInput : new DateTime($dateInput);
+            $thaiMonths = [1=>'มกราคม',2=>'กุมภาพันธ์',3=>'มีนาคม',4=>'เมษายน',5=>'พฤษภาคม',6=>'มิถุนายน',7=>'กรกฎาคม',8=>'สิงหาคม',9=>'กันยายน',10=>'ตุลาคม',11=>'พฤศจิกายน',12=>'ธันวาคม'];
+            return $date->format('j') . ' ' . $thaiMonths[(int)$date->format('n')] . ' ' . ($date->format('Y') + 543);
+        } catch (Exception $e) { return 'รูปแบบวันที่ผิดพลาด'; }
+    }
+}
+if (!function_exists('thaimonthfull')) {
+    function thaimonthfull($montheng) {
+        $thaimonths = ['January'=>'มกราคม','February'=>'กุมภาพันธ์','March'=>'มีนาคม','April'=>'เมษายน','May'=>'พฤษภาคม','June'=>'มิถุนายน','July'=>'กรกฎาคม','August'=>'สิงหาคม','September'=>'กันยายน','October'=>'ตุลาคม','November'=>'พฤศจิกายน','December'=>'ธันวาคม'];
+        return $thaimonths[$montheng] ?? $montheng;
+    }
 }
 ?>

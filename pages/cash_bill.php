@@ -1,13 +1,137 @@
 <?php
 // FILEX: hotel_booking/pages/cash_bill.php
-// VERSION: 4.0 - Full Editability & Refactoring by Senior System Auditor
-// DESC: Major overhaul of the cash bill system. Enables editing of bill date, payment details,
-//       and all line items directly. Refactored JavaScript for better state management and reliability.
+// VERSION: 4.2 - Added Customer Directory & Autocomplete
+// DESC: Added customer search (autocomplete) from new `customer_directory` table.
+//       Updated `save_receipt` action to auto-save/update customer info
+//       to the directory.
 
 require_once __DIR__ . '/../bootstrap.php';
+
+// ***** START: API HANDLER BLOCK *****
+
+// --- API Action: Search Customers ---
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['action'] === 'search_customers') {
+    header('Content-Type: application/json');
+    $term = $_GET['term'] ?? '';
+
+    if (mb_strlen($term) < 2) {
+        echo json_encode([]);
+        exit;
+    }
+
+    try {
+        $stmt = $pdo->prepare("
+            SELECT customer_name, customer_address, customer_tax_id 
+            FROM customer_directory 
+            WHERE customer_name LIKE ? 
+            LIMIT 10
+        ");
+        $stmt->execute(['%' . $term . '%']);
+        $customers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        echo json_encode($customers);
+
+    } catch (Exception $e) {
+        error_log("Customer search failed: " . $e->getMessage());
+        http_response_code(500);
+        echo json_encode(['success' => false, 'message' => 'Database error during search.']);
+    }
+    exit;
+}
+
+// --- API Action: Save Receipt ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action']) && $_GET['action'] === 'save_receipt') {
+    header('Content-Type: application/json');
+    
+    if (session_status() == PHP_SESSION_NONE) {
+        session_start();
+    }
+    
+    $data = json_decode(file_get_contents('php://input'), true);
+    
+    try {
+        // 1. Get current user ID
+        $userId = get_current_user_id(); // From bootstrap.php
+        if (!$userId) {
+            throw new Exception('User not authenticated. Please log in again.');
+        }
+        
+        // 2. Get new receipt number (function from bootstrap.php)
+        $receiptNumber = getNextReceiptNumber($pdo); 
+
+        // 3. Prepare data for insertion
+        $bookingGroupId = !empty($data['booking_group_id']) ? (int)$data['booking_group_id'] : null;
+        $totalAmount = !empty($data['grand_total']) ? (float)$data['grand_total'] : 0.0;
+        $paymentMethod = !empty($data['payment_method']) ? $data['payment_method'] : 'Cash';
+        $customerName = $data['customer_name'] ?? '';
+        $customerAddress = $data['customer_address'] ?? '';
+        $customerTaxId = $data['customer_tax_id'] ?? '';
+        
+        // 4. Create the full JSON snapshot for auditing
+        $receiptDataJson = json_encode($data); 
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            throw new Exception('Failed to encode receipt data: ' . json_last_error_msg());
+        }
+
+        // Start transaction for multiple inserts
+        $pdo->beginTransaction();
+
+        // 5. Insert into new table
+        $stmt = $pdo->prepare("
+            INSERT INTO generated_receipts 
+            (booking_group_id, receipt_number, receipt_date, customer_name, customer_address, customer_tax_id, total_amount, payment_method, issued_by_user_id, receipt_data_json, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+        ");
+        
+        $stmt->execute([
+            $bookingGroupId,
+            $receiptNumber,
+            $data['bill_date'], // From client
+            $customerName,
+            $customerAddress,
+            $customerTaxId,
+            $totalAmount,
+            $paymentMethod,
+            $userId,
+            $receiptDataJson
+        ]);
+        
+        $receiptId = $pdo->lastInsertId();
+        
+        // 6. ***** NEW: Save/Update Customer Directory *****
+        // If a customer name was provided, save it to the directory
+        if (!empty($customerName)) {
+            $stmt_cust = $pdo->prepare("
+                INSERT INTO customer_directory (customer_name, customer_address, customer_tax_id, created_at, updated_at)
+                VALUES (?, ?, ?, NOW(), NOW())
+                ON DUPLICATE KEY UPDATE
+                    customer_address = VALUES(customer_address),
+                    customer_tax_id = VALUES(customer_tax_id),
+                    updated_at = NOW()
+            ");
+            $stmt_cust->execute([$customerName, $customerAddress, $customerTaxId]);
+        }
+        
+        // Commit transaction
+        $pdo->commit();
+        
+        echo json_encode(['success' => true, 'receipt_id' => $receiptId, 'receipt_number' => $receiptNumber]);
+
+    } catch (Exception $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        error_log("Failed to save receipt: " . $e->getMessage());
+        http_response_code(500);
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    }
+    exit; // Stop script execution
+}
+// ***** END: API HANDLER BLOCK *****
+
+
 require_login(); 
 
-$pageTitle = 'ออกใบเสร็จรับเงิน/ต้นฉบับ';
+$pageTitle = 'ออกใบเสร็จรับเงิน / บิลเงินสด';
 
 // --- Data Fetching for UI Controls ---
 $rooms_stmt = $pdo->query("SELECT id, zone, room_number, price_per_day FROM rooms ORDER BY zone ASC, CAST(room_number AS UNSIGNED) ASC");
@@ -29,23 +153,6 @@ $active_addons_for_bill = $addons_stmt->fetchAll(PDO::FETCH_ASSOC);
 $current_thai_year = date('Y') + 543;
 $default_bill_number_prefix = "01"; 
 
-if (!function_exists('toThaiDateString')) {
-    function toThaiDateString($dateInput) {
-        if (empty($dateInput)) return 'N/A';
-        try {
-            $date = $dateInput instanceof DateTime ? $dateInput : new DateTime($dateInput);
-            $thaiMonths = [
-                1 => 'มกราคม', 2 => 'กุมภาพันธ์', 3 => 'มีนาคม', 4 => 'เมษายน',
-                5 => 'พฤษภาคม', 6 => 'มิถุนายน', 7 => 'กรกฎาคม', 8 => 'สิงหาคม',
-                9 => 'กันยายน', 10 => 'ตุลาคม', 11 => 'พฤศจิกายน', 12 => 'ธันวาคม'
-            ];
-            return $date->format('j') . ' ' . $thaiMonths[(int)$date->format('n')] . ' ' . ($date->format('Y') + 543);
-        } catch (Exception $e) {
-            return 'รูปแบบวันที่ผิดพลาด';
-        }
-    }
-}
-
 $logo_path = '/hotel_booking/assets/image/logo_bill.png'; 
 if (!file_exists(__DIR__ . '/..' . $logo_path)) {
     $logo_path = ''; 
@@ -56,6 +163,7 @@ ob_start();
 ?>
 
 <style>
+    /* ... existing styles ... */
     /* General Styles */
     .cash-bill-container { max-width: 900px; margin: 0 auto; }
     .bill-form-section, .bill-preview-section {
@@ -85,7 +193,9 @@ ob_start();
     #bill-content-wrapper {
         padding: 20px; background-color: #525659;
         display: flex; justify-content: center; align-items: flex-start; 
-        overflow-y: auto; max-height: 80vh; border-radius: var(--border-radius-md);
+        /* ***** MODIFIED: Changed overflow-y to overflow to allow horizontal scrolling ***** */
+        overflow: auto; 
+        max-height: 80vh; border-radius: var(--border-radius-md);
     }
     #bill-content {
         font-family: 'Sarabun', sans-serif; background-color: #fff; color: #000;
@@ -98,6 +208,7 @@ ob_start();
         box-sizing: border-box; 
         display: flex; flex-direction: column; 
         position: relative;
+        flex-shrink: 0; /* ***** NEW: ป้องกันการหดตัวใน flex container ***** */
     }
     
     .bill-body {
@@ -106,7 +217,7 @@ ob_start();
     }
     
     #bill-content::after {
-        content: 'ต้นฉบับ'; position: absolute; top: 50%; left: 50%;
+        content: ''; position: absolute; top: 50%; left: 50%;
         transform: translate(-50%, -50%) rotate(-45deg);
         font-size: 150pt; font-weight: 800; color: rgba(0, 0, 0, 0.04);
         z-index: 1; pointer-events: none;
@@ -153,12 +264,34 @@ ob_start();
     .bill-actions button:disabled { opacity: 0.6; cursor: not-allowed; }
     
     .form-group small.input-hint {font-size: 0.8em; color: var(--color-text-muted);}
+
+    /* ***** START: NEW CUSTOM MODAL STYLE ***** */
+    /* ... existing styles ... */
+    #custom-modal {
+        display: none; position: fixed; z-index: 1000; 
+        left: 0; top: 0; width: 100%; height: 100%; 
+        overflow: auto; background-color: rgba(0,0,0,0.5); 
+        justify-content: center; align-items: center;
+    }
+    #custom-modal-content {
+        background-color: var(--color-surface); padding: 25px; 
+        border-radius: var(--border-radius-lg); box-shadow: var(--shadow-lg); 
+        max-width: 450px; width: 90%; text-align: center;
+    }
+    #custom-modal-message {
+        font-size: 1.1em; margin-top: 0; margin-bottom: 1.5rem;
+        line-height: 1.6;
+    }
+    #custom-modal-buttons {
+        display: flex; justify-content: center; gap: 1rem;
+    }
+    /* ***** END: NEW CUSTOM MODAL STYLE ***** */
 </style>
 
 <div class="cash-bill-container">
     <h2><?= h($pageTitle) ?></h2>
     <div class="bill-form-section" id="cash-bill-input-form">
-        <h3><i class="fas fa-edit"></i> กรอกข้อมูลสำหรับออกใบเสร็จ</h3>
+        <h3><i class="fas fa-edit"></i> กรอกข้อมูลสำหรับออกบิล</h3>
 
         <div class="form-group" style="background-color: var(--color-surface-alt); padding: 1rem; border-radius: var(--border-radius-md);">
             <label for="select_booking_group"><strong>(ทางเลือก) ดึงข้อมูลจากการจองกลุ่ม:</strong></label>
@@ -176,11 +309,14 @@ ob_start();
 
         <div class="form-grid">
             <div class="form-group">
-                <label for="bill_customer_company_name">ในนามบริษัท/ลูกค้า:</label>
-                <input type="text" id="bill_customer_company_name" class="form-control">
+                <!-- ***** START: MODIFIED CUSTOMER NAME INPUT ***** -->
+                <label for="bill_customer_company_name">ในนามบริษัท/ลูกค้า (พิมพ์เพื่อค้นหา):</label>
+                <input type="text" id="bill_customer_company_name" class="form-control" list="customer-list" autocomplete="off">
+                <datalist id="customer-list"></datalist>
+                <!-- ***** END: MODIFIED CUSTOMER NAME INPUT ***** -->
             </div>
             <div class="form-group">
-                <label for="bill_number_input">เลขที่เอกสาร:</label>
+                <label for="bill_number_input">เลขที่เอกสาร (สำหรับบิลชั่วคราว):</label>
                 <input type="text" id="bill_number_input" value="<?= h($default_bill_number_prefix . '/' . $current_thai_year) ?>" class="form-control">
             </div>
         </div>
@@ -195,7 +331,7 @@ ob_start();
             </div>
             <!-- ***** START: NEW BILL DATE FIELD ***** -->
             <div class="form-group">
-                <label for="bill_date_input">วันที่ออกบิล:</label>
+                <label for="bill_date_input">วันที่ออกเอกสาร:</label>
                 <input type="date" id="bill_date_input" value="<?= date('Y-m-d') ?>" class="form-control">
             </div>
             <!-- ***** END: NEW BILL DATE FIELD ***** -->
@@ -211,7 +347,8 @@ ob_start();
         <hr style="margin: 1.5rem 0;">
         
         <div class="item-entry-form">
-            <h4><i class="fas fa-plus-circle"></i> เพิ่มรายการในใบเสร็จ</h4>
+        <!-- ... existing item entry form ... -->
+            <h4><i class="fas fa-plus-circle"></i> เพิ่มรายการในบิล</h4>
             <div id="item-type-selector">
                 <button type="button" class="button outline-secondary" data-type="room">เพิ่มรายการห้องพัก</button>
                 <button type="button" class="button outline-secondary" data-type="service">เพิ่มรายการบริการ/อื่นๆ</button>
@@ -241,8 +378,9 @@ ob_start();
             </div>
         </div>
 
-        <h4><i class="fas fa-list-ul"></i> รายการทั้งหมดในใบเสร็จ</h4>
+        <h4><i class="fas fa-list-ul"></i> รายการทั้งหมดในบิล</h4>
         <div class="table-responsive">
+        <!-- ... existing items table ... -->
             <table id="added-items-table">
                 <thead>
                     <tr>
@@ -259,10 +397,26 @@ ob_start();
         <div style="text-align: right; font-size: 1.2em; margin-top: 1rem; font-weight:bold;">
             ยอดรวมที่ต้องชำระ: <span id="bill_grand_total" style="color: var(--color-primary-dark);">0.00</span> บาท
         </div>
+        
+        <!-- ... existing save receipt button section ... -->
+        <div class="form-group" style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--color-border); text-align: center;">
+            <label for="payment_method_select">วิธีชำระเงิน:</label>
+            <select id="payment_method_select" class="form-control" style="max-width: 250px; display: inline-block; margin-right: 1rem; vertical-align: middle;">
+                <option value="Cash">เงินสด</option>
+                <option value="Transfer">โอนชำระ</option>
+                <option value="Credit Card">บัตรเครดิต</option>
+            </select>
+            <button type="button" id="confirm-save-receipt-btn" class="button primary" style="min-width: 200px; font-size: 1.1em; vertical-align: middle;">
+                <i class="fas fa-save" style="margin-right: 8px;"></i> ยืนยันและบันทึกใบเสร็จ
+            </button>
+            <small class="input-hint" style="display: block; margin-top: 0.75rem;">การดำเนินการนี้จะบันทึกใบเสร็จลงในระบบอย่างถาวร (ไม่สามารถแก้ไขได้)</small>
+        </div>
+        <!-- ... -->
     </div>
 
     <div class="bill-preview-section">
-        <h3><i class="fas fa-eye"></i> ตัวอย่างใบเสร็จรับเงิน</h3>
+        <!-- ... existing bill preview section ... -->
+        <h3><i class="fas fa-eye"></i> ตัวอย่างบิล / ใบเสร็จรับเงิน</h3>
         <div id="bill-content-wrapper">
             <div id="bill-content">
                 <div class="bill-body">
@@ -272,7 +426,7 @@ ob_start();
                             <img src="<?= h($logo_path) ?>" alt="Hotel Logo">
                         </div>
                         <?php endif; ?>
-                        <h1>ใบเสร็จรับเงิน / ต้นฉบับ</h1>
+                        <h1>ใบเสร็จรับเงิน / บิลเงินสด</h1>
                         <h2> โรงแรมภัทรรีสอร์ท</h2>
                         <div class="address-phone">
                             <p>ที่อยู่: 119/2 ม.13 ต.โคกแย้ อ.หนองแค จ.สระบุรี 18230</p>
@@ -333,6 +487,7 @@ ob_start();
             </div>
         </div>
         <div class="bill-actions">
+        <!-- ... existing action buttons ... -->
             <button type="button" id="save-bill-as-image-btn" class="button secondary" disabled>
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-image"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
                 บันทึกเป็นรูปภาพ
@@ -349,10 +504,24 @@ ob_start();
     </div>
 </div>
 
+<!-- ... existing custom modal ... -->
+<div id="custom-modal">
+    <div id="custom-modal-content">
+        <p id="custom-modal-message"></p>
+        <div id="custom-modal-buttons">
+            <button id="custom-modal-btn-confirm" class="button primary">ยืนยัน</button>
+            <button id="custom-modal-btn-cancel" class="button secondary">ยกเลิก</button>
+        </div>
+    </div>
+</div>
+<!-- ... -->
+
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // --- Element Selectors ---
+    // ... existing selectors ...
     const groupSelect = document.getElementById('select_booking_group');
     const itemTypeSelector = document.getElementById('item-type-selector');
     const roomFields = document.getElementById('room-fields');
@@ -383,15 +552,91 @@ document.addEventListener('DOMContentLoaded', function() {
     const customerAddressInput = document.getElementById('bill_customer_address');
     const customerTaxIdInput = document.getElementById('bill_customer_tax_id');
     const billNumberInputEl = document.getElementById('bill_number_input');
-    const billDateInput = document.getElementById('bill_date_input'); // ***** NEW *****
+    const billDateInput = document.getElementById('bill_date_input'); 
     const saveAsImageBtn = document.getElementById('save-bill-as-image-btn');
     const shareBillBtn = document.getElementById('share-bill-btn');
     const printBillBtn = document.getElementById('print-bill-btn');
     const holidaySurchargeCheckbox = document.getElementById('holiday_surcharge_checkbox');
+    
+    // ***** START: NEW RECEIPT ELEMENTS *****
+    // ... existing selectors ...
+    const saveReceiptBtn = document.getElementById('confirm-save-receipt-btn');
+    const paymentMethodSelect = document.getElementById('payment_method_select');
+    
+    // ***** START: NEW CUSTOMER SEARCH ELEMENTS *****
+    const customerDatalist = document.getElementById('customer-list');
+    let customerCache = []; // To store search results
+    let searchTimeout;
+    // ***** END: NEW CUSTOMER SEARCH ELEMENTS *****
+
 
     let billItems = [];
 
+    // --- Custom Modal Logic (Replaces alert/confirm) ---
+    // ... existing modal logic ...
+    const modal = document.getElementById('custom-modal');
+    const modalMsg = document.getElementById('custom-modal-message');
+    const modalConfirmBtn = document.getElementById('custom-modal-btn-confirm');
+    const modalCancelBtn = document.getElementById('custom-modal-btn-cancel');
+
+    let modalConfirmCallback = null;
+    let modalCancelCallback = null;
+
+    function showCustomConfirm(message, onConfirm, onCancel = null) {
+        modalMsg.innerHTML = message; // Use innerHTML to allow line breaks
+        modalConfirmBtn.textContent = 'ยืนยัน';
+        modalConfirmBtn.style.display = 'inline-block';
+        modalCancelBtn.style.display = 'inline-block';
+        
+        modalConfirmCallback = onConfirm;
+        modalCancelCallback = onCancel;
+        
+        modal.style.display = 'flex';
+    }
+
+    function showCustomAlert(message, onOk = null) {
+        modalMsg.innerHTML = message.replace(/\n/g, '<br>'); // Replace newlines with <br>
+        modalConfirmBtn.style.display = 'inline-block';
+        modalConfirmBtn.textContent = 'ตกลง';
+        modalCancelBtn.style.display = 'none';
+        
+        modalConfirmCallback = () => {
+            if (onOk) onOk();
+            hideModal(); // Default action is just to close
+        };
+        modalCancelCallback = null; // No cancel action
+
+        modal.style.display = 'flex';
+    }
+
+    function hideModal() {
+        modal.style.display = 'none';
+        modalConfirmBtn.textContent = 'ยืนยัน'; // Reset button text
+        modalConfirmCallback = null;
+        modalCancelCallback = null;
+    }
+
+    modalConfirmBtn.addEventListener('click', () => {
+        if (modalConfirmCallback) {
+            modalConfirmCallback();
+        }
+        // If it's an alert (cancel hidden), close modal on confirm
+        if (modalCancelBtn.style.display === 'none') {
+            hideModal();
+        }
+    });
+
+    modalCancelBtn.addEventListener('click', () => {
+        if (modalCancelCallback) {
+            modalCancelCallback();
+        }
+        hideModal();
+    });
+    // --- End Custom Modal Logic ---
+
+
     // --- Event Listeners ---
+    // ... existing listeners ...
     itemTypeSelector.addEventListener('click', function(e) {
         if (e.target.tagName === 'BUTTON') {
             const type = e.target.dataset.type;
@@ -422,7 +667,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const qty = parseInt(serviceQtyInput.value, 10);
         const price = parseFloat(servicePriceInput.value);
         if (!name || isNaN(qty) || qty < 1 || isNaN(price)) {
-            alert('กรุณากรอกข้อมูลรายการบริการให้ครบถ้วนและถูกต้อง (ราคาต้องเป็นตัวเลข)'); return;
+            showCustomAlert('กรุณากรอกข้อมูลรายการบริการให้ครบถ้วนและถูกต้อง (ราคาต้องเป็นตัวเลข)'); 
+            return;
         }
         billItems.push({ id: `service-${Date.now()}`, type: 'service', description: name, quantity: qty, unitPrice: price });
         renderAllItems();
@@ -437,7 +683,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const pricePerNight = parseFloat(roomPriceInput.value);
 
         if (!roomId || isNaN(nights) || nights < 1 || !checkin || !checkout || isNaN(pricePerNight) || pricePerNight < 0) {
-            alert('กรุณาเลือกห้องพัก, จำนวนคืน, วันที่, และราคาต่อคืนให้ถูกต้อง'); return;
+            showCustomAlert('กรุณาเลือกห้องพัก, จำนวนคืน, วันที่, และราคาต่อคืนให้ถูกต้อง'); 
+            return;
         }
         const selectedRoomOption = roomSelect.options[roomSelect.selectedIndex];
         const roomName = selectedRoomOption.text.split(' (')[0];
@@ -447,6 +694,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     addedItemsTableBody.addEventListener('click', function(e) {
+        // ... existing editable cell logic ...
         const cell = e.target.closest('.editable-cell');
         if (!cell || cell.querySelector('input')) return;
 
@@ -485,11 +733,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
     holidaySurchargeCheckbox.addEventListener('change', renderAllItems);
 
-    [customerNameInput, customerAddressInput, customerTaxIdInput, billNumberInputEl, billDateInput].forEach(input => input.addEventListener('input', updatePreview));
+    [customerAddressInput, customerTaxIdInput, billNumberInputEl, billDateInput].forEach(input => input.addEventListener('input', updatePreview));
+    // Remove customerNameInput from the simple updatePreview listener
+    customerNameInput.addEventListener('input', updatePreview); // Keep this for live preview
+    
     checkinDateInput.addEventListener('change', calculateCheckoutDate);
     nightsInput.addEventListener('input', calculateCheckoutDate);
 
     groupSelect.addEventListener('change', async function() {
+        // ... existing group select logic ...
         const groupId = this.value;
         if (!groupId) {
             billItems = []; customerNameInput.value = ''; customerAddressInput.value = ''; customerTaxIdInput.value = '';
@@ -502,11 +754,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 customerNameInput.value = data.group_info.customer_name || '';
                 billItems = data.bookings.map(booking => ({ id: `room-${booking.id}`, type: 'room', description: `ค่าห้องพัก ${booking.zone}${booking.room_number}`, quantity: parseInt(booking.nights, 10), unitPrice: parseFloat(booking.price_per_night), checkin: booking.checkin_datetime.split(' ')[0], checkout: booking.checkout_datetime_calculated.split(' ')[0] }));
                 renderAllItems();
-            } else { alert('Error: ' + data.message); }
-        } catch (error) { console.error('Error:', error); alert('เกิดข้อผิดพลาดในการเชื่อมต่อ'); }
+            } else { showCustomAlert('Error: ' + data.message); }
+        } catch (error) { console.error('Error:', error); showCustomAlert('เกิดข้อผิดพลาดในการเชื่อมต่อ'); }
     });
     
+    // --- Core Functions ---
     function renderAllItems() {
+        // ... existing renderAllItems logic ...
         addedItemsTableBody.innerHTML = '';
         let grandTotal = 0;
         const isHoliday = holidaySurchargeCheckbox.checked;
@@ -521,7 +775,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 if (item.type === 'room' && isHoliday) {
                     currentItemTotal += item.quantity * holidaySurchargeAmount;
-                    displayDescription += ' (วันหยุดนักขัตฤกษ์)';
+                    displayDescription += '';
                 }
                 
                 const row = addedItemsTableBody.insertRow();
@@ -561,6 +815,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function updatePreview() {
+        // ... existing updatePreview logic ...
         previewBillNumber.textContent = billNumberInputEl.value || 'N/A';
         previewBillDate.textContent = toThaiDateForJS(billDateInput.value || new Date()); // ***** MODIFIED *****
         previewCustomerName.textContent = customerNameInput.value.trim() || '-';
@@ -582,14 +837,22 @@ document.addEventListener('DOMContentLoaded', function() {
                 let descriptionForPreview = item.description;
 
                 if (item.type === 'room') {
-                    const checkin = new Date(item.checkin);
-                    const checkout = new Date(item.checkout);
-                    if (!overallMinCheckin || checkin < overallMinCheckin) overallMinCheckin = checkin;
-                    if (!overallMaxCheckout || checkout > overallMaxCheckout) overallMaxCheckout = checkout;
+                    // Fix: Ensure date objects are valid before comparison
+                    try {
+                        const checkin = new Date(item.checkin);
+                        const checkout = new Date(item.checkout);
+                        if (!isNaN(checkin.getTime())) {
+                            if (!overallMinCheckin || checkin < overallMinCheckin) overallMinCheckin = checkin;
+                        }
+                        if (!isNaN(checkout.getTime())) {
+                            if (!overallMaxCheckout || checkout > overallMaxCheckout) overallMaxCheckout = checkout;
+                        }
+                    } catch (e) { console.error("Invalid date in bill item: ", item); }
+
 
                     if (isHoliday) {
                         itemTotalForPreview += item.quantity * holidaySurchargeAmount;
-                        descriptionForPreview += ' (วันหยุดนักขัตฤกษ์)';
+                        descriptionForPreview += '';
                     }
                 }
                 
@@ -615,6 +878,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     function calculateCheckoutDate() {
+        // ... existing calculateCheckoutDate logic ...
         if (!checkinDateInput.value || !nightsInput.value) { checkoutDateInput.value = ''; return; }
         try {
             const checkin = new Date(checkinDateInput.value);
@@ -627,39 +891,184 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function toThaiDateForJS(dateInput) {
+        // ... existing toThaiDateForJS logic ...
         if (!dateInput) return 'N/A';
         const date = new Date(dateInput);
+        if (isNaN(date.getTime())) {
+            // Try to parse YYYY-MM-DD manually
+            const parts = String(dateInput).split('-');
+            if (parts.length === 3) {
+                date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+            } else {
+                return 'N/A';
+            }
+        }
         if (isNaN(date.getTime())) return 'N/A';
+        
         const thaiMonths = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
         return `${date.getDate()} ${thaiMonths[date.getMonth()]} ${date.getFullYear() + 543}`;
     }
 
     function updateActionButtonsState() {
+        // ... existing updateActionButtonsState logic ...
         const hasItems = billItems.length > 0;
         saveAsImageBtn.disabled = !hasItems; 
         shareBillBtn.disabled = !hasItems; 
         printBillBtn.disabled = !hasItems;
+        // Also enable/disable the new save button
+        saveReceiptBtn.disabled = !hasItems;
+    }
+    
+    // ***** START: NEW CUSTOMER SEARCH FUNCTIONS *****
+    async function searchCustomers() {
+        const searchTerm = customerNameInput.value.trim();
+        
+        if (searchTerm.length < 2) {
+            customerDatalist.innerHTML = '';
+            customerCache = [];
+            return;
+        }
+
+        try {
+            const response = await fetch(`/hotel_booking/pages/cash_bill.php?action=search_customers&term=${encodeURIComponent(searchTerm)}`);
+            if (!response.ok) {
+                throw new Error('Search request failed');
+            }
+            const customers = await response.json();
+            customerCache = customers; // Store results
+            
+            customerDatalist.innerHTML = ''; // Clear old options
+            customers.forEach(cust => {
+                const option = document.createElement('option');
+                option.value = cust.customer_name;
+                // Add extra info to display, though datalist support varies
+                option.textContent = cust.customer_tax_id ? `${cust.customer_name} (${cust.customer_tax_id})` : cust.customer_name;
+                customerDatalist.appendChild(option);
+            });
+        } catch (error) {
+            console.error('Error searching customers:', error);
+            customerCache = [];
+        }
     }
 
+    function populateCustomerDetails() {
+        const selectedName = customerNameInput.value;
+        const selectedCustomer = customerCache.find(cust => cust.customer_name === selectedName);
+
+        if (selectedCustomer) {
+            customerAddressInput.value = selectedCustomer.customer_address || '';
+            customerTaxIdInput.value = selectedCustomer.customer_tax_id || '';
+            
+            // Trigger update for preview
+            updatePreview(); 
+        }
+    }
+
+    // Add listeners for customer search
+    customerNameInput.addEventListener('input', () => {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(searchCustomers, 300); // Debounce search
+    });
+    customerNameInput.addEventListener('change', populateCustomerDetails); // Use 'change' for when user selects from datalist
+    // ***** END: NEW CUSTOMER SEARCH FUNCTIONS *****
+
+
+    // ***** START: NEW SAVE RECEIPT LISTENER *****
+    saveReceiptBtn.addEventListener('click', async function() {
+        // ... existing saveReceiptBtn logic ...
+        if (billItems.length === 0) {
+            showCustomAlert('ไม่สามารถบันทึกได้: ยังไม่มีรายการในใบเสร็จ');
+            return;
+        }
+
+        // 1. Gather all data
+        const grandTotal = parseFloat(billGrandTotalSpan.textContent.replace(/[^0-9.-]+/g,""));
+        const dataToSave = {
+            bill_number: billNumberInputEl.value,
+            bill_date: billDateInput.value,
+            customer_name: customerNameInput.value,
+            customer_address: customerAddressInput.value,
+            customer_tax_id: customerTaxIdInput.value,
+            payment_method: paymentMethodSelect.value,
+            booking_group_id: groupSelect.value || null,
+            line_items: billItems, // The full billItems array
+            grand_total: grandTotal,
+            is_holiday_surcharge: holidaySurchargeCheckbox.checked
+            // The server will serialize this whole object into `receipt_data_json`
+        };
+
+        // 2. Confirm with the user
+        showCustomConfirm(
+            `ยืนยันการบันทึกใบเสร็จ?<br><br><strong>วันที่:</strong> ${toThaiDateForJS(dataToSave.bill_date)}<br><strong>ลูกค้า:</strong> ${dataToSave.customer_name || '-'}<br><strong>ยอดรวม:</strong> ${grandTotal.toLocaleString('th-TH')} บาท<br><br>การดำเนินการนี้จะสร้างใบเสร็จถาวรในระบบ และไม่สามารถแก้ไขได้<br><br><strong style="color: var(--color-primary);">ข้อมูลลูกค้า/บริษัทนี้ จะถูกบันทึกไว้ใช้ในอนาคต</strong>`,
+            async () => { // onConfirm callback
+                hideModal(); // Hide confirmation modal first
+                
+                const buttonId = 'confirm-save-receipt-btn';
+                if (typeof setButtonLoading === 'function') setButtonLoading(saveReceiptBtn, true, buttonId);
+
+                try {
+                    // 3. Send to API (the top of this same file)
+                    const response = await fetch('/hotel_booking/pages/cash_bill.php?action=save_receipt', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify(dataToSave)
+                    });
+
+                    const result = await response.json();
+
+                    if (response.ok && result.success) {
+                        showCustomAlert(`บันทึกใบเสร็จสำเร็จ!\nเลขที่ใบเสร็จใหม่ของระบบ: ${result.receipt_number}`);
+                        // Optionally, disable the button to prevent double-save
+                        saveReceiptBtn.disabled = true;
+                        saveReceiptBtn.innerHTML = `<i class="fas fa-check-circle"></i> บันทึกใบเสร็จแล้ว (${result.receipt_number})`;
+                        // Update preview with the new permanent number
+                        previewBillNumber.textContent = result.receipt_number;
+                        billNumberInputEl.value = result.receipt_number;
+                    } else {
+                        throw new Error(result.message || 'ไม่สามารถบันทึกข้อมูลได้');
+                    }
+
+                } catch (error) {
+                    console.error('Error saving receipt:', error);
+                    showCustomAlert('เกิดข้อผิดพลาดในการบันทึกใบเสร็จ: ' + error.message);
+                } finally {
+                    // 4. Hide loading state
+                    if (typeof setButtonLoading === 'function') setButtonLoading(saveReceiptBtn, false, buttonId);
+                }
+            },
+            () => {
+                // onCancel callback
+                hideModal();
+            }
+        ); // end showCustomConfirm
+    });
+    // ***** END: NEW SAVE RECEIPT LISTENER *****
+
+    // --- Action Button Listeners (Print, Save, Share) ---
     printBillBtn.addEventListener('click', function() {
+        // ... existing printBillBtn logic ...
         const billContentNode = document.getElementById('bill-content');
         if (!billContentNode) {
-            alert('ผิดพลาด: ไม่พบเนื้อหาสำหรับพิมพ์');
+            showCustomAlert('ผิดพลาด: ไม่พบเนื้อหาสำหรับพิมพ์');
             return;
         }
         const printWindow = window.open('', '_blank', 'width=880,height=900,scrollbars=yes,resizable=yes');
-        printWindow.document.write(`<html><head><title>พิมพ์ใบเสร็จรับเงิน</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700;800&display=swap" rel="stylesheet"><style>body{font-family:'Sarabun',sans-serif;margin:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}@page{size:A4;margin:0}#bill-content{width:210mm;height:297mm;padding:10mm;box-sizing:border-box;display:flex;flex-direction:column;position:relative;background-color:#fff;color:#000;font-size:12pt}.bill-body{border:1.5px solid #333;padding:8mm;width:100%;height:100%;display:flex;flex-direction:column;position:relative;z-index:2;box-sizing:border-box}#bill-content::after{content:'ต้นฉบับ';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-45deg);font-size:150pt;font-weight:800;color:rgba(0,0,0,.04);z-index:1;pointer-events:none}header{text-align:center;margin-bottom:5mm;flex-shrink:0}.logo-container img{max-width:150px;max-height:50px;object-fit:contain}h1{font-size:1.5em;margin:0 0 1mm;color:#000}h2{font-size:1.2em;margin:1mm 0;color:#000}.address-phone p{margin:.5mm 0;font-size:.9em;line-height:1.4}.bill-meta{display:flex;justify-content:space-between;margin-bottom:5mm;font-size:.9em;flex-shrink:0}.customer-info{border:1px solid #ccc;padding:2mm 3mm;margin-bottom:5mm;font-size:.9em;flex-shrink:0}.customer-info p{margin:1mm 0}hr.section-divider{border:0;border-top:1px solid #000;margin:4mm 0}.line-items{flex-grow:1;margin-bottom:5mm;border-top:1px solid #000;border-bottom:1px solid #000;padding:1mm 0}.line-items-table{width:100%;border-collapse:collapse;font-size:.9em}.line-items-table th,.line-items-table td{border:none;padding:1.5mm 1mm;text-align:left;vertical-align:top}.line-items-table th{font-weight:700;border-bottom:1px solid #999}.line-items-table td{border-bottom:1px dotted #ccc}.line-items-table tr:last-child td{border-bottom:none}.col-desc{width:55%}.col-qty{width:15%;text-align:center}.col-unit-price{width:15%;text-align:right}.col-amount{width:15%;text-align:right}.checkin-checkout-info{font-size:.9em;margin-bottom:5mm;flex-shrink:0}.totals{text-align:right;margin-top:auto;padding-top:3mm;font-size:1em;flex-shrink:0}.totals table{width:50%;margin-left:auto;border-collapse:collapse}.totals td{padding:1.5mm}.totals .grand-total td{font-weight:700;font-size:1.2em;border-top:1px solid #000;border-bottom:3px double #000}.signatures{display:flex;justify-content:center;margin-top:15mm;font-size:.9em;flex-shrink:0}.signature-box{text-align:center;width:50%}.signature-line{border-bottom:1px dotted #000;height:12mm;margin:2mm 0 1mm}.signature-box p{margin:0;line-height:1.4}.note-footer{text-align:center;font-size:.7em;margin-top:5mm;color:#555;flex-shrink:0}.thank-you-note{text-align:center;font-weight:700;font-size:1em;margin-top:8mm;flex-shrink:0}</style></head><body><div id="bill-content">${billContentNode.innerHTML}</div></body></html>`);
+        printWindow.document.write(`<html><head><title>พิมพ์ใบเสร็จรับเงิน</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700;800&display=swap" rel="stylesheet"><style>body{font-family:'Sarabun',sans-serif;margin:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}@page{size:A4;margin:0}#bill-content{width:210mm;height:297mm;padding:10mm;box-sizing:border-box;display:flex;flex-direction:column;position:relative;background-color:#fff;color:#000;font-size:12pt}.bill-body{border:1.5px solid #333;padding:8mm;width:100%;height:100%;display:flex;flex-direction:column;position:relative;z-index:2;box-sizing:border-box}#bill-content::after{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-45deg);font-size:150pt;font-weight:800;color:rgba(0,0,0,.04);z-index:1;pointer-events:none}header{text-align:center;margin-bottom:5mm;flex-shrink:0}.logo-container img{max-width:150px;max-height:50px;object-fit:contain}h1{font-size:1.5em;margin:0 0 1mm;color:#000}h2{font-size:1.2em;margin:1mm 0;color:#000}.address-phone p{margin:.5mm 0;font-size:.9em;line-height:1.4}.bill-meta{display:flex;justify-content:space-between;margin-bottom:5mm;font-size:.9em;flex-shrink:0}.customer-info{border:1px solid #ccc;padding:2mm 3mm;margin-bottom:5mm;font-size:.9em;flex-shrink:0}.customer-info p{margin:1mm 0}hr.section-divider{border:0;border-top:1px solid #000;margin:4mm 0}.line-items{flex-grow:1;margin-bottom:5mm;border-top:1px solid #000;border-bottom:1px solid #000;padding:1mm 0}.line-items-table{width:100%;border-collapse:collapse;font-size:.9em}.line-items-table th,.line-items-table td{border:none;padding:1.5mm 1mm;text-align:left;vertical-align:top}.line-items-table th{font-weight:700;border-bottom:1px solid #999}.line-items-table td{border-bottom:1px dotted #ccc}.line-items-table tr:last-child td{border-bottom:none}.col-desc{width:55%}.col-qty{width:15%;text-align:center}.col-unit-price{width:15%;text-align:right}.col-amount{width:15%;text-align:right}.checkin-checkout-info{font-size:.9em;margin-bottom:5mm;flex-shrink:0}.totals{text-align:right;margin-top:auto;padding-top:3mm;font-size:1em;flex-shrink:0}.totals table{width:50%;margin-left:auto;border-collapse:collapse}.totals td{padding:1.5mm}.totals .grand-total td{font-weight:700;font-size:1.2em;border-top:1px solid #000;border-bottom:3px double #000}.signatures{display:flex;justify-content:center;margin-top:15mm;font-size:.9em;flex-shrink:0}.signature-box{text-align:center;width:50%}.signature-line{border-bottom:1px dotted #000;height:12mm;margin:2mm 0 1mm}.signature-box p{margin:0;line-height:1.4}.note-footer{text-align:center;font-size:.7em;margin-top:5mm;color:#555;flex-shrink:0}.thank-you-note{text-align:center;font-weight:700;font-size:1em;margin-top:8mm;flex-shrink:0}</style></head><body><div id="bill-content">${billContentNode.innerHTML}</div></body></html>`);
         printWindow.document.close();
         setTimeout(() => {
             try { printWindow.focus(); printWindow.print(); printWindow.close(); } 
-            catch (e) { console.error("Print failed:", e); alert("ไม่สามารถสั่งพิมพ์ได้ อาจถูกบล็อกโดยเบราว์เซอร์"); }
+            catch (e) { console.error("Print failed:", e); showCustomAlert("ไม่สามารถสั่งพิมพ์ได้ อาจถูกบล็อกโดยเบราว์เซอร์"); }
         }, 1000);
     });
 
     async function generateBillCanvas() {
+        // ... existing generateBillCanvas logic ...
         const sourceElement = document.getElementById('bill-content');
         if (!sourceElement || typeof html2canvas !== 'function') {
-            alert('ไม่สามารถสร้างรูปภาพได้: ไม่พบส่วนประกอบที่จำเป็น');
+            showCustomAlert('ไม่สามารถสร้างรูปภาพได้: ไม่พบส่วนประกอบที่จำเป็น');
             return null;
         }
         const clone = sourceElement.cloneNode(true);
@@ -679,7 +1088,7 @@ document.addEventListener('DOMContentLoaded', function() {
             return canvas;
         } catch (error) {
             console.error('Error generating canvas:', error);
-            alert('เกิดข้อผิดพลาดในการสร้างรูปภาพ: ' + error.message);
+            showCustomAlert('เกิดข้อผิดพลาดในการสร้างรูปภาพ: ' + error.message);
             return null;
         } finally {
             if (document.body.contains(clone)) { document.body.removeChild(clone); }
@@ -687,6 +1096,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     saveAsImageBtn.addEventListener('click', async function() {
+        // ... existing saveAsImageBtn logic ...
         const buttonId = 'save-bill-as-image-btn';
         if (typeof setButtonLoading === 'function') setButtonLoading(this, true, buttonId);
         const canvas = await generateBillCanvas();
@@ -703,6 +1113,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (shareBillBtn) {
         shareBillBtn.addEventListener('click', async function() {
+            // ... existing shareBillBtn logic (with Apple fix) ...
             const buttonId = 'share-bill-btn';
             if (typeof setButtonLoading === 'function') setButtonLoading(this, true, buttonId);
             const canvas = await generateBillCanvas();
@@ -710,12 +1121,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 const fileName = `receipt_${(document.getElementById('bill_number_input').value || 'receipt').replace(/[\/\\]/g, '-')}.png`;
                 canvas.toBlob(async function(blob) {
                     if (!blob) {
-                         alert('ไม่สามารถสร้างไฟล์รูปภาพสำหรับแชร์ได้');
+                         showCustomAlert('ไม่สามารถสร้างไฟล์รูปภาพสำหรับแชร์ได้');
                          if (typeof setButtonLoading === 'function') setButtonLoading(shareBillBtn, false, buttonId);
                          return;
                     }
-                    if (navigator.share && typeof File !== 'undefined' && navigator.canShare({ files: [new File([blob], fileName, {type: blob.type})] })) {
-                        const shareFile = new File([blob], fileName, { type: blob.type });
+                    
+                    // ***** START: MODIFICATION FOR APPLE/SHARE ISSUE *****
+                    const explicitMimeType = 'image/png'; 
+                    
+                    if (navigator.share && typeof File !== 'undefined' && navigator.canShare({ files: [new File([blob], fileName, {type: explicitMimeType})] })) {
+                        const shareFile = new File([blob], fileName, { type: explicitMimeType });
+                    // ***** END: MODIFICATION FOR APPLE/SHARE ISSUE *****
+                        
                         try {
                             await navigator.share({
                                 title: `ใบเสร็จรับเงิน เลขที่ ${document.getElementById('bill_number_input').value || ''}`,
@@ -725,28 +1142,30 @@ document.addEventListener('DOMContentLoaded', function() {
                         } catch (error) {
                             if (error.name !== 'AbortError') {
                                 console.error('[Share Bill] Share failed:', error);
-                                alert('การแชร์ไม่สำเร็จ: ' + error.message);
+                                showCustomAlert('การแชร์ไม่สำเร็จ: ' + error.message);
                             }
                         }
                     } else {
-                        alert('เบราว์เซอร์นี้ไม่รองรับการแชร์ไฟล์โดยตรง กรุณาใช้ปุ่ม "บันทึกเป็นรูปภาพ" แล้วแชร์ด้วยตนเอง');
+                        showCustomAlert('เบราว์เซอร์นี้ไม่รองรับการแชร์ไฟล์โดยตรง กรุณาใช้ปุ่ม "บันทึกเป็นรูปภาพ" แล้วแชร์ด้วยตนเอง');
                     }
                     if (typeof setButtonLoading === 'function') setButtonLoading(shareBillBtn, false, buttonId);
-                }, 'image/png');
+                }, 'image/png'); // Ensure blob is created as PNG
             } else {
                 if (typeof setButtonLoading === 'function') setButtonLoading(shareBillBtn, false, buttonId);
             }
         });
     }
 
+    // --- Utility Functions (Loading Spinners) ---
     const originalButtonContents_cashbill = {}; 
     function setButtonLoading(buttonElement, isLoading, buttonIdForTextStore) {
+        // ... existing setButtonLoading logic ...
         if (!buttonElement) return;
         const key = buttonIdForTextStore || buttonElement.id || `btn-cashbill-${Date.now()}`;
         if (isLoading) {
             if (!buttonElement.classList.contains('loading')) {
                 if (originalButtonContents_cashbill[key] === undefined) { originalButtonContents_cashbill[key] = buttonElement.innerHTML; }
-                const spinnerSpan = '<span class="button-spinner-css" style="width:1em; height:1em; border:2px solid rgba(255,255,255,0.3); border-top-color:white; border-radius:50%; display:inline-block; animation: spin 0.6s linear infinite; margin-right: 5px;"></span>';
+                const spinnerSpan = '<span class="button-spinner-css" style="width:1em; height:1em; border:2px solid rgba(255,255,255,0.3); border-top-color:white; border-radius:50%; display:inline-block; animation: spin 0.6s linear infinite; margin-right: 5px; vertical-align: middle;"></span>';
                 buttonElement.innerHTML = spinnerSpan + ' กำลังดำเนินการ...';
                 buttonElement.classList.add('loading');
                 buttonElement.disabled = true;
@@ -755,7 +1174,11 @@ document.addEventListener('DOMContentLoaded', function() {
             if (buttonElement.classList.contains('loading')) {
                 if (originalButtonContents_cashbill[key] !== undefined) { buttonElement.innerHTML = originalButtonContents_cashbill[key]; }
                 buttonElement.classList.remove('loading');
-                buttonElement.disabled = false;
+                // Re-enable based on items, not just unconditionally
+                // Exception: don't re-enable save receipt button if it was successful
+                if (buttonElement.id !== 'confirm-save-receipt-btn' || !buttonElement.innerHTML.includes('บันทึกใบเสร็จแล้ว')) {
+                     updateActionButtonsState(); 
+                }
             }
         }
     }
@@ -766,6 +1189,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.head.appendChild(style);
     }
     
+    // --- Initial Load ---
     renderAllItems();
 
 });

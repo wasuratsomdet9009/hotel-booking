@@ -1,8 +1,12 @@
 <?php
 // FILEX: hotel_booking/pages/report.php
-// VERSION: 2.2 - Patched by System Auditor
-// FIX-1: Modified history query to LEFT JOIN and GROUP_CONCAT group receipts.
-// FIX-2: Reworked cash out report query for correctness and to fix SQLSTATE[HY093].
+// VERSION: 3.1 - Performance, Graph Update & Cash-Out Fix
+// DESC:
+// - (Performance/Audit 1.4) Replaced all DATE(col) BETWEEN queries with sargable datetime BETWEEN queries.
+// - (UX/Graphs) Upgraded Revenue Trend to a dual-axis Bar (Revenue) + Line (Stays) chart.
+// - (UX/Graphs) Added new Pie chart for Revenue by Booking Type.
+// - (UX) Improved UI/Icons for Cash-Out report section.
+// - (BUGFIX) Fixed SQLSTATE[HY093] in Cash-Out query by using unique named parameters in UNION.
 
 require_once __DIR__ . '/../bootstrap.php';
 require_admin();
@@ -41,6 +45,12 @@ try {
     $endDateObj = new DateTime($endDate);
 }
 
+// +++ START: V3 PERFORMANCE FIX (Audit 1.4) +++
+// สร้างตัวแปร datetime ที่ SARGABLE (ใช้ Index ได้)
+$sqlStartDate = $startDateObj->format('Y-m-d 00:00:00');
+$sqlEndDate = $endDateObj->format('Y-m-d 23:59:59');
+// +++ END: V3 PERFORMANCE FIX +++
+
 $zones = $pdo->query("SELECT DISTINCT zone FROM rooms ORDER BY zone")->fetchAll(PDO::FETCH_COLUMN);
 $totalHotelRoomsQuery = $pdo->query("SELECT COUNT(*) FROM rooms");
 $totalHotelRooms = ($totalHotelRoomsQuery) ? (int)$totalHotelRoomsQuery->fetchColumn() : 0;
@@ -48,8 +58,12 @@ $totalHotelRooms = ($totalHotelRoomsQuery) ? (int)$totalHotelRoomsQuery->fetchCo
 $interval = $startDateObj->diff($endDateObj);
 $daysInPeriod = $interval->days + 1;
 
-$baseWhereClauses = ["DATE(a.checkin_datetime) BETWEEN :start_date AND :end_date"];
-$bindings = [':start_date' => $startDate, ':end_date' => $endDate];
+// +++ START: V3 PERFORMANCE FIX (Audit 1.4) +++
+// $baseWhereClauses = ["DATE(a.checkin_datetime) BETWEEN :start_date AND :end_date"];
+// $bindings = [':start_date' => $startDate, ':end_date' => $endDate];
+$baseWhereClauses = ["a.checkin_datetime BETWEEN :start_datetime AND :end_datetime"];
+$bindings = [':start_datetime' => $sqlStartDate, ':end_datetime' => $sqlEndDate];
+// +++ END: V3 PERFORMANCE FIX +++
 
 $roomsForKpiCalculation = $totalHotelRooms;
 
@@ -150,6 +164,7 @@ if ($groupBy === 'week') {
     $xLabel = 'เดือน';
 }
 
+// +++ START: V3 GRAPH UPDATE (Combined Chart) +++
 $revenueTrendSql = "SELECT
                         $dateFormatSql AS period,
                         SUM(
@@ -157,8 +172,10 @@ $revenueTrendSql = "SELECT
                                 WHEN a.booking_type = 'overnight' THEN (a.amount_paid - IF(a.deposit_returned = 1, a.deposit_amount, 0))
                                 ELSE a.amount_paid
                             END
-                        ) AS service_revenue_trend
+                        ) AS service_revenue_trend,
+                        COUNT(DISTINCT a.id) AS total_stays
                     FROM archives a";
+// +++ END: V3 GRAPH UPDATE +++
 if (!empty($filterZone) || (strpos($whereClauseForArchive, "r.zone") !== false) ) {
     $revenueTrendSql .= " JOIN rooms r ON a.room_id = r.id ";
 }
@@ -168,6 +185,9 @@ $stmtRevenueTrend->execute($bindings);
 $revenueTrendData = $stmtRevenueTrend->fetchAll(PDO::FETCH_ASSOC);
 $revenueTrendLabels_json = json_encode(array_column($revenueTrendData, 'period'));
 $revenueTrendValues_json = json_encode(array_map(function($val) { return (int)round($val); }, array_column($revenueTrendData, 'service_revenue_trend')));
+// +++ START: V3 GRAPH UPDATE (Combined Chart) +++
+$revenueTrendStays_json = json_encode(array_map('intval', array_column($revenueTrendData, 'total_stays')));
+// +++ END: V3 GRAPH UPDATE +++
 $xLabel_json = json_encode((string)$xLabel);
 
 $revenueByZoneSql = "SELECT
@@ -188,6 +208,37 @@ $stmtRevenueByZone->execute($bindings);
 $revenueByZoneData = $stmtRevenueByZone->fetchAll(PDO::FETCH_ASSOC);
 $revenueByZoneLabels_json = json_encode(array_column($revenueByZoneData, 'zone'));
 $revenueByZoneValues_json = json_encode(array_map(function($val) { return (int)round($val); }, array_column($revenueByZoneData, 'service_revenue_zone')));
+
+// +++ START: V3 GRAPH UPDATE (New Pie Chart) +++
+$revenueByTypeSql = "SELECT
+                        a.booking_type,
+                        SUM(
+                            CASE
+                                WHEN a.booking_type = 'overnight' THEN (a.amount_paid - IF(a.deposit_returned = 1, a.deposit_amount, 0))
+                                ELSE a.amount_paid
+                            END
+                        ) AS service_revenue_type
+                    FROM archives a";
+if (!empty($filterZone) || (strpos($whereClauseForArchive, "r.zone") !== false) ) {
+    $revenueByTypeSql .= " JOIN rooms r ON a.room_id = r.id ";
+}
+$revenueByTypeSql .= " $whereClauseForArchive ";
+$revenueByTypeSql .= " GROUP BY a.booking_type ORDER BY a.booking_type ASC";
+
+$stmtRevenueByType = $pdo->prepare($revenueByTypeSql);
+$stmtRevenueByType->execute($bindings);
+$revenueByTypeData = $stmtRevenueByType->fetchAll(PDO::FETCH_ASSOC);
+
+$revenueByTypeLabels = [];
+$revenueByTypeValues = [];
+foreach ($revenueByTypeData as $row) {
+    $revenueByTypeLabels[] = ($row['booking_type'] === 'overnight' ? 'ค้างคืน' : 'ชั่วคราว');
+    $revenueByTypeValues[] = (int)round($row['service_revenue_type']);
+}
+$revenueByTypeLabels_json = json_encode($revenueByTypeLabels);
+$revenueByTypeValues_json = json_encode($revenueByTypeValues);
+// +++ END: V3 GRAPH UPDATE +++
+
 
 $customerNameFilter = trim($_GET['customer_name'] ?? '');
 $customerPhoneFilter = trim($_GET['customer_phone'] ?? '');
@@ -268,17 +319,6 @@ $paginated_cash_out_details = [];
 $total_co_pages = 0;
 $page_co = 1;
 
-if (!function_exists('set_success_message')) {
-    function set_success_message($message) {
-        $_SESSION['success_message'] = $message;
-    }
-}
-if (!function_exists('set_error_message')) {
-    function set_error_message($message) {
-        $_SESSION['error_message'] = $message;
-    }
-}
-
 $cash_out_last_timestamp_str = get_system_setting_value($pdo, 'last_cash_out_timestamp', null);
 $cash_out_default_start_datetime_val = '';
 
@@ -331,8 +371,8 @@ if ($should_generate_cash_out_report) {
             throw new Exception("เวลาสิ้นสุดของรอบตัดยอดต้องอยู่หลังเวลาเริ่มต้น");
         }
 
-        // ***** START: FIX-2 (Cash Out Query) *****
-        // แก้ไข SQL Query ให้ใช้ Placeholder ซ้ำกันได้ และปรับปรุงตรรกะการดึงข้อมูลให้แม่นยำขึ้น
+        // ***** START: V3.1 BUGFIX (SQLSTATE[HY093]) *****
+        // แก้ไข SQL Query ให้ใช้ Placeholder ที่มีชื่อไม่ซ้ำกันในแต่ละ UNION
         $sql_cash_out_transactions = "
             (SELECT
                 bgr.id AS reference_id,
@@ -357,7 +397,7 @@ if ($should_generate_cash_out_report) {
             ) as first_b ON bg.id = first_b.booking_group_id
             LEFT JOIN bookings b ON first_b.first_booking_id = b.id
             LEFT JOIN rooms r ON b.room_id = r.id
-            WHERE bgr.uploaded_at BETWEEN :start_dt AND :end_dt
+            WHERE bgr.uploaded_at BETWEEN :start_dt1 AND :end_dt1
               AND bgr.amount IS NOT NULL AND bgr.amount > 0)
 
             UNION ALL
@@ -377,7 +417,7 @@ if ($should_generate_cash_out_report) {
                 a.booking_type
             FROM archives a
             JOIN rooms r ON a.room_id = r.id
-            WHERE a.created_at BETWEEN :start_dt AND :end_dt
+            WHERE a.created_at BETWEEN :start_dt2 AND :end_dt2
               AND (a.amount_paid - COALESCE(a.additional_paid_amount, 0)) > 0
               AND a.booking_group_id IS NULL)
 
@@ -398,19 +438,24 @@ if ($should_generate_cash_out_report) {
                 a.booking_type
             FROM archives a
             JOIN rooms r ON a.room_id = r.id
-            WHERE a.last_extended_at BETWEEN :start_dt AND :end_dt
+            WHERE a.last_extended_at BETWEEN :start_dt3 AND :end_dt3
               AND a.additional_paid_amount IS NOT NULL AND a.additional_paid_amount > 0
               AND a.booking_group_id IS NULL)
 
             ORDER BY transaction_time ASC;
         ";
         $stmt_cash_out_tx = $pdo->prepare($sql_cash_out_transactions);
+        // อัปเดต $bindings_co ให้ตรงกับ placeholder ใหม่
         $bindings_co = [
-            ':start_dt' => $cash_out_summary_start_time_display,
-            ':end_dt' => $cash_out_summary_end_time_display,
+            ':start_dt1' => $cash_out_summary_start_time_display,
+            ':end_dt1' => $cash_out_summary_end_time_display,
+            ':start_dt2' => $cash_out_summary_start_time_display,
+            ':end_dt2' => $cash_out_summary_end_time_display,
+            ':start_dt3' => $cash_out_summary_start_time_display,
+            ':end_dt3' => $cash_out_summary_end_time_display,
         ];
         $stmt_cash_out_tx->execute($bindings_co);
-        // ***** END: FIX-2 (Cash Out Query) *****
+        // ***** END: V3.1 BUGFIX (SQLSTATE[HY093]) *****
 
         $all_cash_out_transactions_details = $stmt_cash_out_tx->fetchAll(PDO::FETCH_ASSOC);
 
@@ -519,8 +564,30 @@ ob_start();
     .kpi-box p { font-size: 1.7rem; font-weight: 700; margin: 0; color: var(--color-primary); }
     .kpi-box p.small { font-size: 1.2rem; font-weight: 600; }
     .kpi-box .sub-text { font-size: 0.8rem; color: var(--color-text-muted); margin-top: 0.25rem; }
-    .charts-section { display: grid; grid-template-columns: 1fr; gap: 2rem; }
-    @media (min-width: 992px) { .charts-section { grid-template-columns: 1fr 1fr; } }
+    
+    /* +++ START: V3 Chart Grid CSS +++ */
+    .charts-section { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 2rem; }
+    @media (min-width: 992px) { 
+        .charts-section { 
+            /* grid-template-columns: 2fr 1fr;  Removed for flexible grid */
+        } 
+        /* Custom layout for 3 charts: 2 on top, 1 below */
+        .charts-section .chart-container:first-child {
+            grid-column: span 2; /* Make first chart (Trend) span 2 columns */
+        }
+        @media (max-width: 1199px) and (min-width: 992px) {
+             .charts-section .chart-container:first-child {
+                grid-column: span 1; /* On medium screens, stack them */
+            }
+        }
+         @media (max-width: 767px) {
+             .charts-section .chart-container:first-child {
+                grid-column: span 1; /* On small screens, stack them */
+            }
+        }
+    }
+    /* +++ END: V3 Chart Grid CSS +++ */
+
     .chart-container { background-color: var(--color-surface); padding: 1.5rem; border-radius: var(--border-radius-lg); box-shadow: var(--shadow-md); border: 1px solid var(--color-border); min-height: 400px; display: flex; flex-direction: column; transition: background-color var(--transition-speed) var(--transition-func); }
     .chart-canvas-container { flex-grow: 1; position: relative; }
     .chart-canvas-container canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
@@ -546,6 +613,41 @@ ob_start();
     .temporary-archive-row td { background-color: var(--color-info-bg-light) !important; font-style: italic; }
     #cash-out-section .stat-box h4 { font-size: 0.9rem; }
     #cash-out-section .stat-box p { font-size: 1.8rem; }
+    
+    /* +++ START: V3 CASH-OUT UI +++ */
+    #cash-out-section .kpi-summary-grid {
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 1.2rem;
+    }
+    #cash-out-section .stat-box { padding: 1.2rem; }
+    #cash-out-section .stat-box i.fas {
+        font-size: 1.5rem;
+        margin-bottom: 0.5rem;
+        display: block;
+    }
+    #cash-out-section .stat-box-cash { border-left: 4px solid var(--color-success); }
+    #cash-out-section .stat-box-cash i.fas { color: var(--color-success); }
+    #cash-out-section .stat-box-cash p { color: var(--color-success); }
+    
+    #cash-out-section .stat-box-transfer { border-left: 4px solid var(--color-primary); }
+    #cash-out-section .stat-box-transfer i.fas { color: var(--color-primary); }
+    #cash-out-section .stat-box-transfer p { color: var(--color-primary); }
+    
+    #cash-out-section .stat-box-credit { border-left: 4px solid var(--color-info); }
+    #cash-out-section .stat-box-credit i.fas { color: var(--color-info); }
+    
+    #cash-out-section .stat-box-other { border-left: 4px solid var(--color-text-muted); }
+    #cash-out-section .stat-box-other i.fas { color: var(--color-text-muted); }
+
+    #cash-out-section .stat-box-total { 
+        background-color: var(--color-primary-light); 
+        border: 2px solid var(--color-primary-dark);
+        grid-column: 1 / -1; /* Span full width */
+    }
+    #cash-out-section .stat-box-total h3 { color: var(--color-primary-dark); font-size:1.1rem; }
+    #cash-out-section .stat-box-total p { color: var(--color-primary-dark); font-size: 2.2rem; font-weight: 700; }
+    /* +++ END: V3 CASH-OUT UI +++ */
+    
     #cash-out-section .filter-grid label { font-weight: normal; font-size: 0.9em; }
     .cash-out-details-table th, .cash-out-details-table td { font-size: 0.85rem; padding: 0.5rem 0.75rem; }
     .cash-out-details-table .button-small.info { background-color: var(--color-info); color: var(--color-info-text); border: 1px solid var(--color-info-border); }
@@ -553,7 +655,7 @@ ob_start();
 </style>
 
 <div class="report-header">
-    <h2><?= h($pageTitle) ?></h2>
+    <h2><i class="fas fa-file-invoice-dollar" style="margin-right: 0.5em;"></i><?= h($pageTitle) ?></h2>
     <p class="text-muted">แสดงข้อมูลสรุปการจองที่เก็บเข้าประวัติตั้งแต่วันที่ <?= h(date('d/m/Y', strtotime($startDate))) ?> ถึง <?= h(date('d/m/Y', strtotime($endDate))) ?>
         <?php
             if (!empty($filterZone)) {
@@ -642,19 +744,25 @@ ob_start();
     </div>
 </section>
 
+<!-- +++ START: V3 Chart Layout Update +++ -->
 <section class="report-section charts-section-container">
     <h3><i class="fas fa-chart-pie"></i> การแสดงผลข้อมูลกราฟ (จากรายการที่เก็บเข้าประวัติ)</h3>
     <div class="charts-section">
         <div class="chart-container">
-            <h3>แนวโน้มรายได้บริการสุทธิ (<?= h($xLabel) ?>)</h3>
+            <h3><i class="fas fa-chart-bar"></i> แนวโน้มรายได้ (บาท) และ จำนวนการเข้าพัก (ครั้ง)</h3>
             <div class="chart-canvas-container"><canvas id="revenueTrendChart"></canvas></div>
         </div>
         <div class="chart-container">
-            <h3>สัดส่วนรายได้บริการสุทธิตามโซน</h3>
+            <h3><i class="fas fa-pie-chart"></i> สัดส่วนรายได้ตามประเภท</h3>
+            <div class="chart-canvas-container"><canvas id="revenueByTypeChart"></canvas></div>
+        </div>
+        <div class="chart-container">
+            <h3><i class="fas fa-map-marker-alt"></i> สัดส่วนรายได้บริการสุทธิตามโซน</h3>
             <div class="chart-canvas-container"><canvas id="revenueByZoneChart"></canvas></div>
         </div>
     </div>
 </section>
+<!-- +++ END: V3 Chart Layout Update +++ -->
 
 <section class="report-section room-performance-section">
     <h3><i class="fas fa-door-open"></i> รายงานประสิทธิภาพห้องพัก (จากรายการที่เก็บเข้าประวัติ)</h3>
@@ -898,16 +1006,20 @@ ob_start();
         <h4 style="font-size: 1.4rem; color: var(--color-primary-dark); border-bottom: 1px solid var(--color-border); padding-bottom: 0.7rem; margin-bottom: 1.5rem;">
             สรุปการรับเงิน (ทำรายการช่วง): <?= htmlspecialchars(date('d/m/Y H:i', strtotime($cash_out_summary_start_time_display))) ?> ถึง <?= htmlspecialchars(date('d/m/Y H:i', strtotime($cash_out_summary_end_time_display))) ?>
         </h4>
-        <div class="dashboard-stats" style="gap: 1.2rem;">
-            <div class="stat-box"><h3 style="font-size:1rem;">เงินสด</h3><p style="font-size:1.8rem;"><?= htmlspecialchars(number_format($cash_out_report_data_display['เงินสด'], 0)) ?> บ.</p></div>
-            <div class="stat-box"><h3 style="font-size:1rem;">เงินโอน</h3><p style="font-size:1.8rem;"><?= htmlspecialchars(number_format($cash_out_report_data_display['เงินโอน'], 0)) ?> บ.</p></div>
-            <div class="stat-box"><h3 style="font-size:1rem;">บัตรเครดิต</h3><p style="font-size:1.8rem;"><?= htmlspecialchars(number_format($cash_out_report_data_display['บัตรเครดิต'], 0)) ?> บ.</p></div>
-            <div class="stat-box"><h3 style="font-size:1rem;">อื่นๆ</h3><p style="font-size:1.8rem;"><?= htmlspecialchars(number_format($cash_out_report_data_display['อื่นๆ'], 0)) ?> บ.</p></div>
+        
+        <!-- +++ START: V3 Cash-Out UI Update +++ -->
+        <div class="kpi-summary-grid">
+            <div class="stat-box stat-box-cash"><i class="fas fa-money-bill-wave"></i><h4 style="font-size:1rem;">เงินสด</h4><p style="font-size:1.8rem;"><?= htmlspecialchars(number_format($cash_out_report_data_display['เงินสด'], 0)) ?> บ.</p></div>
+            <div class="stat-box stat-box-transfer"><i class="fas fa-exchange-alt"></i><h4 style="font-size:1rem;">เงินโอน</h4><p style="font-size:1.8rem;"><?= htmlspecialchars(number_format($cash_out_report_data_display['เงินโอน'], 0)) ?> บ.</p></div>
+            <div class="stat-box stat-box-credit"><i class="fas fa-credit-card"></i><h4 style="font-size:1rem;">บัตรเครดิต</h4><p style="font-size:1.8rem;"><?= htmlspecialchars(number_format($cash_out_report_data_display['บัตรเครดิต'], 0)) ?> บ.</p></div>
+            <div class="stat-box stat-box-other"><i class="fas fa-ellipsis-h"></i><h4 style="font-size:1rem;">อื่นๆ</h4><p style="font-size:1.8rem;"><?= htmlspecialchars(number_format($cash_out_report_data_display['อื่นๆ'], 0)) ?> บ.</p></div>
         </div>
-        <div class="stat-box" style="background-color: var(--color-primary-light, #e0efff); border: 2px solid var(--color-primary-dark); margin-top: 2rem; padding: 1.2rem;">
+        <div class="stat-box stat-box-total" style="margin-top: 1.5rem;">
             <h3 style="color: var(--color-primary-dark); font-size:1.1rem;">ยอดรวมทั้งสิ้น (ตัดยอด)</h3>
             <p style="color: var(--color-primary-dark); font-size: 2.2rem; font-weight: 700;"><?= htmlspecialchars(number_format($cash_out_report_data_display['total'], 0)) ?> บ.</p>
         </div>
+        <!-- +++ END: V3 Cash-Out UI Update +++ -->
+        
         <p style="text-align: right; margin-top: 1.2rem; font-size: 0.85em; color: var(--color-text-muted);">สร้างรายงานตัดยอดเมื่อ: <?= htmlspecialchars(date('d M Y, H:i:s')) ?></p>
 
         <?php if (!empty($paginated_cash_out_details)): ?>
@@ -1004,10 +1116,137 @@ document.addEventListener('DOMContentLoaded', function () {
     const isDarkTheme = document.body.classList.contains('dark-theme');
     if (isDarkTheme) { Chart.defaults.borderColor = 'rgba(255, 255, 255, 0.2)'; Chart.defaults.color = '#ccc'; }
 
+    // +++ START: V3 Revenue Trend Chart (Dual Axis) +++
     const revenueTrendCtx = document.getElementById('revenueTrendChart');
     if (revenueTrendCtx && typeof Chart !== 'undefined' && <?= !empty($revenueTrendLabels_json) && $revenueTrendLabels_json !== '[]' ? 'true' : 'false' ?>) {
-        new Chart(revenueTrendCtx, { type: 'line', data: { labels: <?= $revenueTrendLabels_json ?>, datasets: [{ label: 'รายได้บริการสุทธิ', data: <?= $revenueTrendValues_json ?>, borderColor: isDarkTheme ? 'rgba(75, 192, 192, 1)' : 'rgba(33, 136, 56, 1)', backgroundColor: isDarkTheme ? 'rgba(75, 192, 192, 0.2)' : 'rgba(33, 136, 56, 0.1)', tension: 0.2, fill: true, pointBackgroundColor: isDarkTheme ? 'rgba(75, 192, 192, 1)' : 'rgba(33, 136, 56, 1)', pointBorderColor: isDarkTheme ? '#2b2b2b' : '#fff', pointHoverRadius: 6, pointRadius: 4, }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { callback: function(value) { return Number.isInteger(value) ? value.toLocaleString('th-TH') + ' บ.' : value; }, color: Chart.defaults.color }, grid: { color: Chart.defaults.borderColor } }, x: { title: { display: true, text: <?= $xLabel_json ?>, color: Chart.defaults.color }, ticks: { color: Chart.defaults.color }, grid: { color: Chart.defaults.borderColor } } }, plugins: { legend: { display: true, position: 'top', labels: { color: Chart.defaults.color } }, tooltip: { callbacks: { label: function(context) { let label = context.dataset.label || ''; if (label) { label += ': '; } if (context.parsed.y !== null) { label += context.parsed.y.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' บ.'; } return label; } }, bodyColor: isDarkTheme ? '#e0e0e0' : '#333', titleColor: isDarkTheme ? '#e0e0e0' : '#333', backgroundColor: isDarkTheme ? 'rgba(40,40,40,0.9)' : 'rgba(255,255,255,0.9)', borderColor: isDarkTheme ? 'rgba(100,100,100,0.9)' : 'rgba(0,0,0,0.1)' } } } });
+        new Chart(revenueTrendCtx, { 
+            type: 'bar', // <<< V3 MODIFICATION: Change to bar
+            data: { 
+                labels: <?= $revenueTrendLabels_json ?>, 
+                datasets: [
+                    { 
+                        label: 'รายได้บริการสุทธิ (บาท)', 
+                        data: <?= $revenueTrendValues_json ?>, 
+                        backgroundColor: isDarkTheme ? 'rgba(91, 165, 245, 0.6)' : 'rgba(0, 86, 179, 0.7)',
+                        borderColor: isDarkTheme ? 'rgba(91, 165, 245, 1)' : 'rgba(0, 86, 179, 1)',
+                        borderWidth: 1,
+                        yAxisID: 'y-revenue',
+                        order: 2
+                    },
+                    {
+                        label: 'จำนวนการเข้าพัก (ครั้ง)',
+                        data: <?= $revenueTrendStays_json ?>, // <<< V3 NEW DATA
+                        type: 'line', // <<< V3 MODIFICATION: Overlay as line
+                        borderColor: isDarkTheme ? 'rgba(240, 173, 78, 1)' : 'rgba(211, 158, 0, 1)',
+                        backgroundColor: isDarkTheme ? 'rgba(240, 173, 78, 0.2)' : 'rgba(211, 158, 0, 0.1)',
+                        tension: 0.2,
+                        fill: false,
+                        yAxisID: 'y-stays',
+                        order: 1
+                    }
+                ] 
+            }, 
+            options: { 
+                responsive: true, 
+                maintainAspectRatio: false, 
+                scales: { 
+                    y: { // <<< V3 MODIFICATION: Renamed to y-revenue
+                        id: 'y-revenue',
+                        type: 'linear',
+                        position: 'left',
+                        beginAtZero: true, 
+                        ticks: { 
+                            callback: function(value) { return Number.isInteger(value) ? value.toLocaleString('th-TH') + ' บ.' : value; }, 
+                            color: Chart.defaults.color 
+                        }, 
+                        grid: { color: Chart.defaults.borderColor } 
+                    },
+                    'y-stays': { // <<< V3 NEW AXIS
+                        id: 'y-stays',
+                        type: 'linear',
+                        position: 'right',
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) { return Number.isInteger(value) ? value.toLocaleString('th-TH') + ' ครั้ง' : ''; },
+                            color: Chart.defaults.color
+                        },
+                        grid: {
+                            drawOnChartArea: false, // Only show grid lines for the main axis
+                        }
+                    },
+                    x: { 
+                        title: { display: true, text: <?= $xLabel_json ?>, color: Chart.defaults.color }, 
+                        ticks: { color: Chart.defaults.color }, 
+                        grid: { color: Chart.defaults.borderColor } 
+                    } 
+                }, 
+                plugins: { 
+                    legend: { display: true, position: 'top', labels: { color: Chart.defaults.color } }, 
+                    tooltip: { 
+                        mode: 'index',
+                        intersect: false,
+                        callbacks: { 
+                            label: function(context) { 
+                                let label = context.dataset.label || ''; 
+                                if (label) { label += ': '; } 
+                                if (context.parsed.y !== null) { 
+                                    if (context.dataset.yAxisID === 'y-stays') {
+                                        label += context.parsed.y.toLocaleString('th-TH') + ' ครั้ง';
+                                    } else {
+                                        label += context.parsed.y.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' บ.'; 
+                                    }
+                                } 
+                                return label; 
+                            } 
+                        }, 
+                        bodyColor: isDarkTheme ? '#e0e0e0' : '#333', titleColor: isDarkTheme ? '#e0e0e0' : '#333', backgroundColor: isDarkTheme ? 'rgba(40,40,40,0.9)' : 'rgba(255,255,255,0.9)', borderColor: isDarkTheme ? 'rgba(100,100,100,0.9)' : 'rgba(0,0,0,0.1)' 
+                    } 
+                } 
+            } 
+        });
     } else if (revenueTrendCtx) { const ctx2d = revenueTrendCtx.getContext('2d'); ctx2d.fillStyle = Chart.defaults.color; ctx2d.font = "1rem 'Segoe UI'"; ctx2d.textAlign = "center"; ctx2d.fillText("ไม่มีข้อมูลเพียงพอสำหรับแสดงกราฟแนวโน้ม", revenueTrendCtx.width / 2, revenueTrendCtx.height / 2); }
+    // +++ END: V3 Revenue Trend Chart +++
+
+    // +++ START: V3 GRAPH UPDATE (New Pie Chart JS) +++
+    const revenueByTypeCtx = document.getElementById('revenueByTypeChart');
+    if (revenueByTypeCtx && typeof Chart !== 'undefined' && <?= !empty($revenueByTypeLabels_json) && $revenueByTypeLabels_json !== '[]' ? 'true' : 'false' ?>) {
+        new Chart(revenueByTypeCtx, { 
+            type: 'doughnut', 
+            data: { 
+                labels: <?= $revenueByTypeLabels_json ?>, 
+                datasets: [{ 
+                    label: 'สัดส่วนรายได้ตามประเภท', 
+                    data: <?= $revenueByTypeValues_json ?>, 
+                    backgroundColor: [ 
+                        isDarkTheme ? 'rgba(91, 165, 245, 0.7)' : 'rgba(0, 86, 179, 0.8)', // Overnight (Blue)
+                        isDarkTheme ? 'rgba(92, 184, 92, 0.7)' : 'rgba(33, 136, 56, 0.8)'  // Short Stay (Green)
+                    ], 
+                    borderColor: isDarkTheme ? '#2b2b2b' : '#fff', 
+                    borderWidth: 2, 
+                    hoverOffset: 8 
+                }] 
+            }, 
+            options: { 
+                responsive: true, 
+                maintainAspectRatio: false, 
+                plugins: { 
+                    legend: { position: 'bottom', labels: { padding: 15, color: Chart.defaults.color } }, 
+                    tooltip: { 
+                        callbacks: { 
+                            label: function(context) { 
+                                let label = context.label || ''; 
+                                if (label) { label += ': '; } 
+                                label += context.parsed.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' บ.';
+                                return label; 
+                            } 
+                        }, 
+                        bodyColor: isDarkTheme ? '#e0e0e0' : '#333', titleColor: isDarkTheme ? '#e0e0e0' : '#333', backgroundColor: isDarkTheme ? 'rgba(40,40,40,0.9)' : 'rgba(255,255,255,0.9)', borderColor: isDarkTheme ? 'rgba(100,100,100,0.9)' : 'rgba(0,0,0,0.1)' 
+                    } 
+                } 
+            } 
+        });
+    } else if (revenueByTypeCtx) { const ctx2d = revenueByTypeCtx.getContext('2d'); ctx2d.fillStyle = Chart.defaults.color; ctx2d.font = "1rem 'Segoe UI'"; ctx2d.textAlign = "center"; ctx2d.fillText("ไม่มีข้อมูลสัดส่วนตามประเภท", revenueByTypeCtx.width / 2, revenueByTypeCtx.height / 2); }
+    // +++ END: V3 GRAPH UPDATE +++
 
     const revenueByZoneCtx = document.getElementById('revenueByZoneChart');
     if (revenueByZoneCtx && typeof Chart !== 'undefined' && <?= !empty($revenueByZoneLabels_json) && $revenueByZoneLabels_json !== '[]' ? 'true' : 'false' ?>) {

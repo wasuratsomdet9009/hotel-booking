@@ -1,7 +1,7 @@
 // FILEX: hotel_booking/assets/js/main.js
-// VERSION: 2.4 - Final Cleanup by Gemini
-// FIX: Ensured moveRoomModal is declared correctly to prevent ReferenceError.
-// FIX: Removed a redundant and conflicting calendar event listener at the end of the file.
+// VERSION: 2.7 - Fix Syntax/Logic Error in Event Delegation (V3.3)
+// FIX: Removed misplaced .receipt-btn logic from inside .room event handler's try/catch block.
+// FIX: Consolidated Event Delegation logic correctly on document.body listener.
 
 // =========================================================================
 // == GLOBAL FUNCTIONS (Available to all pages)
@@ -34,7 +34,21 @@ window.openBookingGroupSummaryModal = async function(bookingGroupId, bookingIds)
         return;
     }
 
-    mainDetailsModalBody.innerHTML = '<p style="text-align:center; padding:20px;">กำลังโหลดข้อมูลสรุปการจองกลุ่ม...</p>';
+    const skeletonHtml = `
+        <div class="skeleton-loader-container">
+            <div class="skeleton-flex-row" style="margin-bottom: 1.5rem;">
+                <div class="skeleton skeleton-avatar"></div>
+                <div class="skeleton-flex-col">
+                    <div class="skeleton skeleton-title" style="margin-bottom:0;"></div>
+                    <div class="skeleton skeleton-text short"></div>
+                </div>
+            </div>
+            <div class="skeleton skeleton-text medium"></div>
+            <div class="skeleton skeleton-rect"></div>
+            <div class="skeleton skeleton-rect"></div>
+        </div>
+    `;
+    mainDetailsModalBody.innerHTML = skeletonHtml;
     showModal(mainDetailsModal);
 
     try {
@@ -186,13 +200,22 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (bookingsByDateAndGroupJS[groupKey].date === dateStr) {
                             bookingsFoundForDate++;
                             const groupData = bookingsByDateAndGroupJS[groupKey];
-                            const roomsDisplay = groupData.rooms.map(room => room.display).join(', ');
-                            modalHtml += `<div class="modal-booking-entry ${groupData.is_highlighted_group ? 'highlighted' : 'regular'}">
-                                                <p class="modal-customer-name">${groupData.customer_name}</p>
-                                                <p class="modal-room-names">ห้อง: ${roomsDisplay}</p>
-                                                ${groupData.customer_phone ? `<p style="font-size:0.85rem; color:var(--color-text-muted);">โทร: ${groupData.customer_phone}</p>` : ''}
-                                                <button type="button" class="button-small outline-primary modal-view-details-btn" data-booking-ids="${groupData.booking_ids.join(',')}" data-booking-group-id="${groupData.booking_group_id || ''}">
-                                                    <i class="fas fa-info-circle" style="margin-right:4px;"></i>ดูรายละเอียดกลุ่มนี้
+                            
+                            // Improve multiple room display with small pills/badges
+                            const roomsHTML = groupData.rooms.map(room => `<span style="display:inline-block; background:var(--color-primary-light); color:var(--color-primary-dark); padding:2px 6px; border-radius:4px; font-size:0.8rem; margin-right:4px; margin-bottom:4px;">${room.display}</span>`).join('');
+                            
+                            const isPastClass = groupData.is_past_booking ? 'past-booking-entry' : '';
+                            const highlightClass = groupData.is_highlighted_group ? 'highlighted' : 'regular';
+                            
+                            modalHtml += `<div class="modal-booking-entry ${highlightClass} ${isPastClass}">
+                                                <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                                                    <p class="modal-customer-name" style="margin-bottom:4px;">${groupData.customer_name}</p>
+                                                    ${groupData.is_past_booking ? '<span style="font-size:0.7rem; background:#e2e8f0; color:#64748b; padding:2px 6px; border-radius:12px;">ผ่านมาแล้ว</span>' : ''}
+                                                </div>
+                                                <div style="margin-bottom:8px;">${roomsHTML}</div>
+                                                ${groupData.customer_phone ? `<p style="font-size:0.85rem; color:var(--color-text-muted); margin-bottom:8px;"><i class="fas fa-phone-alt"></i> ${groupData.customer_phone}</p>` : ''}
+                                                <button type="button" class="button-small outline-primary modal-view-details-btn" data-booking-ids="${groupData.booking_ids.join(',')}" data-booking-group-id="${groupData.booking_group_id || ''}" style="width:100%;">
+                                                    <i class="fas fa-info-circle" style="margin-right:4px;"></i>ดูรายละเอียดการจอง
                                                 </button>
                                             </div>`;
                         }
@@ -988,30 +1011,78 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (detailsModal && detailsModalBody && detailsModalCloseBtn && detailsModalContent) {
-        document.querySelectorAll('.room').forEach(roomElement => {
-            roomElement.addEventListener('click', async (event) => {
-                if (event.target !== roomElement && event.target.closest('button, a')) {
-                    return;
-                }
+        
+        // +++ START: V3 REFACTOR (Event Delegation) +++
+        // ใช้ Event Delegation เพื่อดักจับการคลิกบน .room
+        // ซึ่งจะทำงานได้กับปุ่มที่โหลดมาทีหลัง (เช่น ใน modal หรือหน้า edit_booking_group.php)
+        document.body.addEventListener('click', async function(event) {
+            const roomElement = event.target.closest('.room');
+            
+            // ตรวจสอบว่าเป็นการคลิกที่ .room (ทั้งแบบ SVG และ Button) และไม่ใช่การคลิกปุ่ม/ลิงก์ย่อยภายใน
+            const closestBtnOrLink = event.target.closest('button, a');
+            const isClickOnRoomButton = closestBtnOrLink === roomElement;
 
+            if (roomElement && (!closestBtnOrLink || isClickOnRoomButton)) {
+                // เปิด Modal หากตรงเงื่อนไข
                 try {
                     const roomId = roomElement.dataset.id;
                     if (!roomId) return;
-                    if(detailsModalBody) detailsModalBody.innerHTML = '<p style="text-align:center; padding:20px;">Loading room details...</p>';
+                    
+                    const skeletonHtmlSmall = `
+                        <div class="skeleton-loader-container">
+                            <div class="skeleton skeleton-title"></div>
+                            <div class="skeleton skeleton-text medium"></div>
+                            <div class="skeleton skeleton-rect" style="height: 60px;"></div>
+                        </div>
+                    `;
+                    if(detailsModalBody) detailsModalBody.innerHTML = skeletonHtmlSmall;
                     showModal(detailsModal);
 
                     const response = await fetch(`/hotel_booking/pages/details.php?id=${roomId}`);
                     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}, message: ${await response.text()}`);
+                    
                     const html = await response.text();
                     detailsModalBody.innerHTML = html;
-                    attachDetailEvents(detailsModalBody);
+                    
+                    // เรียกใช้ฟังก์ชัน attachDetailEvents (ซึ่งมีอยู่แล้วใน main.js)
+                    // เพื่อให้ปุ่มต่างๆ ภายใน Modal ที่เพิ่งโหลดมาทำงานได้
+                    if (typeof attachDetailEvents === 'function') {
+                        attachDetailEvents(detailsModalBody);
+                    } else {
+                        console.error('attachDetailEvents function is not defined. Modal buttons might not work.');
+                    }
+
                 } catch (err) {
-                    console.error('[RoomClick] Failed to load room details:', err);
+                    console.error('[RoomClick Delegation] Failed to load room details:', err);
                     if(detailsModalBody) detailsModalBody.innerHTML = '<p>เกิดข้อผิดพลาดในการโหลดข้อมูลห้องพัก: ' + err.message + '</p>';
                     showModal(detailsModal);
                 }
-            });
+            // V3.3 FIX: ลบ Logic ของ .receipt-btn ที่ซ้อนกันผิดออกจากตรงนี้ และแก้ไขการปิดวงเล็บปีกกา
+            // } <--- ลบวงเล็บปีกกาที่ไม่จำเป็นออกไป
+
+            } else if (roomElement && event.target.closest('.occupy-btn-table')) {
+                // ถ้าคลิกที่ปุ่ม .occupy-btn-table (ซึ่งอยู่ภายใน .room ใน Table View)
+                // ให้ข้ามไป ไม่ต้องทำอะไร (เพราะมี Event Listener แยกสำหรับ .occupy-btn-table อยู่แล้ว)
+                return; 
+            }
+            
+            // +++ V3.3 FIX: ย้าย Logic การคลิกรูปภาพมาไว้ตรงนี้ (ในระดับเดียวกันกับ if/else if) +++
+            const globalReceiptBtn = event.target.closest('.receipt-btn-global, .proof-thumb, .receipt-thumbnail-table, .receipt-btn');
+            if (globalReceiptBtn && imageModal && imageModalImage) {
+                const imgSrc = globalReceiptBtn.dataset.src || globalReceiptBtn.src;
+                if (imgSrc) {
+                    imageModalImage.src = imgSrc;
+                     if (typeof showModal === 'function') {
+                        showModal(imageModal);
+                     } else {
+                        imageModal.classList.add('show');
+                     }
+                }
+            }
+            // +++ END V3.3 FIX +++
         });
+        // +++ END: V3 REFACTOR (Event Delegation) +++
+
         detailsModal.addEventListener('click', (e) => {
             if (e.target === detailsModal && !detailsModalContent.contains(e.target)) {
                 hideModal(detailsModal);
@@ -1863,8 +1934,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         }
-
-        const globalReceiptBtn = e.target.closest('.receipt-btn-global, .proof-thumb, .receipt-thumbnail-table');
+        
+        // --- V3.3 FIX: Logic การคลิกปุ่มดูหลักฐานการชำระเงิน ถูกย้ายมาอยู่ที่นี่ ---
+        const globalReceiptBtn = e.target.closest('.receipt-btn-global, .proof-thumb, .receipt-thumbnail-table, .receipt-btn');
         if (globalReceiptBtn && imageModal && imageModalImage) {
             const imgSrc = globalReceiptBtn.dataset.src || globalReceiptBtn.src;
             if (imgSrc) {
@@ -2099,11 +2171,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         if(displayElement) displayElement.textContent = String(Math.round(parseFloat(value)));
                     }
                 } else { 
-                  console.error(`Failed to update price: ${data.message || 'Unknown error'}`);
+                console.error(`Failed to update price: ${data.message || 'Unknown error'}`);
                 }
             } catch (err) { 
-              console.error('Update hourly rate error:', err); 
-              console.error('Connection error while updating hourly rate.');
+            console.error('Update hourly rate error:', err); 
+            console.error('Connection error while updating hourly rate.');
             } finally { if(submitUpdateHourlyRateBtn) setButtonLoading(submitUpdateHourlyRateBtn, false, 'submitUpdateHourlyRateBtn'); }
         });
     }
@@ -2143,7 +2215,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             currentIsOverdueOnElement !== isOverdueFromServer ||
                             (roomElementGrid.dataset.pendingPayment === 'true') !== hasPendingPayment ||
                             (roomElementGrid.dataset.nearingCheckout === 'true') !== isNearingCheckout) {
-                            
+
                             domChanged = true;
                             roomElementGrid.dataset.status = newDisplayStatusFromServer;
                             roomElementGrid.dataset.isOverdue = isOverdueFromServer ? 'true' : 'false';
@@ -2454,4 +2526,102 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    const bulkCheckoutBtn = document.getElementById('bulk-checkout-btn');
+    const bulkCountSpan = document.getElementById('bulk-selected-count');
+    const roomCheckboxes = document.querySelectorAll('.room-select-checkbox');
+
+    function updateBulkButton() {
+        const selected = document.querySelectorAll('.room-select-checkbox:checked');
+        const count = selected.length;
+        if (bulkCountSpan) bulkCountSpan.textContent = count;
+        
+        if (bulkCheckoutBtn) {
+            bulkCheckoutBtn.style.display = count > 0 ? 'inline-block' : 'none';
+        }
+    }
+
+    roomCheckboxes.forEach(cb => {
+        cb.addEventListener('change', updateBulkButton);
+        // ป้องกันไม่ให้คลิก Checkbox แล้วไปเปิด Modal ห้องพัก
+        cb.addEventListener('click', (e) => e.stopPropagation());
+    });
+
+    if (bulkCheckoutBtn) {
+        bulkCheckoutBtn.addEventListener('click', async function() {
+            const selected = document.querySelectorAll('.room-select-checkbox:checked');
+            if (selected.length === 0) return;
+
+            const bookingIds = Array.from(selected).map(cb => cb.dataset.bookingId);
+            const roomNames = Array.from(selected).map(cb => cb.dataset.roomName).join(', ');
+
+            // ใช้ confirm หรือสร้าง Modal ใหม่รับค่าก็ได้ (ในที่นี้ใช้ prompt/confirm อย่างง่าย หรือใช้ Modal ที่มีอยู่)
+            // เราจะใช้ deposit-modal ที่มีอยู่แล้วมาประยุกต์
+            const depositModal = document.getElementById('deposit-modal'); // ต้องมี Modal นี้ใน layout
+            const depositModalBody = document.getElementById('deposit-modal-body');
+            
+            // สร้าง Form ใน Modal ชั่วคราว
+            let html = `
+                <h3>คืนมัดจำและเช็คเอาท์หลายห้อง</h3>
+                <p><strong>ห้องที่เลือก:</strong> ${roomNames}</p>
+                <div style="background: #f9f9f9; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
+                    <label style="display:block; margin-bottom:5px;"><strong>อัปโหลดสลิปคืนเงิน (ใช้ภาพเดียวกันทุกห้อง):</strong></label>
+                    <input type="file" id="bulk-deposit-proof" accept="image/*,application/pdf" class="form-control">
+                    <small class="text-danger">* หากไม่เลือกไฟล์ จะถือว่าไม่คืนมัดจำ หรือคืนเงินสด</small>
+                </div>
+                <div class="button-group" style="justify-content: flex-end;">
+                    <button id="confirm-bulk-action" class="button primary">ยืนยันการทำรายการ</button>
+                    <button class="button outline-secondary close-modal-btn">ยกเลิก</button>
+                </div>
+            `;
+            
+            if(depositModalBody) {
+                depositModalBody.innerHTML = html;
+                showModal(depositModal); // ฟังก์ชัน showModal ที่มีอยู่แล้ว
+            }
+
+            // Bind Event ปุ่มยืนยันใน Modal
+            setTimeout(() => {
+                const confirmBtn = document.getElementById('confirm-bulk-action');
+                const closeBtn = depositModalBody.querySelector('.close-modal-btn');
+                
+                if(closeBtn) closeBtn.onclick = () => hideModal(depositModal);
+
+                if(confirmBtn) {
+                    confirmBtn.onclick = async () => {
+                        const fileInput = document.getElementById('bulk-deposit-proof');
+                        const file = fileInput.files[0];
+                        
+                        setButtonLoading(confirmBtn, true);
+
+                        const formData = new FormData();
+                        formData.append('action', 'bulk_return_and_complete');
+                        bookingIds.forEach(id => formData.append('booking_ids[]', id));
+                        
+                        if (file) {
+                            formData.append('deposit_proof', file);
+                        }
+
+                        try {
+                            const response = await fetch('/hotel_booking/pages/api.php', {
+                                method: 'POST',
+                                body: formData
+                            });
+                            const result = await response.json();
+                            if (result.success) {
+                                alert('ทำรายการสำเร็จเรียบร้อยแล้ว');
+                                window.location.reload();
+                            } else {
+                                alert('เกิดข้อผิดพลาด: ' + result.message);
+                            }
+                        } catch (err) {
+                            console.error(err);
+                            alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+                        } finally {
+                            setButtonLoading(confirmBtn, false);
+                        }
+                    };
+                }
+            }, 100);
+        });
+    }
 }); // End of DOMContentLoaded

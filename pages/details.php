@@ -114,7 +114,9 @@ if ($booking_to_display && $room['status'] === 'booked' && !$isEffectivelyOverdu
 // ***** START: เพิ่มการดึงข้อมูล Group Receipts *****
 $all_group_receipts_for_display = [];
 if ($booking_to_display && !empty($booking_to_display['booking_group_id'])) {
-    $stmtGroupReceiptsDetails = $pdo->prepare("SELECT receipt_path, description FROM booking_group_receipts WHERE booking_group_id = ? ORDER BY uploaded_at ASC");
+    // +++ START: V3.1 FIX - ดึงข้อมูลสลิปให้ครบถ้วน (เพิ่ม amount, payment_method, uploaded_at) +++
+    $stmtGroupReceiptsDetails = $pdo->prepare("SELECT receipt_path, description, amount, payment_method, uploaded_at FROM booking_group_receipts WHERE booking_group_id = ? ORDER BY uploaded_at ASC");
+    // +++ END: V3.1 FIX +++
     $stmtGroupReceiptsDetails->execute([$booking_to_display['booking_group_id']]);
     $all_group_receipts_for_display = $stmtGroupReceiptsDetails->fetchAll(PDO::FETCH_ASSOC);
 }
@@ -301,29 +303,69 @@ if (!function_exists('h')) {
       <p><strong>ยอดเรียกเก็บลูกค้ารวม:</strong> <span class="highlight-value"><?= h(number_format($displayServiceValue, 0)) ?></span> บาท</p>
       <p><strong>ยอดชำระแล้วทั้งหมด:</strong> <span id="current-amount-paid-display" class="highlight-value"><?= h(number_format($displayTotalPaid, 0)) ?></span> บาท</p>
 
-      <?php // ***** START: แก้ไขการแสดงผลสลิป ***** ?>
+      <?php // ***** START: V3.1 FIX - อัปเกรดการแสดงผลสลิป (บรรทัด 284 โดยประมาณ) ***** ?>
       <?php if (!empty($all_group_receipts_for_display)): ?>
-        <h4 style="margin-top: 15px; margin-bottom: 5px;">หลักฐานการชำระเงินของกลุ่ม:</h4>
-        <?php foreach ($all_group_receipts_for_display as $grcpt): ?>
-            <div class="receipt-actions" style="margin-top: 5px; margin-bottom:5px;">
-              <button class="button-small receipt-btn" data-src="/hotel_booking/uploads/receipts/<?= h($grcpt['receipt_path']) ?>">
-                <?= (empty(trim($grcpt['description'])) ? 'ดูสลิป' : h($grcpt['description'])) ?>
-              </button>
-            </div>
-        <?php endforeach; ?>
+        <div style="margin-top: 20px;">
+            <h4 style="margin: 0 0 10px 0; font-size: 1.1rem; color: #004080; border-bottom: 1px solid #ccc; padding-bottom: 5px;">
+                <i class="fas fa-receipt" style="margin-right: 8px;"></i>ประวัติการชำระเงิน/สลิปของกลุ่ม
+            </h4>
+            <?php foreach ($all_group_receipts_for_display as $receipt): ?>
+                <div class="receipt-item-detail" style="display: flex; align-items: center; padding: 8px; background-color: #fff; border-radius: 5px; margin-bottom: 8px; border: 1px solid #e0e0e0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                    <!-- รูปภาพสลิปที่กดเพื่อดูรูปใหญ่ได้ -->
+                    <?php 
+                        $image_path = '/hotel_booking/uploads/receipts/' . h($receipt['receipt_path']);
+                        $is_pdf = (strtolower(pathinfo($receipt['receipt_path'], PATHINFO_EXTENSION)) == 'pdf');
+                        $placeholder_icon = $is_pdf ? 'fas fa-file-pdf' : 'fas fa-image';
+                    ?>
+                    <div style="width: 60px; height: 60px; object-fit: cover; border-radius: 4px; margin-right: 15px; cursor: pointer; background-color: #f0f0f0; display: flex; align-items: center; justify-content: center; border: 1px solid #ddd;"
+                         class="receipt-btn" data-src="<?= h($image_path) ?>" title="คลิกเพื่อดูสลิป">
+                         
+                        <?php if ($is_pdf): ?>
+                            <i class="<?= h($placeholder_icon) ?>" style="font-size: 24px; color: #dc3545;"></i>
+                        <?php else: ?>
+                            <img src="<?= h($image_path) ?>" alt="สลิป" 
+                                 style="width: 100%; height: 100%; object-fit: cover; border-radius: 4px;">
+                        <?php endif; ?>
+                    </div>
+                    
+                    <div style="flex-grow: 1; font-size: 0.9rem;">
+                        <?php if (!empty($receipt['description'])): ?>
+                            <strong><?= h($receipt['description']) ?></strong><br>
+                        <?php endif; ?>
+                        <small>วิธีชำระ: 
+                            <span style="font-weight: 500; color: #333;">
+                                <?= h($receipt['payment_method'] ?? '-') ?>
+                            </span> 
+                            | อัปโหลด: 
+                            <span style="font-weight: 500; color: #666;">
+                                <?= h(date('d/m/Y H:i', strtotime($receipt['uploaded_at']))) ?>
+                            </span>
+                        </small>
+                    </div>
+                    <?php if (isset($receipt['amount']) && is_numeric($receipt['amount'])): ?>
+                        <div style="font-weight: bold; font-size: 1rem; text-align: right; min-width: 100px;">
+                            <span style="color: <?= (float)$receipt['amount'] >= 0 ? '#218838' : '#c82333' ?>;">
+                                <?= h(number_format((float)$receipt['amount'], 2)) ?> บาท
+                            </span>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            <?php endforeach; ?>
+        </div>
       <?php elseif (!empty($booking_to_display['receipt_path']) || !empty($booking_to_display['extended_receipt_path'])): // Fallback สำหรับข้อมูลเก่า ?>
+        <h4 style="margin-top: 15px; margin-bottom: 5px;">หลักฐานการชำระเงิน (ข้อมูลเก่า):</h4>
         <?php if (!empty($booking_to_display['receipt_path'])): ?>
             <div class="receipt-actions" style="margin-top: 10px; margin-bottom:5px;">
-              <button class="button-small receipt-btn" data-src="/hotel_booking/uploads/receipts/<?= h($booking_to_display['receipt_path']) ?>">สลิปหลัก</button>
+              <button class="button-small receipt-btn" data-src="/hotel_booking/uploads/receipts/<?= h($booking_to_display['receipt_path']) ?>">สลิปหลัก (เก่า)</button>
             </div>
         <?php endif; ?>
         <?php if (!empty($booking_to_display['extended_receipt_path'])): ?>
             <div class="receipt-actions" style="margin-top: 5px; margin-bottom:15px;">
-              <button class="button-small receipt-btn" data-src="/hotel_booking/uploads/receipts/<?= h($booking_to_display['extended_receipt_path']) ?>">สลิปส่วนขยาย/ปรับยอด</button>
+              <button class="button-small receipt-btn" data-src="/hotel_booking/uploads/receipts/<?= h($booking_to_display['extended_receipt_path']) ?>">สลิปส่วนขยาย (เก่า)</button>
             </div>
         <?php endif; ?>
       <?php endif; ?>
-      <?php // ***** END: แก้ไขการแสดงผลสลิป ***** ?>
+      <?php // ***** END: V3.1 FIX ***** ?>
 
       <p><strong>สร้างโดย:</strong> <?= h($booking_to_display['creator_username'] ?? 'N/A') ?></p>
       <?php if (isset($booking_to_display['last_modifier_username']) && $booking_to_display['last_modifier_username'] !== $booking_to_display['creator_username']): ?>
@@ -440,7 +482,6 @@ if (!function_exists('h')) {
             $hourly_rate_from_system_settings_details = (defined('HOURLY_RATE_DB') ? (float)HOURLY_RATE_DB : 100);
             // HOURLY_RATE constant should be used here if it's the effective one, or HOURLY_RATE_DB.
             // Assuming HOURLY_RATE is defined somewhere or get_system_setting_value is preferred.
-            // For safety, let's use the function as it's more robust if bootstrap.php changes definitions.
             $_rate_val_temp = get_system_setting_value($pdo, 'hourly_extension_rate', 100);
             $hourly_rate_from_system_settings_details = is_numeric($_rate_val_temp) && (float)$_rate_val_temp > 0 ? (float)$_rate_val_temp : 100;
 
@@ -502,7 +543,7 @@ if (!function_exists('h')) {
             </div>
             <?php // ***** START: MODIFIED PAYMENT DETAILS SECTION ***** ?>
             <div class="form-group">
-                <p><strong>ค่าบริการส่วนเพิ่ม/ส่วนต่างที่ต้องชำระ (สำหรับรายการขยายนี้):</strong> <span id="additional_cost_display">0</span> บาท</p>
+                <p><strong>ค่าบริการส่วนเพิ่ม/ส่วนต่างที่ต้องชำระ (สำหรับการขยายนี้):</strong> <span id="additional_cost_display">0</span> บาท</p>
                 <p><strong>ระยะเวลาที่จะขยายเพิ่ม:</strong> <span id="extension_duration_details_display" style="font-weight:bold; color: var(--color-info-dark);">-</span></p>
                 <p><strong>เช็คเอาต์ใหม่โดยประมาณ:</strong> <span id="new_checkout_time_display" style="font-weight:bold; color:var(--color-primary-dark);"><?= h($bookingForExtendAndEditForms['current_checkout_display_with_ext'] ?? 'N/A') ?></span></p>
                 <hr style="margin: 0.5rem 0;">
@@ -790,4 +831,7 @@ if (!function_exists('h')) {
     .addon-checkbox-modal, .addon-quantity-modal {
         margin-right: 5px;
     }
+    
+    /* เพิ่ม style สำหรับ icon ของ font awesome หากยังไม่มี */
+    @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css');
 </style>

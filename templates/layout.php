@@ -5,56 +5,144 @@
 ?>
 <!DOCTYPE html>
 <html lang="th">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title><?= isset($pageTitle) ? h($pageTitle) : 'Hotel Admin' ?></title>
-  
+
   <link rel="stylesheet" href="/hotel_booking/assets/css/main.css">
-  
+
   <link rel="icon" type="image/x-icon" href="/hotel_booking/assets/image/logo.ico">
 
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
 
   <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
-  
+
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="/hotel_booking/assets/js/main.js" defer></script>
-  
+
   <style>
     /* --- Dark Theme เดิม --- */
-    body.dark-theme { background-color: #121212; color: #e0e0e0; }
-    body.dark-theme .site-header { background-color: #1e1e1e; border-bottom-color: #333; }
-    body.dark-theme .site-header h1 a, 
-    body.dark-theme .site-nav a, 
-    body.dark-theme .user-info-text { color: #e0e0e0; }
-    body.dark-theme .nav-toggle .hamburger { background-color: #e0e0e0; }
-    body.dark-theme .site-nav { background-color: #1e1e1e; }
-    body.dark-theme .site-footer { background-color: #1e1e1e; border-top-color: #333; color: #aaa; }
-    body.dark-theme input[type="text"], body.dark-theme input[type="number"], body.dark-theme input[type="email"], body.dark-theme input[type="password"], body.dark-theme textarea, body.dark-theme select { background-color: #333; color: #e0e0e0; border-color: #555; }
-    body.dark-theme input:focus, body.dark-theme textarea:focus, body.dark-theme select:focus { border-color: #66bfff; }
-    body.dark-theme label { color: #ccc; }
-    body.dark-theme .modal-content { background-color: #2b2b2b; color: #e0e0e0; border-color: #444; }
-    
+    body.dark-theme {
+      background-color: #121212;
+      color: #e0e0e0;
+    }
+
+    body.dark-theme .site-header {
+      background-color: #1e1e1e;
+      border-bottom-color: #333;
+    }
+
+    body.dark-theme .site-header h1 a,
+    body.dark-theme .site-nav a,
+    body.dark-theme .user-info-text {
+      color: #e0e0e0;
+    }
+
+    body.dark-theme .nav-toggle .hamburger {
+      background-color: #e0e0e0;
+    }
+
+    body.dark-theme .site-nav {
+      background-color: #1e1e1e;
+    }
+
+    body.dark-theme .site-footer {
+      background-color: #1e1e1e;
+      border-top-color: #333;
+      color: #aaa;
+    }
+
+    body.dark-theme input[type="text"],
+    body.dark-theme input[type="number"],
+    body.dark-theme input[type="email"],
+    body.dark-theme input[type="password"],
+    body.dark-theme textarea,
+    body.dark-theme select {
+      background-color: #333;
+      color: #e0e0e0;
+      border-color: #555;
+    }
+
+    body.dark-theme input:focus,
+    body.dark-theme textarea:focus,
+    body.dark-theme select:focus {
+      border-color: #66bfff;
+    }
+
+    body.dark-theme label {
+      color: #ccc;
+    }
+
+    body.dark-theme .modal-content {
+      background-color: #2b2b2b;
+      color: #e0e0e0;
+      border-color: #444;
+    }
+
     /* Theme Toggle Switch */
-    .theme-toggle-switch { position: relative; display: inline-block; width: 50px; height: 24px; margin-left: 15px; vertical-align: middle; }
-    .theme-toggle-switch input { opacity: 0; width: 0; height: 0; }
-    .theme-toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 24px; }
-    .theme-toggle-slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
-    input:checked + .theme-toggle-slider { background-color: #2196F3; }
-    body.dark-theme input:checked + .theme-toggle-slider { background-color: #66bfff; }
-    input:checked + .theme-toggle-slider:before { transform: translateX(26px); }
-  
+    .theme-toggle-switch {
+      position: relative;
+      display: inline-block;
+      width: 50px;
+      height: 24px;
+      margin-left: 15px;
+      vertical-align: middle;
+    }
+
+    .theme-toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .theme-toggle-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #ccc;
+      transition: .4s;
+      border-radius: 24px;
+    }
+
+    .theme-toggle-slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .4s;
+      border-radius: 50%;
+    }
+
+    input:checked+.theme-toggle-slider {
+      background-color: #2196F3;
+    }
+
+    body.dark-theme input:checked+.theme-toggle-slider {
+      background-color: #66bfff;
+    }
+
+    input:checked+.theme-toggle-slider:before {
+      transform: translateX(26px);
+    }
+
     /* ============================================= */
     /* === START: NEW NAVBAR & RESPONSIVE STYLES === */
     /* ============================================= */
-    
+
     /* --- Base Header Layout --- */
     .site-header {
       /*ใช้สีจากไฟล์ main.css ถ้ามี*/
-      background-color: var(--color-header-bg, #004080); 
+      background-color: var(--color-header-bg, #004080);
       color: var(--color-header-text, #ffffff);
       position: sticky;
       top: 0;
@@ -67,7 +155,8 @@
       justify-content: space-between;
       align-items: center;
       position: relative;
-      min-height: 70px; /* ให้ Header มีความสูงคงที่ */
+      min-height: 70px;
+      /* ให้ Header มีความสูงคงที่ */
     }
 
     .site-header .logo a {
@@ -89,13 +178,16 @@
     }
 
     .site-nav a {
-      display: flex; /* ใช้ flex เพื่อจัดไอคอนกับข้อความ */
+      display: flex;
+      /* ใช้ flex เพื่อจัดไอคอนกับข้อความ */
       align-items: center;
-      gap: 0.6rem; /* ระยะห่างระหว่างไอคอนกับข้อความ */
+      gap: 0.6rem;
+      /* ระยะห่างระหว่างไอคอนกับข้อความ */
       color: var(--color-header-text, #ffffff);
       text-decoration: none;
       padding: 0.8rem 1rem;
-      border-radius: 8px; /*var(--border-radius-md)*/
+      border-radius: 8px;
+      /*var(--border-radius-md)*/
       position: relative;
       overflow: hidden;
       transition: color 0.3s ease, background-color 0.3s ease;
@@ -115,7 +207,8 @@
 
     .site-nav a:hover,
     .site-nav a:focus,
-    .site-nav li.active a { /* เพิ่ม .active สำหรับหน้าปัจจุบัน */
+    .site-nav li.active a {
+      /* เพิ่ม .active สำหรับหน้าปัจจุบัน */
       color: #fff;
       background-color: rgba(255, 255, 255, 0.1);
     }
@@ -127,7 +220,8 @@
 
     .site-nav .icon {
       font-size: 1.1rem;
-      width: 20px; /* กำหนดความกว้างให้ไอคอน */
+      width: 20px;
+      /* กำหนดความกว้างให้ไอคอน */
       text-align: center;
     }
 
@@ -147,27 +241,40 @@
       gap: 0.5rem;
       color: #f0f0f0;
     }
-    .user-icon { font-size: 1.5rem; color: #fff; }
-    .user-info-text { font-size: 0.9rem; white-space: nowrap; }
+
+    .user-icon {
+      font-size: 1.5rem;
+      color: #fff;
+    }
+
+    .user-info-text {
+      font-size: 0.9rem;
+      white-space: nowrap;
+    }
 
     .logout-button {
       display: flex;
       align-items: center;
       gap: 0.5rem;
-      padding: 0.5rem 1rem !important; /* Override button style */
+      padding: 0.5rem 1rem !important;
+      /* Override button style */
     }
+
     body.dark-theme .nav-user-section {
       border-left-color: rgba(255, 255, 255, 0.1);
     }
 
     /* --- Hamburger Menu (Mobile) --- */
     .nav-toggle {
-      display: none; /* ซ่อนบน Desktop */
-      position: absolute; /* จัดตำแหน่งเทียบกับ header-container */
+      display: none;
+      /* ซ่อนบน Desktop */
+      position: absolute;
+      /* จัดตำแหน่งเทียบกับ header-container */
       top: 50%;
       right: 1rem;
       transform: translateY(-50%);
-      z-index: 1001; /* ให้อยู่เหนือทุกอย่างใน header */
+      z-index: 1001;
+      /* ให้อยู่เหนือทุกอย่างใน header */
       width: 40px;
       height: 40px;
       background: transparent;
@@ -198,17 +305,25 @@
       transition: top 0.3s ease, transform 0.3s ease;
     }
 
-    .hamburger::before { top: -8px; }
-    .hamburger::after { top: 8px; }
+    .hamburger::before {
+      top: -8px;
+    }
+
+    .hamburger::after {
+      top: 8px;
+    }
 
     /* Hamburger Animation when Active */
     .nav-toggle.active .hamburger {
-      background: transparent; /* ซ่อนขีดกลาง */
+      background: transparent;
+      /* ซ่อนขีดกลาง */
     }
+
     .nav-toggle.active .hamburger::before {
       top: 0;
       transform: rotate(45deg);
     }
+
     .nav-toggle.active .hamburger::after {
       top: 0;
       transform: rotate(-45deg);
@@ -220,25 +335,30 @@
       .nav-toggle {
         display: block;
       }
-      
+
       .site-nav {
         position: fixed;
         top: 0;
-        right: -100%; /* ซ่อนเมนูไว้นอกจอทางขวา */
-        width: 280px; /* ความกว้างของเมนู */
+        right: -100%;
+        /* ซ่อนเมนูไว้นอกจอทางขวา */
+        width: 280px;
+        /* ความกว้างของเมนู */
         height: 100vh;
         background-color: var(--color-header-bg, #004080);
-        box-shadow: -5px 0 15px rgba(0,0,0,0.2);
-        padding-top: 80px; /* เว้นที่สำหรับ header */
+        box-shadow: -5px 0 15px rgba(0, 0, 0, 0.2);
+        padding-top: 80px;
+        /* เว้นที่สำหรับ header */
         transition: right 0.4s cubic-bezier(0.77, 0, 0.175, 1);
       }
 
       .site-nav.nav-open {
-        right: 0; /* แสดงเมนูโดยเลื่อนเข้ามาจากทางขวา */
+        right: 0;
+        /* แสดงเมนูโดยเลื่อนเข้ามาจากทางขวา */
       }
 
       body.nav-lock-scroll {
-        overflow: hidden; /* ป้องกันการ scroll ขณะเมนูเปิด */
+        overflow: hidden;
+        /* ป้องกันการ scroll ขณะเมนูเปิด */
       }
 
       .site-nav .nav-links {
@@ -258,13 +378,15 @@
         border-radius: 0;
         border-bottom: 1px solid rgba(255, 255, 255, 0.1);
       }
+
       .site-nav a::after {
-          display: none; /* ไม่ต้องใช้เส้นใต้บนมือถือ */
+        display: none;
+        /* ไม่ต้องใช้เส้นใต้บนมือถือ */
       }
 
       .site-nav a:hover,
       .site-nav li.active a {
-          background-color: var(--color-primary, #0056b3);
+        background-color: var(--color-primary, #0056b3);
       }
 
       /* จัดเรียง user section บนมือถือใหม่ */
@@ -281,8 +403,9 @@
       }
 
       .logout-button {
-          width: 100%;
-          justify-content: center; /* จัดปุ่มให้อยู่กลาง */
+        width: 100%;
+        justify-content: center;
+        /* จัดปุ่มให้อยู่กลาง */
       }
     }
 
@@ -290,28 +413,33 @@
     body.dark-theme .site-nav {
       background-color: #1e1e1e;
     }
+
     body.dark-theme .site-nav a {
       border-bottom-color: rgba(255, 255, 255, 0.08);
     }
+
     body.dark-theme .nav-user-section {
       border-top-color: rgba(255, 255, 255, 0.08);
     }
+
     body.dark-theme .site-nav a:hover,
     body.dark-theme .site-nav li.active a {
-        background-color: #5ba5f5; /* var(--dt-color-primary) */
-        color: #000;
+      background-color: #5ba5f5;
+      /* var(--dt-color-primary) */
+      color: #000;
     }
-    
+
     .nav-user-section .button-small {
-        padding: 0.5rem 1rem;
-        font-size: 0.9rem;
+      padding: 0.5rem 1rem;
+      font-size: 0.9rem;
     }
-    
+
     /* =========================================== */
     /* === END: NEW NAVBAR & RESPONSIVE STYLES === */
     /* =========================================== */
   </style>
 </head>
+
 <body class="">
 
   <header class="site-header">
@@ -332,33 +460,34 @@
             <li><a href="/hotel_booking/pages/index.php"><i class="fa-solid fa-house-chimney icon"></i>หน้าหลัก</a></li>
             <li><a href="/hotel_booking/pages/booking.php"><i class="fa-solid fa-book-bookmark icon"></i>การจอง</a></li>
             <li><a href="/hotel_booking/pages/booking_calendar_view.php"><i class="fa-solid fa-calendar-days icon"></i>ปฏิทิน</a></li>
-            
+
             <?php if (function_exists('get_current_user_role') && get_current_user_role() === 'admin'): ?>
+              <li><a href="/hotel_booking/pages/manager_dashboard.php"><i class="fa-solid fa-chart-pie icon"></i>แดชบอร์ด</a></li>
               <li><a href="/hotel_booking/pages/report.php"><i class="fa-solid fa-chart-line icon"></i>รายงาน</a></li>
               <li><a href="/hotel_booking/pages/settings_management.php"><i class="fa-solid fa-gears icon"></i>ตั้งค่า</a></li>
             <?php endif; ?>
 
             <li class="nav-user-section">
-                <div class="user-info">
-                  <i class="fa-solid fa-circle-user user-icon"></i>
-                  <span class="user-info-text">
-                    <?= function_exists('get_current_username') ? h(get_current_username()) : '' ?> 
-                    (<?= function_exists('get_current_user_role') ? h(ucfirst(get_current_user_role())) : '' ?>)
-                  </span>
-                </div>
-                <div class="theme-toggle-container">
-                    <label class="theme-toggle-switch" title="Toggle Dark Mode">
-                      <input type="checkbox" id="themeToggleButton">
-                      <span class="theme-toggle-slider"></span>
-                    </label>
-                </div>
-                <a href="/hotel_booking/pages/logout.php" class="button-small alert logout-button">
-                  <i class="fa-solid fa-right-from-bracket"></i>&nbsp;ออกจากระบบ
-                </a>
+              <div class="user-info">
+                <i class="fa-solid fa-circle-user user-icon"></i>
+                <span class="user-info-text">
+                  <?= function_exists('get_current_username') ? h(get_current_username()) : '' ?>
+                  (<?= function_exists('get_current_user_role') ? h(ucfirst(get_current_user_role())) : '' ?>)
+                </span>
+              </div>
+              <div class="theme-toggle-container">
+                <label class="theme-toggle-switch" title="Toggle Dark Mode">
+                  <input type="checkbox" id="themeToggleButton">
+                  <span class="theme-toggle-slider"></span>
+                </label>
+              </div>
+              <a href="/hotel_booking/pages/logout.php" class="button-small alert logout-button">
+                <i class="fa-solid fa-right-from-bracket"></i>&nbsp;ออกจากระบบ
+              </a>
             </li>
 
           <?php else: ?>
-             <li><a href="/hotel_booking/pages/login.php"><i class="fa-solid fa-right-to-bracket icon"></i>เข้าสู่ระบบ</a></li>
+            <li><a href="/hotel_booking/pages/login.php"><i class="fa-solid fa-right-to-bracket icon"></i>เข้าสู่ระบบ</a></li>
           <?php endif; ?>
         </ul>
       </nav>
@@ -367,87 +496,87 @@
 
   <main class="site-content container">
     <?php
-        // Flash Messages (คงไว้เหมือนเดิม)
-        if (isset($_SESSION['error_message'])) {
-            echo '<p class="message error">' . h($_SESSION['error_message']) . '</p>';
-            unset($_SESSION['error_message']);
-        }
-        if (isset($_SESSION['success_message'])) {
-             echo '<p class="message success">' . h($_SESSION['success_message']) . '</p>';
-            unset($_SESSION['success_message']);
-        }
-        // Main Content
-        if (isset($content)) {
-            echo $content;
-        }
+    // Flash Messages (คงไว้เหมือนเดิม)
+    if (isset($_SESSION['error_message'])) {
+      echo '<p class="message error">' . h($_SESSION['error_message']) . '</p>';
+      unset($_SESSION['error_message']);
+    }
+    if (isset($_SESSION['success_message'])) {
+      echo '<p class="message success">' . h($_SESSION['success_message']) . '</p>';
+      unset($_SESSION['success_message']);
+    }
+    // Main Content
+    if (isset($content)) {
+      echo $content;
+    }
     ?>
   </main>
 
-    <div id="modal" class="modal-overlay">
-      <div class="modal-content" data-aos="fade-down" data-aos-duration="300">
-        <button class="modal-close" aria-label="Close">×</button>
-        <div id="modal-body">
-            </div>
+  <div id="modal" class="modal-overlay">
+    <div class="modal-content" data-aos="fade-down" data-aos-duration="300">
+      <button class="modal-close" aria-label="Close">×</button>
+      <div id="modal-body">
       </div>
     </div>
+  </div>
 
-    <div id="image-modal" class="modal-overlay">
-      <div class="modal-content" data-aos="zoom-in" data-aos-duration="300" style="max-width:700px; width:90%;">
-        <button class="modal-close" aria-label="Close">×</button>
-        <img id="modal-image" src="" alt="หลักฐาน" style="max-width:100%; height:auto; border-radius:var(--border-radius-md); display:block;" />
+  <div id="image-modal" class="modal-overlay">
+    <div class="modal-content" data-aos="zoom-in" data-aos-duration="300" style="max-width:700px; width:90%;">
+      <button class="modal-close" aria-label="Close">×</button>
+      <img id="modal-image" src="" alt="หลักฐาน" style="max-width:100%; height:auto; border-radius:var(--border-radius-md); display:block;" />
+    </div>
+  </div>
+
+  <div id="deposit-modal" class="modal-overlay">
+    <div class="modal-content">
+      <button class="modal-close" aria-label="Close">×</button>
+      <div id="deposit-modal-body">
+        <h4>คืนเงินมัดจำ</h4>
+        <img id="deposit-modal-image" src="" alt="หลักฐานคืนมัดจำ" style="display:none; max-width: 100%; height: auto; margin-top: 10px;">
       </div>
     </div>
-    
-    <div id="deposit-modal" class="modal-overlay">
-      <div class="modal-content">
-        <button class="modal-close" aria-label="Close">×</button>
-        <div id="deposit-modal-body">
-            <h4>คืนเงินมัดจำ</h4>
-            <img id="deposit-modal-image" src="" alt="หลักฐานคืนมัดจำ" style="display:none; max-width: 100%; height: auto; margin-top: 10px;">
+  </div>
+
+  <div id="edit-addon-modal" class="modal-overlay">
+    <div class="modal-content" style="max-width:500px;">
+      <button class="modal-close" aria-label="Close">×</button>
+      <h3>แก้ไขบริการเสริม</h3>
+      <form id="edit-addon-modal-form">
+        <input type="hidden" name="id" id="edit_addon_id">
+        <div class="form-group">
+          <label for="edit_addon_name_modal">ชื่อบริการ:</label>
+          <input type="text" id="edit_addon_name_modal" name="name" required class="form-control">
         </div>
+        <div class="form-group">
+          <label for="edit_addon_price_modal">ราคา (บาท):</label>
+          <input type="number" id="edit_addon_price_modal" name="price" required class="form-control" step="1" min="0">
+        </div>
+        <div class="button-group">
+          <button type="submit" id="submitEditAddonBtn" class="button primary">บันทึกการแก้ไข</button>
+          <button type="button" class="button outline-secondary modal-close">ยกเลิก</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="move-room-modal" class="modal-overlay">
+    <div class="modal-content" style="max-width:500px;">
+      <button class="modal-close" aria-label="Close">×</button>
+      <h3>ย้ายห้องพัก</h3>
+      <p id="move-room-info-text">กำลังโหลดข้อมูล...</p>
+      <div class="form-group">
+        <label for="select-new-room">เลือกห้องใหม่ที่ต้องการย้ายไป:</label>
+        <select id="select-new-room" class="form-control" disabled>
+          <option value="">-- กรุณาเลือก --</option>
+        </select>
+      </div>
+      <div class="button-group">
+        <button id="confirm-move-room-btn" class="button primary" disabled>ยืนยันการย้ายห้อง</button>
+        <button type="button" class="button outline-secondary modal-close">ยกเลิก</button>
       </div>
     </div>
-
-    <div id="edit-addon-modal" class="modal-overlay">
-        <div class="modal-content" style="max-width:500px;">
-            <button class="modal-close" aria-label="Close">×</button>
-            <h3>แก้ไขบริการเสริม</h3>
-            <form id="edit-addon-modal-form">
-                <input type="hidden" name="id" id="edit_addon_id">
-                <div class="form-group">
-                    <label for="edit_addon_name_modal">ชื่อบริการ:</label>
-                    <input type="text" id="edit_addon_name_modal" name="name" required class="form-control">
-                </div>
-                <div class="form-group">
-                    <label for="edit_addon_price_modal">ราคา (บาท):</label>
-                    <input type="number" id="edit_addon_price_modal" name="price" required class="form-control" step="1" min="0">
-                </div>
-                <div class="button-group">
-                    <button type="submit" id="submitEditAddonBtn" class="button primary">บันทึกการแก้ไข</button>
-                    <button type="button" class="button outline-secondary modal-close">ยกเลิก</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <div id="move-room-modal" class="modal-overlay">
-        <div class="modal-content" style="max-width:500px;">
-            <button class="modal-close" aria-label="Close">×</button>
-            <h3>ย้ายห้องพัก</h3>
-            <p id="move-room-info-text">กำลังโหลดข้อมูล...</p>
-            <div class="form-group">
-                <label for="select-new-room">เลือกห้องใหม่ที่ต้องการย้ายไป:</label>
-                <select id="select-new-room" class="form-control" disabled>
-                    <option value="">-- กรุณาเลือก --</option>
-                </select>
-            </div>
-            <div class="button-group">
-                <button id="confirm-move-room-btn" class="button primary" disabled>ยืนยันการย้ายห้อง</button>
-                <button type="button" class="button outline-secondary modal-close">ยกเลิก</button>
-            </div>
-        </div>
-    </div>
-    <footer class="site-footer">
+  </div>
+  <footer class="site-footer">
     <div class="container">
       <p>&copy; <?= date('Y') ?> Hotel Booking System. All rights reserved.</p>
     </div>
@@ -455,86 +584,89 @@
 
   <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // --- START: โค้ดสำหรับเมนูบนมือถือ ---
-        const navToggle = document.querySelector('.nav-toggle');
-        const nav = document.querySelector('.site-nav');
-        const body = document.body;
+      // --- START: โค้ดสำหรับเมนูบนมือถือ ---
+      const navToggle = document.querySelector('.nav-toggle');
+      const nav = document.querySelector('.site-nav');
+      const body = document.body;
 
-        navToggle.addEventListener('click', () => {
-            nav.classList.toggle('nav-open');
-            navToggle.classList.toggle('active');
-            body.classList.toggle('nav-lock-scroll'); // ป้องกันการเลื่อนหน้าจอเมื่อเมนูเปิด
+      navToggle.addEventListener('click', () => {
+        nav.classList.toggle('nav-open');
+        navToggle.classList.toggle('active');
+        body.classList.toggle('nav-lock-scroll'); // ป้องกันการเลื่อนหน้าจอเมื่อเมนูเปิด
+      });
+
+      // --- START: โค้ดสำหรับไฮไลท์เมนูปัจจุบัน ---
+      try {
+        const currentLocation = window.location.pathname;
+        const navLinks = document.querySelectorAll('.site-nav .nav-links a');
+
+        navLinks.forEach(link => {
+          const linkPath = new URL(link.href).pathname;
+          if (linkPath === currentLocation) {
+            link.parentElement.classList.add('active');
+          }
         });
-        
-        // --- START: โค้ดสำหรับไฮไลท์เมนูปัจจุบัน ---
-        try {
-            const currentLocation = window.location.pathname;
-            const navLinks = document.querySelectorAll('.site-nav .nav-links a');
-            
-            navLinks.forEach(link => {
-                const linkPath = new URL(link.href).pathname;
-                if (linkPath === currentLocation) {
-                    link.parentElement.classList.add('active');
-                }
-            });
-        } catch(e) {
-            console.error("Error highlighting active menu:", e);
-        }
-        // --- END: โค้ดสำหรับไฮไลท์เมนูปัจจุบัน ---
+      } catch (e) {
+        console.error("Error highlighting active menu:", e);
+      }
+      // --- END: โค้ดสำหรับไฮไลท์เมนูปัจจุบัน ---
 
-        AOS.init({ once: false });
+      AOS.init({
+        once: false
+      });
 
-        // --- START: Theme Management (ปรับปรุงเล็กน้อย) ---
-        const themeToggleButton = document.getElementById('themeToggleButton');
-        const isAdmin = <?= (function_exists('get_current_user_role') && get_current_user_role() === 'admin') ? 'true' : 'false' ?>;
-        const THEME_PREFERENCE_KEY = 'adminThemePreference';
+      // --- START: Theme Management (ปรับปรุงเล็กน้อย) ---
+      const themeToggleButton = document.getElementById('themeToggleButton');
+      const isAdmin = <?= (function_exists('get_current_user_role') && get_current_user_role() === 'admin') ? 'true' : 'false' ?>;
+      const THEME_PREFERENCE_KEY = 'adminThemePreference';
 
-        function applyTheme(theme) {
-            if (theme === 'dark') {
-                document.body.classList.add('dark-theme');
-                if (themeToggleButton) themeToggleButton.checked = true;
-            } else {
-                document.body.classList.remove('dark-theme');
-                if (themeToggleButton) themeToggleButton.checked = false;
-            }
+      function applyTheme(theme) {
+        if (theme === 'dark') {
+          document.body.classList.add('dark-theme');
+          if (themeToggleButton) themeToggleButton.checked = true;
+        } else {
+          document.body.classList.remove('dark-theme');
+          if (themeToggleButton) themeToggleButton.checked = false;
+        }
+      }
+
+      function getAdminPreference() {
+        return localStorage.getItem(THEME_PREFERENCE_KEY);
+      }
+
+      function setAdminPreference(theme) {
+        localStorage.setItem(THEME_PREFERENCE_KEY, theme);
+      }
+
+      function initializeTheme() {
+        let preferredTheme = getAdminPreference();
+        if (preferredTheme) {
+          applyTheme(preferredTheme);
+        } else {
+          // ถ้าไม่มีค่าที่บันทึกไว้ ให้ใช้ค่า default เป็น light
+          applyTheme('light');
+        }
+      }
+
+      if (themeToggleButton) {
+        // ตั้งค่าเริ่มต้นของปุ่มสลับธีมตาม theme ปัจจุบัน
+        if (document.body.classList.contains('dark-theme')) {
+          themeToggleButton.checked = true;
         }
 
-        function getAdminPreference() {
-            return localStorage.getItem(THEME_PREFERENCE_KEY);
-        }
-        
-        function setAdminPreference(theme) {
-            localStorage.setItem(THEME_PREFERENCE_KEY, theme);
-        }
-
-        function initializeTheme() {
-            let preferredTheme = getAdminPreference();
-            if (preferredTheme) {
-                applyTheme(preferredTheme);
-            } else {
-                // ถ้าไม่มีค่าที่บันทึกไว้ ให้ใช้ค่า default เป็น light
-                applyTheme('light');
-            }
-        }
-        
-        if (themeToggleButton) {
-            // ตั้งค่าเริ่มต้นของปุ่มสลับธีมตาม theme ปัจจุบัน
-            if (document.body.classList.contains('dark-theme')){
-                themeToggleButton.checked = true;
-            }
-
-            themeToggleButton.addEventListener('change', function() {
-                const newTheme = this.checked ? 'dark' : 'light';
-                applyTheme(newTheme);
-                // บันทึกค่าเฉพาะ admin
-                if (isAdmin) {
-                  setAdminPreference(newTheme);
-                }
-            });
-        }
-        initializeTheme();
-        // --- END: Theme Management ---
+        themeToggleButton.addEventListener('change', function() {
+          const newTheme = this.checked ? 'dark' : 'light';
+          applyTheme(newTheme);
+          // บันทึกค่าเฉพาะ admin
+          if (isAdmin) {
+            setAdminPreference(newTheme);
+          }
+        });
+      }
+      initializeTheme();
+      // --- END: Theme Management ---
     });
   </script>
 </body>
+
 </html>

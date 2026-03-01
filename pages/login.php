@@ -28,7 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $_SESSION['username'] = $user['username'];
                     $_SESSION['user_role'] = $user['role'];
                     session_regenerate_id(true); // ป้องกัน session fixation
-                    header('Location: ' . DASHBOARD_PAGE);
+                    header('Location: /hotel_booking/pages/manager_dashboard.php');
                     exit;
                 } else {
                     $login_error = 'รหัสผ่านผู้ดูแลไม่ถูกต้อง';
@@ -53,13 +53,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 ob_start();
 ?>
 <style>
-    body { display: flex; justify-content: center; align-items: center; min-height: 100vh; background-color: var(--color-bg); }
-    .login-container { background-color: var(--color-surface); padding: 2rem; border-radius: var(--border-radius-lg); box-shadow: var(--shadow-lg); width: 100%; max-width: 400px; }
-    .login-container h2 { text-align: center; color: var(--color-primary-dark); margin-bottom: 1.5rem; }
-    .form-group { margin-bottom: 1.25rem; }
-    .form-group label { display: block; margin-bottom: 0.4rem; font-weight: 500; }
-    .form-group select, .form-group input[type="password"] { width: 100%; padding: 0.7rem; border: 1px solid var(--color-border); border-radius: var(--border-radius-md); }
-    .error-message { color: var(--color-error-text); background-color: var(--color-error-bg); border: 1px solid var(--color-error-border); padding: 0.75rem; border-radius: var(--border-radius-md); margin-bottom: 1rem; text-align: center;}
+    body {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        background-color: var(--color-bg);
+    }
+
+    .login-container {
+        background-color: var(--color-surface);
+        padding: 2rem;
+        border-radius: var(--border-radius-lg);
+        box-shadow: var(--shadow-lg);
+        width: 100%;
+        max-width: 400px;
+    }
+
+    .login-container h2 {
+        text-align: center;
+        color: var(--color-primary-dark);
+        margin-bottom: 1.5rem;
+    }
+
+    .form-group {
+        margin-bottom: 1.25rem;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 0.4rem;
+        font-weight: 500;
+    }
+
+    .form-group select,
+    .form-group input[type="password"] {
+        width: 100%;
+        padding: 0.7rem;
+        border: 1px solid var(--color-border);
+        border-radius: var(--border-radius-md);
+    }
+
+    .error-message {
+        color: var(--color-error-text);
+        background-color: var(--color-error-bg);
+        border: 1px solid var(--color-error-border);
+        padding: 0.75rem;
+        border-radius: var(--border-radius-md);
+        margin-bottom: 1rem;
+        text-align: center;
+    }
 </style>
 
 <div class="login-container">
@@ -114,6 +157,7 @@ $content = ob_get_clean();
 ?>
 <!DOCTYPE html>
 <html lang="th">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -121,7 +165,9 @@ $content = ob_get_clean();
     <link rel="stylesheet" href="/hotel_booking/assets/css/main.css">
     <link rel="icon" type="image/x-icon" href="/hotel_booking/assets/image/logo.ico">
 </head>
+
 <body>
     <?= $content ?>
 </body>
+
 </html>

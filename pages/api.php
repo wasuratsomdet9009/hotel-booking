@@ -288,7 +288,6 @@ switch ($action) {
                     error_log("[API Create] Inserted " . count($uploadedReceipts) . " receipts for booking group ID: {$bookingGroupId}");
                 }
             }
-            // --- END: MODIFIED RECEIPT HANDLING ---
             
             // Check if receipt is required but not uploaded
             if ($amount_paid_by_customer_for_group > 0 && !$is_receipt_uploaded && $payment_method !== 'เงินสด') { // Added condition for cash payment
@@ -749,7 +748,125 @@ switch ($action) {
             echo json_encode(['success' => false, 'message' => $e->getMessage(), 'detail' => $e->getMessage()]); 
             exit;
         }
+    case 'bulk_return_and_complete':
+        try {
+            $pdo->beginTransaction();
+            $current_user_id = get_current_user_id();
+            
+            $bookingIds = $_POST['booking_ids'] ?? [];
+            if (empty($bookingIds) || !is_array($bookingIds)) {
+                throw new Exception("ไม่พบรายการห้องพักที่เลือก");
+            }
 
+            // 1. จัดการไฟล์รูปภาพ (ทำครั้งเดียว ใช้ได้ทุกห้อง)
+            $depositProofFile = null;
+            $actuallyReturnDepositFlag = 0;
+
+            if (isset($_FILES['deposit_proof']) && $_FILES['deposit_proof']['error'] === UPLOAD_ERR_OK) {
+                // ... (Logic อัปโหลดไฟล์เหมือนเดิมใน case return_and_complete) ...
+                $depositDir = __DIR__ . '/../uploads/deposit/';
+                if (!is_dir($depositDir)) @mkdir($depositDir, 0777, true);
+                
+                $ext = strtolower(pathinfo($_FILES['deposit_proof']['name'], PATHINFO_EXTENSION));
+                $depositProofFile = 'deposit_bulk_' . uniqid() . '.' . $ext;
+                
+                if (move_uploaded_file($_FILES['deposit_proof']['tmp_name'], $depositDir . $depositProofFile)) {
+                    $actuallyReturnDepositFlag = 1;
+                } else {
+                    throw new Exception("อัปโหลดไฟล์ไม่สำเร็จ");
+                }
+            }
+
+            // 2. วนลูปดำเนินการกับแต่ละ Booking
+            foreach ($bookingIds as $bookingId) {
+                $bookingId = (int)$bookingId;
+                
+                // ดึงข้อมูล Booking เดิม
+                $stmtBooking = $pdo->prepare("SELECT * FROM bookings WHERE id = ?");
+                $stmtBooking->execute([$bookingId]);
+                $booking = $stmtBooking->fetch(PDO::FETCH_ASSOC);
+                
+                if (!$booking) continue; // ข้ามถ้าไม่เจอ
+
+                // เตรียมข้อมูล Archive (ใช้ logic เดียวกับ return_and_complete)
+                $archiveSql = "INSERT INTO archives (
+                    room_id, customer_name, customer_phone, booking_type,
+                    checkin_datetime, checkout_datetime_calculated, checkout_datetime,
+                    nights, extended_hours, price_per_night, total_price, amount_paid,
+                    additional_paid_amount, deposit_amount, payment_method, extended_payment_method,
+                    receipt_path, extended_receipt_path,
+                    deposit_returned, deposit_path, notes,
+                    created_at, last_extended_at, archived_at, is_temporary_archive,
+                    created_by_user_id, last_modified_by_user_id, booking_group_id
+                ) VALUES (
+                    :room_id, :customer_name, :customer_phone, :booking_type,
+                    :checkin_datetime, :checkout_datetime_calculated, NOW(),
+                    :nights, :extended_hours, :price_per_night, :total_price, :amount_paid,
+                    :additional_paid_amount, :deposit_amount, :payment_method, :extended_payment_method,
+                    :receipt_path, :extended_receipt_path,
+                    :deposit_returned, :deposit_path, :notes, 
+                    :created_at_orig, :last_extended_at_orig, NOW(), 0,
+                    :created_by, :last_modified_by, :booking_group_id
+                )";
+
+                $stmtArchive = $pdo->prepare($archiveSql);
+                $stmtArchive->execute([
+                    ':room_id' => $booking['room_id'],
+                    ':customer_name' => $booking['customer_name'],
+                    ':customer_phone' => $booking['customer_phone'],
+                    ':booking_type' => $booking['booking_type'],
+                    ':checkin_datetime' => $booking['checkin_datetime'],
+                    ':checkout_datetime_calculated' => $booking['checkout_datetime_calculated'],
+                    ':nights' => $booking['nights'],
+                    ':extended_hours' => $booking['extended_hours'],
+                    ':price_per_night' => $booking['price_per_night'],
+                    ':total_price' => $booking['total_price'],
+                    ':amount_paid' => $booking['amount_paid'],
+                    ':additional_paid_amount' => $booking['additional_paid_amount'],
+                    ':deposit_amount' => $booking['deposit_amount'],
+                    ':payment_method' => $booking['payment_method'],
+                    ':extended_payment_method' => $booking['extended_payment_method'],
+                    ':receipt_path' => $booking['receipt_path'],
+                    ':extended_receipt_path' => $booking['extended_receipt_path'],
+                    ':deposit_returned' => $actuallyReturnDepositFlag,
+                    ':deposit_path' => $depositProofFile, // ใช้ไฟล์เดียวกัน
+                    ':notes' => $booking['notes'],
+                    ':created_at_orig' => $booking['created_at'],
+                    ':last_extended_at_orig' => $booking['last_extended_at'] ?? $booking['created_at'],
+                    ':created_by' => $booking['created_by_user_id'],
+                    ':last_modified_by' => $current_user_id,
+                    ':booking_group_id' => $booking['booking_group_id']
+                ]);
+                
+                $archiveId = $pdo->lastInsertId();
+
+                // ย้าย Addons
+                $stmtMoveAddons = $pdo->prepare("INSERT INTO archive_addons (archive_id, addon_service_id, quantity, price_at_booking) SELECT ?, addon_service_id, quantity, price_at_booking FROM booking_addons WHERE booking_id = ?");
+                $stmtMoveAddons->execute([$archiveId, $bookingId]);
+
+                // ลบข้อมูลเก่า
+                $pdo->prepare("DELETE FROM booking_addons WHERE booking_id = ?")->execute([$bookingId]);
+                $pdo->prepare("DELETE FROM bookings WHERE id = ?")->execute([$bookingId]);
+                
+                // อัปเดตห้องเป็นว่าง
+                $pdo->prepare("UPDATE rooms SET status = 'free' WHERE id = ?")->execute([$booking['room_id']]);
+            }
+
+            $pdo->commit();
+            // ส่ง Telegram Noti ถ้ามี
+            if (function_exists('sendTelegramRoomStatusUpdate')) {
+                sendTelegramRoomStatusUpdate($pdo);
+            }
+
+            echo json_encode(['success' => true, 'message' => 'ทำรายการคืนมัดจำ/เช็คเอาท์เรียบร้อยแล้ว']);
+
+        } catch (Exception $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
+        exit;
+    
     case 'update_booking_group':
         try {
             $pdo->beginTransaction();
@@ -2939,279 +3056,23 @@ switch ($action) {
             exit;
         }
     
-    // ***** START: โค้ดที่เพิ่มเข้ามา (NEW ACTION: update_booking_payment) *****
-    case 'update_booking_payment':
-        $pdo->beginTransaction();
-        try {
-            $bookingId = (int)($_POST['booking_id'] ?? 0);
-            $newAmountPaid = $_POST['new_amount_paid'] ?? null;
-            $paymentMethod = $_POST['payment_method'] ?? '';
-            $receiptFiles = $_FILES['receipt_files'] ?? []; // For multiple receipts
-            
-            if (!$bookingId || $newAmountPaid === null || !is_numeric($newAmountPaid)) {
-                throw new Exception('ข้อมูลไม่ถูกต้องสำหรับอัปเดตยอดชำระ', 400); // Invalid data for updating payment amount
-            }
-            if ((float)$newAmountPaid < 0) {
-                 throw new Exception('ยอดชำระใหม่ต้องไม่ติดลบ', 400); // New payment amount cannot be negative
-            }
-            if (empty($paymentMethod) && (float)$newAmountPaid > 0) {
-                 throw new Exception('กรุณาระบุวิธีการชำระเงิน', 400); // Please specify payment method
-            }
-
-            // Fetch current booking data to get current amount_paid and total_price
-            $stmtCurrentBooking = $pdo->prepare("SELECT amount_paid, total_price, booking_group_id FROM bookings WHERE id = ?");
-            $stmtCurrentBooking->execute([$bookingId]);
-            $currentBookingData = $stmtCurrentBooking->fetch(PDO::FETCH_ASSOC);
-
-            if (!$currentBookingData) {
-                throw new Exception('ไม่พบข้อมูลการจองที่ต้องการอัปเดต', 404); // Booking data to update not found
-            }
-
-            $oldAmountPaid = (float)$currentBookingData['amount_paid'];
-            $newAmountPaidFloat = (float)$newAmountPaid;
-
-            // Calculate the difference to update additional_paid_amount
-            $paymentDifference = $newAmountPaidFloat - $oldAmountPaid;
-
-            $stmt = $pdo->prepare("UPDATE bookings SET amount_paid = ?, last_modified_by_user_id = ?, last_modified_at = NOW() WHERE id = ?");
-            $stmt->execute([round($newAmountPaidFloat), get_current_user_id(), $bookingId]);
-            
-            // Handle multiple receipt uploads for the booking group
-            $is_receipt_uploaded = false;
-            if (isset($receiptFiles['name']) && is_array($receiptFiles['name'])) {
-                $receiptDir = __DIR__ . '/../uploads/receipts/';
-                if (!is_dir($receiptDir)) @mkdir($receiptDir, 0777, true);
-                if (!is_writable($receiptDir)) throw new Exception('โฟลเดอร์หลักฐานไม่มีสิทธิ์เขียน', 500); // Receipt folder is not writable
-
-                foreach ($receiptFiles['name'] as $key => $filename) {
-                    if ($receiptFiles['error'][$key] === UPLOAD_ERR_OK) {
-                        $is_receipt_uploaded = true;
-                        $temp_file_path = $receiptFiles['tmp_name'][$key];
-                        $original_filename = $receiptFiles['name'][$key];
-                        $ext = strtolower(pathinfo($original_filename, PATHINFO_EXTENSION));
-                        $allowed_exts = ['jpg', 'jpeg', 'png', 'gif', 'pdf'];
-
-                        if (in_array($ext, $allowed_exts)) {
-                            $unique_rcpt_filename = 'grp_rcpt_' . $currentBookingData['booking_group_id'] . '_' . uniqid('payment_') . '.' . $ext;
-                            $destination_path = $receiptDir . $unique_rcpt_filename;
-
-                            $moved_successfully = false;
-                            if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif'])) {
-                                if (function_exists('process_uploaded_image_with_compression') && process_uploaded_image_with_compression($temp_file_path, $destination_path, $original_filename)) {
-                                    $moved_successfully = true;
-                                } else {
-                                    error_log("[API UpdatePayment] process_uploaded_image_with_compression failed for {$original_filename}, falling back to move_uploaded_file.");
-                                    if (move_uploaded_file($temp_file_path, $destination_path)) {
-                                        $moved_successfully = true;
-                                    }
-                                }
-                            } elseif ($ext === 'pdf') {
-                                if (move_uploaded_file($temp_file_path, $destination_path)) {
-                                    $moved_successfully = true;
-                                }
-                            }
-
-                            if ($moved_successfully) {
-                                // Insert into booking_group_receipts
-                                $stmtInsertReceipt = $pdo->prepare(
-                                    "INSERT INTO booking_group_receipts (booking_group_id, receipt_path, description, uploaded_by_user_id, amount, payment_method)
-                                     VALUES (:booking_group_id, :receipt_path, :description, :user_id, :amount, :payment_method)"
-                                );
-                                // For simplicity, we are associating the entire payment difference with each uploaded receipt.
-                                // A more complex system might distribute it or allow manual entry per receipt.
-                                $stmtInsertReceipt->execute([
-                                    ':booking_group_id' => $currentBookingData['booking_group_id'],
-                                    ':receipt_path' => $unique_rcpt_filename,
-                                    ':description' => 'อัปเดตยอดชำระสำหรับ Booking ID ' . $bookingId, // Payment update for Booking ID
-                                    ':user_id' => get_current_user_id(),
-                                    ':amount' => $paymentDifference, // The amount of this particular transaction
-                                    ':payment_method' => $paymentMethod
-                                ]);
-                                error_log("[API UpdatePayment] Inserted receipt {$unique_rcpt_filename} for Booking ID: {$bookingId} (Group ID: {$currentBookingData['booking_group_id']}).");
-                            } else {
-                                error_log("[API UpdatePayment] Could not move/process uploaded file: {$original_filename}");
-                            }
-                        } else {
-                            error_log("[API UpdatePayment] Skipped unsupported file type: {$ext} for file {$original_filename}");
-                        }
-                    }
-                }
-            }
-
-            // Conditional check for receipt upload
-            if ($paymentDifference > 0 && !$is_receipt_uploaded && $paymentMethod !== 'เงินสด') {
-                throw new Exception('กรุณาแนบหลักฐานการชำระเงินเมื่อมีการเพิ่มยอด (ยกเว้นเงินสด)', 400); // Please attach proof of payment when increasing amount (except cash)
-            }
-
-            $pdo->commit();
-            // --- START: Telegram Notification Trigger ---
-            try {
-                if (function_exists('sendTelegramRoomStatusUpdate')) {
-                    sendTelegramRoomStatusUpdate($pdo);
-                }
-            } catch (Exception $tg_e) {
-                error_log("Telegram notification failed after updating booking payment: " . $tg_e->getMessage());
-            }
-            // --- END: Telegram Notification Trigger ---
-            echo json_encode(['success' => true, 'message' => 'อัปเดตยอดชำระสำหรับ Booking ID ' . $bookingId . ' เรียบร้อยแล้ว']); // Payment amount updated for Booking ID
-        } catch (Exception $e) {
-            if ($pdo->inTransaction()) $pdo->rollBack();
-            http_response_code($e->getCode() >= 400 ? $e->getCode() : 500);
-            error_log("[API UpdatePayment] Error: " . $e->getMessage());
-            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
-        }
-        exit;
-    // ***** END: โค้ดที่เพิ่มเข้ามา *****
-    
     case 'get_room_statuses':
         try {
-            // --- START OF MODIFIED SQL QUERY ---
+            // --- START OF MODIFIED SQL QUERY --- // <<< [V2 REFACTOR] REMOVING OLD QUERY
             // This query is designed to fetch comprehensive status information for each room.
-            // It uses a subquery to find the *most relevant* booking for each room based on a priority system:
-            // 1. Currently active bookings (check-in past or present, checkout in future).
-            // 2. Bookings for today (check-in in future, but on current date).
-            // 3. Bookings for tomorrow.
-            // 4. Overdue bookings (checkout past).
-            // 5. Other future bookings.
-            // This ensures that the displayed status accurately reflects the room's immediate availability or occupancy.
-            $roomsDataQueryApi = $pdo->prepare("
-                SELECT
-                    r.id,
-                    r.status AS db_actual_status,
-                    r.zone,
-                    r.room_number,
-                    r.allow_short_stay,
-                    r.ask_deposit_on_overnight,
-                    r.price_per_day,
-                    r.price_short_stay,
-                    r.price_per_hour_extension,
-                    r.short_stay_duration_hours,
-                    current_booking.id AS current_booking_id,
-                    current_booking.customer_name AS current_booking_customer_name,
-                    current_booking.customer_phone AS current_booking_customer_phone,
-                    current_booking.booking_type AS current_booking_type,
-                    current_booking.checkin_datetime AS current_booking_checkin_datetime,
-                    current_booking.checkout_datetime_calculated AS current_booking_checkout_datetime_calculated,
-                    current_booking.nights AS current_booking_nights,
-                    current_booking.price_per_night AS current_booking_price_per_night,
-                    current_booking.total_price AS current_booking_total_price,
-                    current_booking.amount_paid AS current_booking_amount_paid,
-                    current_booking.deposit_amount AS current_booking_deposit_amount,
-                    current_booking.extended_hours AS current_booking_extended_hours,
-                    current_booking.payment_method AS current_booking_payment_method,
-                    current_booking.extended_payment_method AS current_booking_extended_payment_method,
-                    current_booking.notes AS current_booking_notes,
-                    current_booking.booking_group_id AS current_booking_group_id,
-                    
-                    (CASE /* is_overdue */
-                        WHEN current_booking.id IS NOT NULL AND NOW() >= current_booking.checkout_datetime_calculated THEN 1
-                        ELSE 0
-                    END) AS is_overdue,
-                    
-                    (CASE /* is_nearing_checkout */
-                        WHEN current_booking.id IS NOT NULL
-                            AND current_booking.checkin_datetime <= NOW()
-                            AND NOW() < current_booking.checkout_datetime_calculated
-                            AND TIMESTAMPDIFF(MINUTE, NOW(), current_booking.checkout_datetime_calculated) <= 60 
-                            AND TIMESTAMPDIFF(MINUTE, NOW(), current_booking.checkout_datetime_calculated) > 0
-                        THEN 1
-                        ELSE 0
-                    END) AS is_nearing_checkout,
-
-                    (CASE /* has_pending_payment */
-                        WHEN current_booking.id IS NOT NULL
-                            AND current_booking.total_price > current_booking.amount_paid
-                        THEN 1
-                        ELSE 0
-                    END) AS has_pending_payment,
-
-                    -- ** START: REVISED display_status LOGIC **
-                    CASE
-                        -- Priority 1: Overdue Occupied (แดงเข้ม)
-                        WHEN current_booking.id IS NOT NULL AND NOW() >= current_booking.checkout_datetime_calculated THEN 'overdue_occupied'
-
-                        -- Priority 2: Occupied (Normal or F Short Occupied) (แดง)
-                        WHEN current_booking.id IS NOT NULL
-                             AND current_booking.checkin_datetime <= NOW()
-                             AND NOW() < current_booking.checkout_datetime_calculated
-                        THEN 
-                            CASE
-                                WHEN r.zone = 'F' AND current_booking.booking_type = 'short_stay' THEN 'f_short_occupied'
-                                WHEN r.status = 'occupied' THEN 'occupied'
-                                ELSE r.status -- Should ideally be 'occupied'
-                            END
-
-                        -- Priority 3: Booked (Pending Check-in Today - เหลือง)
-                        WHEN current_booking.id IS NOT NULL
-                             AND DATE(current_booking.checkin_datetime) = CURDATE()
-                             AND current_booking.checkin_datetime > NOW()
-                        THEN 'booked'
-
-                        -- Priority 4: Advance Booking (Arriving Tomorrow or later, and room is actually 'free' or 'advance_booking' in DB) (ฟ้า)
-                        WHEN current_booking.id IS NOT NULL
-                             AND DATE(current_booking.checkin_datetime) > CURDATE() -- Check-in is tomorrow or later
-                             AND NOT EXISTS ( -- Ensure room is not already occupied by someone else now
-                                 SELECT 1 FROM bookings b_active_today
-                                 WHERE b_active_today.room_id = r.id
-                                 AND b_active_today.checkin_datetime <= NOW() AND NOW() < b_active_today.checkout_datetime_calculated
-                             )
-                        THEN 'advance_booking'
-
-                        -- Priority 5: Free (No bookings today/tomorrow, or bookings are >1 day away) (เขียว)
-                        WHEN r.status = 'free' OR (r.status = 'advance_booking' AND (current_booking.id IS NULL OR DATE(current_booking.checkin_datetime) > DATE_ADD(CURDATE(), INTERVAL 1 DAY)))
-                        THEN 'free'
-                        
-                        ELSE r.status -- Fallback to actual DB status (e.g., maintenance, dirty)
-                    END AS display_status,
-                    -- ** END: REVISED display_status LOGIC **
-                    (SELECT b_rel.id FROM bookings b_rel
-                        WHERE b_rel.room_id = r.id AND b_rel.checkout_datetime_calculated > NOW()
-                        ORDER BY b_rel.checkin_datetime ASC
-                        LIMIT 1) as relevant_booking_id
-                FROM rooms r
-                LEFT JOIN ( 
-                    SELECT
-                        b_inner.room_id,
-                        b_inner.id,
-                        b_inner.customer_name,
-                        b_inner.customer_phone,
-                        b_inner.booking_type,
-                        b_inner.checkin_datetime,
-                        b_inner.checkout_datetime_calculated,
-                        b_inner.nights,
-                        b_inner.price_per_night,
-                        b_inner.total_price, 
-                        b_inner.amount_paid,
-                        b_inner.deposit_amount,
-                        b_inner.extended_hours,
-                        b_inner.payment_method,
-                        b_inner.extended_payment_method,
-                        b_inner.notes,
-                        b_inner.booking_group_id
-                    FROM bookings b_inner
-                    WHERE
-                        b_inner.id = (
-                            SELECT b_latest.id
-                            FROM bookings b_latest
-                            WHERE b_latest.room_id = b_inner.room_id
-                            ORDER BY
-                                (CASE
-                                    WHEN b_latest.checkin_datetime <= NOW() AND NOW() < b_latest.checkout_datetime_calculated THEN 1 -- Active (highest prio)
-                                    WHEN DATE(b_latest.checkin_datetime) = CURDATE() AND b_latest.checkin_datetime > NOW() THEN 2 -- Today, but future checkin
-                                    WHEN DATE(b_latest.checkin_datetime) = DATE_ADD(CURDATE(), INTERVAL 1 DAY) THEN 3 -- Tomorrow
-                                    WHEN NOW() >= b_latest.checkout_datetime_calculated THEN 4 -- Overdue (after active/today/tomorrow)
-                                    ELSE 5 -- Future (beyond tomorrow)
-                                END) ASC,
-                                b_latest.checkin_datetime ASC, -- For same priority, earlier check-in wins
-                                b_latest.id DESC
-                            LIMIT 1
-                        )
-                ) AS current_booking ON current_booking.room_id = r.id
-                ORDER BY r.zone ASC, CAST(r.room_number AS UNSIGNED) ASC
-            ");
-            // --- END OF MODIFIED SQL QUERY ---
-            $roomsDataQueryApi->execute();
-            $roomsStatuses = $roomsDataQueryApi->fetchAll(PDO::FETCH_ASSOC);
+            // ... (approx 88 lines of old query removed) ...
+            // --- END OF MODIFIED SQL QUERY --- // <<< [V2 REFACTOR] REMOVING OLD QUERY
+            
+            // $roomsDataQueryApi->execute(); // <<< [V2 REFACTOR] REMOVED
+            // $roomsStatuses = $roomsDataQueryApi->fetchAll(PDO::FETCH_ASSOC); // <<< [V2 REFACTOR] REMOVED
+            
+            // +++ START: REFACTORED V2 - PERFORMANCE FIX 1.1 +++
+            // เรียกใช้ฟังก์ชันกลางที่ถูก Optimize แล้วจาก bootstrap.php
+            if (!function_exists('fetchRoomStatuses')) {
+                throw new Exception("Critical error: fetchRoomStatuses() function not found.");
+            }
+            $roomsStatuses = fetchRoomStatuses($pdo);
+            // +++ END: REFACTORED V2 +++
 
             // Sanitize numerical values before encoding
             $sanitizedRoomsStatuses = array_map(function($room) {

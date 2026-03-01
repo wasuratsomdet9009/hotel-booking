@@ -6,7 +6,6 @@ require_login();
 $pageTitle = 'Dashboard โรงแรม';
 
 // --- START: New Automatic Archiving for OVERDUE ZONE F Bookings (WITH DEPOSIT CHECK) ---
-
 try {
     $pdo->beginTransaction();
 
@@ -135,10 +134,8 @@ try {
     if ($pdo->inTransaction()) $pdo->rollBack();
     error_log("[AutoArchive ZoneF NO DEPOSIT] Error during auto-archiving: " . $e->getMessage() . "\nTrace: " . $e->getTraceAsString());
 }
-// --- END: New Automatic Archiving for OVERDUE ZONE F Bookings ---
 
-
-// --- START: Adjusted Status Update Logic (Core Changes Here) ---
+// --- START: Adjusted Status Update Logic ---
 try {
     $pdo->beginTransaction();
 
@@ -161,10 +158,7 @@ try {
           );
     ");
     $stmtCorrectRoomStatus->execute();
-    if (function_exists('error_log')) {
-        error_log("[IndexStatusUpdate] Corrected room statuses to 'free' if no justifying active/pending/future booking found: " . $stmtCorrectRoomStatus->rowCount());
-    }
-
+    
     $stmtSetBooked = $pdo->prepare("
         UPDATE rooms r SET status = 'booked'
         WHERE r.status = 'free' 
@@ -181,9 +175,6 @@ try {
           );
     ");
     $stmtSetBooked->execute();
-    if (function_exists('error_log')) {
-        error_log("[IndexStatusUpdate] 'Free' rooms set to DB status 'booked' if pending check-in for TODAY: " . $stmtSetBooked->rowCount());
-    }
 
     $stmtFreeNoShowNonZoneF = $pdo->prepare("
         UPDATE rooms r
@@ -211,18 +202,10 @@ try {
           );
     ");
     $stmtFreeNoShowNonZoneF->execute();
-    if (function_exists('error_log')) {
-        error_log("[IndexStatusUpdate] Non-Zone F Past 'booked' (no-show) rooms processed to 'free': " . $stmtFreeNoShowNonZoneF->rowCount());
-    }
     
     $pdo->commit();
 } catch (PDOException $e) {
-    if ($pdo->inTransaction()) {
-        $pdo->rollBack();
-    }
-    if (function_exists('error_log')) {
-        error_log("Error in daily status update (index.php): " . $e->getMessage());
-    }
+    if ($pdo->inTransaction()) $pdo->rollBack();
 }
 // --- END: Adjusted Status Update Logic ---
 
@@ -242,58 +225,17 @@ if (!in_array($viewMode, ['grid', 'table'])) {
     $viewMode = 'grid';
 }
 
-// START: Modified query for Feature #2
-$roomsDataQuery = $pdo->prepare("
-    SELECT
-        r.id, r.zone, r.room_number, r.status AS db_actual_status, r.price_per_day, r.price_short_stay,
-        r.allow_short_stay, r.short_stay_duration_hours, current_booking.id AS current_booking_id,
-        current_booking.customer_name AS current_customer_name, current_booking.customer_phone AS current_customer_phone,
-        DATE_FORMAT(current_booking.checkin_datetime, '%e %b %Y, %H:%i น.') AS current_formatted_checkin,
-        DATE_FORMAT(current_booking.checkout_datetime_calculated, '%e %b %Y, %H:%i น.') AS current_formatted_checkout,
-        current_booking.checkout_datetime_calculated AS current_raw_checkout_datetime,
-        current_booking.booking_type AS current_booking_type, current_booking.receipt_path AS current_receipt_path,
-        current_booking.nights AS current_nights,
-        COALESCE(r.short_stay_duration_hours, " . (defined('DEFAULT_SHORT_STAY_DURATION_HOURS') ? DEFAULT_SHORT_STAY_DURATION_HOURS : 3) . ") AS current_short_stay_duration,
-        current_booking.total_price AS current_total_price, current_booking.amount_paid AS current_amount_paid,
-        current_booking.booking_group_id AS current_booking_group_id,
-        (CASE WHEN current_booking.id IS NOT NULL AND NOW() >= current_booking.checkout_datetime_calculated THEN 1 ELSE 0 END) AS is_overdue,
-        (CASE WHEN current_booking.id IS NOT NULL AND current_booking.checkin_datetime <= NOW() AND NOW() < current_booking.checkout_datetime_calculated AND TIMESTAMPDIFF(MINUTE, NOW(), current_booking.checkout_datetime_calculated) <= 60 AND TIMESTAMPDIFF(MINUTE, NOW(), current_booking.checkout_datetime_calculated) > 0 THEN 1 ELSE 0 END) AS is_nearing_checkout_dashboard,
-        (CASE WHEN current_booking.id IS NOT NULL AND current_booking.total_price > current_booking.amount_paid THEN 1 ELSE 0 END) AS has_pending_payment_dashboard,
-        CASE
-            WHEN current_booking.id IS NOT NULL AND NOW() >= current_booking.checkout_datetime_calculated THEN 'overdue_occupied'
-            WHEN current_booking.id IS NOT NULL AND current_booking.checkin_datetime <= NOW() AND NOW() < current_booking.checkout_datetime_calculated AND r.status = 'occupied' THEN 'occupied'
-            WHEN r.zone = 'F' AND current_booking.id IS NOT NULL AND current_booking.booking_type = 'short_stay' AND current_booking.checkin_datetime <= NOW() AND NOW() < current_booking.checkout_datetime_calculated THEN 'f_short_occupied'
-            WHEN current_booking.id IS NOT NULL AND DATE(current_booking.checkin_datetime) = CURDATE() AND NOW() < current_booking.checkout_datetime_calculated THEN 'booked'
-            WHEN current_booking.id IS NOT NULL AND DATE(current_booking.checkin_datetime) = DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND NOT EXISTS ( SELECT 1 FROM bookings b_active WHERE b_active.room_id = r.id AND b_active.checkin_datetime <= NOW() AND NOW() < b_active.checkout_datetime_calculated ) THEN 'advance_booking'
-            ELSE 'free'
-        END AS display_status,
-        (SELECT b.id FROM bookings b WHERE b.room_id = r.id AND b.checkout_datetime_calculated > NOW() ORDER BY b.checkin_datetime ASC LIMIT 1) as relevant_booking_id
-FROM rooms r
-LEFT JOIN ( 
-    SELECT
-        b_inner.room_id, b_inner.id, b_inner.customer_name, b_inner.customer_phone, b_inner.checkin_datetime, b_inner.checkout_datetime_calculated, b_inner.booking_type, b_inner.receipt_path, b_inner.nights, b_inner.total_price, b_inner.amount_paid, b_inner.booking_group_id
-    FROM bookings b_inner
-    WHERE b_inner.id = (
-            SELECT b_latest.id FROM bookings b_latest WHERE b_latest.room_id = b_inner.room_id
-            ORDER BY 
-                (CASE 
-                    WHEN b_latest.checkin_datetime <= NOW() AND NOW() < b_latest.checkout_datetime_calculated THEN 1 
-                    WHEN DATE(b_latest.checkin_datetime) = CURDATE() THEN 2  
-                    WHEN DATE(b_latest.checkin_datetime) = DATE_ADD(CURDATE(), INTERVAL 1 DAY) THEN 3
-                    WHEN NOW() >= b_latest.checkout_datetime_calculated THEN 4 
-                    ELSE 5 
-                END) ASC, 
-                b_latest.checkin_datetime ASC,
-                b_latest.id DESC 
-            LIMIT 1
-        )
-) AS current_booking ON current_booking.room_id = r.id
-GROUP BY r.id 
-ORDER BY r.zone ASC, CAST(r.room_number AS UNSIGNED) ASC
-");
-// END: Modified query for Feature #2
-$roomsDataQuery->execute();
-$roomsData = $roomsDataQuery->fetchAll(PDO::FETCH_ASSOC);
+// +++ START: REFACTORED V2 - PERFORMANCE FIX 1.1 +++
+if (!function_exists('fetchRoomStatuses')) {
+    die("Critical error: fetchRoomStatuses() function not found. Please check bootstrap.php.");
+}
+try {
+    $roomsData = fetchRoomStatuses($pdo);
+} catch (PDOException $e) {
+    error_log("Failed to fetch room statuses on index.php: " . $e->getMessage());
+    $roomsData = [];
+}
+// +++ END: REFACTORED V2 +++
 
 $groupedRooms = ['นั้งกินนอนฟิน' => [], 'ภัทรรีสอร์ท' => []];
 foreach ($roomsData as $room) {
@@ -343,9 +285,8 @@ ob_start();
   </div>
 </div>
 
-<?php // ***** START: MODIFIED TOOLBAR ***** ?>
 <div class="dashboard-toolbar" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 10px;">
-    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+    <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
         <button id="share-dashboard-btn" class="button info">
             <img src="/hotel_booking/assets/image/share.png" alt="Share" style="width:16px; height:16px; margin-right:8px; vertical-align:middle;">
             แชร์ภาพรวม Dashboard
@@ -354,6 +295,11 @@ ob_start();
              <img src="/hotel_booking/assets/image/printer.png" alt="Bill" style="width:16px; height:16px; margin-right:8px; vertical-align:middle;">
              ระบบบิลเงินสด
         </a>
+        <!-- START: Bulk Action Button -->
+        <button id="bulk-checkout-btn" class="button alert" style="display: none;">
+            <i class="fas fa-money-bill-wave"></i> คืนมัดจำ/เช็คเอาท์ (<span id="bulk-selected-count">0</span>)
+        </button>
+        <!-- END: Bulk Action Button -->
     </div>
     <div>
         <?php $isTableView = ($viewMode === 'table'); ?>
@@ -363,7 +309,6 @@ ob_start();
         </label>
     </div>
 </div>
-<?php // ***** END: MODIFIED TOOLBAR ***** ?>
 
 <form method="GET" action="index.php" class="report-filter mb-8 bg-white p-4 rounded-lg shadow">
     <div class="filter-group flex flex-wrap gap-4 items-end">
@@ -443,7 +388,16 @@ ob_start();
             <h3 class="text-xl font-semibold mt-8 mb-4 pb-2 border-b border-gray-300"><?= h($groupName) ?></h3>
             <div class="rooms-grid">
               <?php foreach ($roomsInGroup as $r): ?>
-                <div class="room-container" title="ห้อง <?= h($r['zone'] . $r['room_number']) ?> - สถานะ: <?= h(ucfirst(str_replace('_', ' ', $r['display_status']))) ?> <?= ($r['is_overdue'] ?? 0) ? '(เกินกำหนด!)' : '' ?>">
+                <div class="room-container" style="position: relative;" title="ห้อง <?= h($r['zone'] . $r['room_number']) ?> - สถานะ: <?= h(ucfirst(str_replace('_', ' ', $r['display_status']))) ?> <?= ($r['is_overdue'] ?? 0) ? '(เกินกำหนด!)' : '' ?>">
+                    <!-- START: Grid Checkbox Logic -->
+                    <?php if (in_array($r['display_status'], ['occupied', 'overdue_occupied', 'f_short_occupied'])): ?>
+                        <input type="checkbox" class="room-select-checkbox" 
+                               data-booking-id="<?= h($r['current_booking_id']) ?>" 
+                               data-room-name="<?= h($r['zone'] . $r['room_number']) ?>"
+                               style="position: absolute; top: 5px; left: 5px; z-index: 10; width: 18px; height: 18px; cursor: pointer;">
+                    <?php endif; ?>
+                    <!-- END: Grid Checkbox Logic -->
+
                     <svg
                         class="room room-svg-house <?= h($r['display_status']) ?> <?= ($r['is_overdue'] ?? 0) ? 'has-overdue-indicator' : '' ?>" 
                         viewBox="0 0 100 95"
@@ -463,11 +417,9 @@ ob_start();
                         <?php if ($r['is_overdue'] ?? 0): ?>
                             <text class="overdue-indicator-svg" x="85" y="25" font-size="24" fill="red" dominant-baseline="middle" text-anchor="middle">⚠️</text>
                         <?php endif; ?>
-                        <!-- START: Display logic for Feature #2 -->
                         <?php if (($r['has_pending_payment_dashboard'] ?? 0) && in_array($r['display_status'], ['occupied', 'booked', 'f_short_occupied', 'overdue_occupied']) ): ?>
                             <text class="pending-payment-indicator-svg" x="15" y="85" font-size="24" fill="#16a34a" dominant-baseline="middle" text-anchor="middle" title="มียอดค้างชำระ">💰</text>
                         <?php endif; ?>
-                        <!-- END: Display logic for Feature #2 -->
                     </svg>
                 </div>
               <?php endforeach; ?>
@@ -508,8 +460,12 @@ ob_start();
                         <?php foreach ($roomsData as $room): ?>
                             <tr class="room-row-status-<?= h($room['display_status']) ?> <?= ($room['is_overdue'] ?? 0) ? 'has-overdue-indicator-row' : '' ?>">
                                 <td class="px-3 py-4 whitespace-nowrap text-center">
-                                    <?php if (!empty($room['current_booking_id'])): ?>
-                                        <input type="checkbox" class="booking-group-checkbox" data-booking-id="<?= h($room['current_booking_id']) ?>">
+                                    <?php if (!empty($room['current_booking_id']) && in_array($room['display_status'], ['occupied', 'overdue_occupied', 'f_short_occupied'])): ?>
+                                        <input type="checkbox" class="room-select-checkbox" 
+                                               data-booking-id="<?= h($room['current_booking_id']) ?>" 
+                                               data-room-name="<?= h($room['zone'] . $room['room_number']) ?>">
+                                    <?php elseif (!empty($room['current_booking_id'])): ?>
+                                         <input type="checkbox" class="booking-group-checkbox" data-booking-id="<?= h($room['current_booking_id']) ?>">
                                     <?php endif; ?>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 room-name-cell" data-room-id-cell="<?= h($room['id']) ?>">
@@ -518,9 +474,7 @@ ob_start();
                                         <span class="overdue-indicator-table" title="การจองนี้เกินกำหนดเวลาเช็คเอาท์แล้ว">⚠️</span>
                                     <?php endif; ?>
                                     <span class="nearing-checkout-indicator-table" style="display: <?= ($room['is_nearing_checkout_dashboard'] ?? 0) ? 'inline-block' : 'none' ?>; color: orange; margin-left: 4px;" title="ใกล้หมดเวลาเช็คเอาท์!"><img src="/hotel_booking/assets/image/clock_alert.png" alt="Clock Alert" style="width:16px; height:16px; vertical-align:middle;"></span>
-                                    <!-- START: Display logic for Feature #2 -->
                                     <span class="pending-payment-indicator-table" style="display: <?= ($room['has_pending_payment_dashboard'] ?? 0) ? 'inline-block' : 'none' ?>; color: green; margin-left: 4px;" title="มียอดค้างชำระ!">💰</span>
-                                    <!-- END: Display logic for Feature #2 -->
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <span class="status-indicator status-<?= h($room['display_status']) ?> px-2 inline-flex text-xs leading-5 font-semibold rounded-full" style="color: white; background-color: <?= match($room['display_status']) { 'overdue_occupied' => 'var(--color-alert-dark, #a71d2a)', 'occupied' => 'var(--color-danger, #DC2626)', 'booked' => 'var(--color-warning, #F59E0B)', 'free' => 'var(--color-success, #10B981)', 'advance_booking' => 'var(--color-info, #3B82F6)', 'f_short_occupied' => 'var(--color-purple, #6f42c1)', default => 'var(--color-secondary-text, #6B7280)' };?> ;">

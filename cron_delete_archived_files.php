@@ -1,13 +1,27 @@
 <?php
+echo __DIR__;
+?>
+
+<?php
 // FILEX: hotel_booking/cron_delete_archived_files.php
+// VERSION: 1.1 - Retention period updated to 2 months by Senior System Auditor
+
+// This script should be run via a cron job on the server.
+// Example cron command:
+// 0 3 * * * /usr/local/bin/php /path/to/your/public_html/hotel_booking/cron_delete_archived_files.php > /dev/null 2>&1
+// Note: The path to PHP and the script must be the full, absolute path on your server.
+
 require_once __DIR__ . '/bootstrap.php'; // For DB connection ($pdo)
 date_default_timezone_set('Asia/Bangkok');
 
 error_log("[CronDeleteOldUploads] Script started at " . date('Y-m-d H:i:s'));
 
-$three_months_ago = (new DateTime('now', new DateTimeZone('Asia/Bangkok')))
-                        ->modify('-3 months')
+// --- MODIFICATION: Changed retention period from 3 months to 2 months ---
+$two_months_ago = (new DateTime('now', new DateTimeZone('Asia/Bangkok')))
+                        ->modify('-2 months')
                         ->format('Y-m-d H:i:s');
+error_log("[CronDeleteOldUploads] Deleting records and files older than: " . $two_months_ago);
+// --- END MODIFICATION ---
 
 $files_deleted_count = 0;
 $records_deleted_count = 0;
@@ -27,19 +41,19 @@ try {
         JOIN (
             SELECT DISTINCT booking_group_id 
             FROM archives 
-            WHERE archived_at < :three_months_ago 
+            WHERE archived_at < :two_months_ago -- MODIFIED
               AND booking_group_id IS NOT NULL
         ) AS old_groups ON r.booking_group_id = old_groups.booking_group_id
     ";
     
     $stmt_receipts = $pdo->prepare($sql_find_receipts);
-    $stmt_receipts->execute([':three_months_ago' => $three_months_ago]);
+    $stmt_receipts->execute([':two_months_ago' => $two_months_ago]); // MODIFIED
     $receipts_to_delete = $stmt_receipts->fetchAll(PDO::FETCH_ASSOC);
 
     if (empty($receipts_to_delete)) {
-        error_log("[CronDeleteOldUploads] No receipts found linked to archives older than 3 months.");
+        error_log("[CronDeleteOldUploads] No receipts found linked to archives older than 2 months.");
         echo "No receipts found for cleanup.\n";
-        $pdo->commit(); // Commit to finish transaction even if nothing to do.
+        $pdo->commit();
         exit;
     }
 
@@ -84,13 +98,13 @@ try {
     $sql_delete_orphaned_groups = "
         DELETE bg FROM booking_groups bg
         WHERE bg.id IN (
-            SELECT DISTINCT booking_group_id FROM archives WHERE archived_at < :three_months_ago AND booking_group_id IS NOT NULL
+            SELECT DISTINCT booking_group_id FROM archives WHERE archived_at < :two_months_ago AND booking_group_id IS NOT NULL -- MODIFIED
         )
         AND NOT EXISTS (SELECT 1 FROM bookings WHERE booking_group_id = bg.id)
         AND NOT EXISTS (SELECT 1 FROM booking_group_receipts WHERE booking_group_id = bg.id)
     ";
     $stmt_delete_orphaned = $pdo->prepare($sql_delete_orphaned_groups);
-    $stmt_delete_orphaned->execute([':three_months_ago' => $three_months_ago]);
+    $stmt_delete_orphaned->execute([':two_months_ago' => $two_months_ago]); // MODIFIED
     $groups_deleted_count = $stmt_delete_orphaned->rowCount();
     if ($groups_deleted_count > 0) {
         error_log("[CronDeleteOldUploads] Successfully deleted {$groups_deleted_count} orphaned booking_groups.");
