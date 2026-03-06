@@ -33,7 +33,7 @@ $stmtRelevantBooking = $pdo->prepare("
         b.*,
         r.zone as room_current_zone,
         r.room_number as room_number_for_log,
-        COALESCE(r.short_stay_duration_hours, ".DEFAULT_SHORT_STAY_DURATION_HOURS.") as room_short_stay_duration, /* MODIFIED */
+        COALESCE(r.short_stay_duration_hours, " . DEFAULT_SHORT_STAY_DURATION_HOURS . ") as room_short_stay_duration, /* MODIFIED */
         r.price_per_hour_extension,
         DATE_FORMAT(b.checkin_datetime, '%e %b %Y, %H:%i น.') AS formatted_checkin,
         DATE_FORMAT(b.checkout_datetime_calculated, '%e %b %Y, %H:%i น.') AS current_checkout_display_with_ext,
@@ -158,7 +158,7 @@ $sqlAdvanceBookings = "
       AND b.checkin_datetime > NOW() ";
 // If the primary booking being displayed *is* an advance booking, exclude it from this "other advance bookings" list.
 if ($booking_to_display && $isAdvanceBookingPrimaryDisplay) {
-     $sqlAdvanceBookings .= " AND b.id != " . (int)$booking_to_display['id'] . " ";
+    $sqlAdvanceBookings .= " AND b.id != " . (int)$booking_to_display['id'] . " ";
 }
 $sqlAdvanceBookings .= "ORDER BY b.checkin_datetime ASC";
 $stmtAdvanceBookings = $pdo->prepare($sqlAdvanceBookings);
@@ -167,671 +167,1005 @@ $advanceBookings = $stmtAdvanceBookings->fetchAll(PDO::FETCH_ASSOC);
 
 
 $all_active_addons_for_modal_edit = [];
-if ($booking_to_display &&
-    ( $activeBooking || $isEffectivelyOverdue || $isAdvanceBookingPrimaryDisplay || $isPendingToday )
-   ) {
+if (
+    $booking_to_display &&
+    ($activeBooking || $isEffectivelyOverdue || $isAdvanceBookingPrimaryDisplay || $isPendingToday)
+) {
     $stmt_all_active_addons = $pdo->query("SELECT id, name, price FROM addon_services WHERE is_active = 1 ORDER BY name ASC");
     $all_active_addons_for_modal_edit = $stmt_all_active_addons->fetchAll(PDO::FETCH_ASSOC);
 }
 
 if (!function_exists('h')) {
-    function h($string) {
+    function h($string)
+    {
         return htmlspecialchars($string ?? '', ENT_QUOTES, 'UTF-8');
     }
 }
 ?>
 <div class="details-container">
-  <h3>ห้อง <?= h($room['zone'] . $room['room_number']) ?> (สถานะ: <span class="room-status-<?=h($room['status'])?>"><?= h(ucfirst($room['status'])) ?></span>)</h3>
-  <p>ราคาปกติ: <?= h(number_format((float)($room['price_per_day'] ?? 0),0)) ?> บาท
-    <?php if(isset($room['allow_short_stay']) && $room['allow_short_stay']): ?>
-        / ชั่วคราว: <?= h(number_format((float)($room['price_short_stay'] ?? 0),0)) ?> บาท (<?= h($room['short_stay_duration_hours'] ?? DEFAULT_SHORT_STAY_DURATION_HOURS) ?> ชม.)
-    <?php endif; ?>
-  </p>
-  <hr>
-
-  <?php // ***** START: MODIFIED CONDITION FOR DISPLAYING PRIMARY BOOKING DETAILS ***** ?>
-  <?php if ($booking_to_display && !$isAdvanceBookingPrimaryDisplay): ?>
-    <section class="current-booking-details">
-      <h4>
-          <?php
-            $bookingHeaderTitle = 'ข้อมูลการจอง'; // Default
-            $bookingStatusIndicatorText = '';
-
-            if ($isEffectivelyOverdue) {
-                $bookingHeaderTitle = 'ข้อมูลการจองที่เกินกำหนด ';
-                $bookingStatusIndicatorText = '<span style="color: var(--color-alert-dark); font-weight: bold;">(อยู่เกินกำหนดเวลาเช็คเอาท์)</span>';
-            } elseif ($activeBooking) {
-                $bookingHeaderTitle = 'ข้อมูลการจองปัจจุบัน ';
-            } elseif ($isPendingToday) {
-                $bookingHeaderTitle = 'ข้อมูลการจอง (รอเช็คอินวันนี้) ';
-            }
-            // Note: $isAdvanceBookingPrimaryDisplay case is handled by the new elseif block below
-            echo $bookingHeaderTitle . $bookingStatusIndicatorText;
-          ?>
-      </h4>
-      <?php if ($isEffectivelyOverdue): ?>
-          <p style="color: var(--color-alert-dark); font-weight: bold; background-color: var(--color-error-bg); padding: 8px; border-radius: var(--border-radius-sm); border: 1px solid var(--color-error-border);">
-              <img src="/hotel_booking/assets/image/warning.png" alt="Warning" style="width:16px; height:16px; margin-right:5px; vertical-align:middle;">
-              <strong>แจ้งเตือน:</strong> การจองนี้อยู่เกินกำหนดเวลาเช็คเอาท์แล้ว! กรุณาติดต่อลูกค้าเพื่อดำเนินการต่อ หรือขยายเวลาการเข้าพัก
-          </p>
-      <?php endif; ?>
-      
-      <p><strong>ID การจอง:</strong> <?= h($booking_to_display['id']) ?></p>
-      <?php $bookingType = $booking_to_display['booking_type'] ?? 'overnight'; ?>
-      <p><strong>ชื่อผู้จอง/ลูกค้า:</strong> <?= h($booking_to_display['customer_name']) ?></p>
-      <?php if (!empty($booking_to_display['customer_phone'])): ?>
-        <p><strong>เบอร์โทรศัพท์:</strong> <a href="tel:<?= h(preg_replace('/[^0-9+]/', '', $booking_to_display['customer_phone'])) ?>" class="link-like"><?= h($booking_to_display['customer_phone']) ?></a></p>
-      <?php endif; ?>
-      <p><strong>เช็กอิน:</strong> <?= h($booking_to_display['formatted_checkin']) ?></p>
-      <p><strong>เช็กเอาต์ (รวมส่วนขยาย):</strong> <span id="current-checkout-datetime-display"><?= h($booking_to_display['current_checkout_display_with_ext'] ?? 'N/A') ?></span></p>
-
-      <?php
-        // --- START: ปรับปรุงการแสดงผล Nights และ Extended Hours ---
-        if ($bookingType === 'overnight') {
-            echo "<p><strong>ประเภทการจอง:</strong> <span style=\"font-weight:bold; color: var(--color-primary);\">ค้างคืน</span></p>";
-            echo "<p><strong>จำนวนคืนหลัก:</strong> <span id='current-nights-display'>" . h($booking_to_display['nights']) . "</span> คืน</p>";
-            if (isset($booking_to_display['extended_hours']) && (int)$booking_to_display['extended_hours'] > 0) {
-                echo "<p><strong>ชั่วโมงที่ขยายเพิ่ม:</strong> <span id='current-extended-hours-display'>" . h((int)$booking_to_display['extended_hours']) . "</span> ชั่วโมง</p>";
-            }
-            echo "<p><strong>ราคาต่อคืน (ห้องพัก):</strong> " . h(isset($booking_to_display['price_per_night']) ? number_format((float)$booking_to_display['price_per_night'], 0) : '0') . " บาท</p>";
-        } else { // short_stay
-            echo "<p><strong>ประเภทการจอง:</strong> <span style=\"font-weight:bold; color: var(--color-primary);\">ชั่วคราว (" . h($booking_to_display['room_short_stay_duration'] ?? DEFAULT_SHORT_STAY_DURATION_HOURS) . " ชม.)</span></p>";
-            // สำหรับ short_stay ถ้ามีการขยายเป็นชั่วโมง จะแสดงรวมใน checkout_datetime_calculated อยู่แล้ว
-            // ถ้าต้องการแสดง "ชั่วโมงที่ขยายเพิ่ม" แยกสำหรับ short_stay ด้วย ก็สามารถเพิ่มเงื่อนไขคล้ายด้านบนได้
-            if (isset($booking_to_display['extended_hours']) && (int)$booking_to_display['extended_hours'] > 0) {
-                 echo "<p><strong>ชั่วโมงที่ขยายเพิ่ม:</strong> <span id='current-extended-hours-display'>" . h((int)$booking_to_display['extended_hours']) . "</span> ชั่วโมง</p>";
-            }
-            echo "<p><strong>ราคาห้องพัก (ชั่วคราว):</strong> " . h(number_format((float)($room['price_short_stay'] ?? 0), 0)) . " บาท</p>";
-        }
-        // --- END: ปรับปรุงการแสดงผล Nights และ Extended Hours ---
-      ?>
-      
-      <?php if (isset($booking_to_display['notes']) && !empty(trim($booking_to_display['notes']))): ?>
-        <p><strong>หมายเหตุ:</strong> <span id="current-notes-display" class="notes-display-box"><?= nl2br(h($booking_to_display['notes'])) ?></span></p>
-      <?php else: ?>
-        <p><strong>หมายเหตุ:</strong> <span id="current-notes-display"><em>ไม่มีหมายเหตุ</em></span></p>
-      <?php endif; ?>
-
-      <?php if (!empty($current_booking_addons)): ?>
-        <div class="booking-addons-summary">
-          <h4>บริการเสริมที่เลือก:</h4>
-          <ul class="booking-addons-list">
-            <?php foreach ($current_booking_addons as $addon):
-                $addon_total_price = (float)$addon['price_at_booking'] * (int)$addon['quantity'];
-            ?>
-              <li class="addon-item">
-                <span class="addon-name"><?= h($addon['addon_name']) ?></span>
-                <span class="addon-quantity">x <?= h($addon['quantity']) ?></span>
-                <span class="addon-price-each">(<?= h(number_format((float)$addon['price_at_booking'], 0)) ?> บ./หน่วย)</span>
-                <span class="addon-price-total"><?= h(number_format($addon_total_price, 0)) ?> บ.</span>
-              </li>
-            <?php endforeach; ?>
-          </ul>
-          <p><strong>ยอดรวมค่าบริการเสริม:</strong> <?= h(number_format($calculated_total_addon_cost_for_display, 0)) ?> บาท</p>
-        </div>
-      <?php else: ?>
-        <div class="booking-addons-summary">
-             <p><em>ไม่มีบริการเสริมที่เลือก</em></p>
-        </div>
-      <?php endif; ?>
-      <hr style="margin: 1rem 0;">
-
-      <?php
-        $displayServiceValue = (float)($booking_to_display['total_price'] ?? 0);
-        $displayActualDepositCollected = (float)($booking_to_display['deposit_amount'] ?? 0);
-        $displayTotalPaid = (float)($booking_to_display['amount_paid'] ?? 0);
-      ?>
-
-      <p><strong>มูลค่าบริการรวม (ห้องพัก + บริการเสริม + ส่วนขยาย):</strong> <span id="displayed-total-service-price"><?= h(number_format(($displayServiceValue - $displayActualDepositCollected), 0)) ?></span> บาท</p>
-      <?php if ($displayActualDepositCollected > 0): ?>
-        <p><strong>ค่ามัดจำที่เก็บไว้:</strong> <?= h(number_format($displayActualDepositCollected, 0)) ?> บาท</p>
-      <?php elseif ($bookingType === 'overnight' && ($booking_to_display['room_current_zone'] ?? $room['zone']) !== 'F'):
-        // Check if room itself is configured to ask for deposit (relevant for non-Zone F overnight where deposit is standard but might be missing)
-        $roomRequiresDeposit = isset($room['ask_deposit_on_overnight']) && $room['ask_deposit_on_overnight'] == 1;
-        if ($roomRequiresDeposit || ($booking_to_display['room_current_zone'] ?? $room['zone']) !== 'F') { // Default to expecting deposit for Non-F overnight
-            echo '<p><strong>ค่ามัดจำที่เก็บไว้:</strong> <span class="text-danger">0 บาท (ควรมีค่ามัดจำ)</span></p>';
-        }
-      ?>
-      <?php elseif ($bookingType === 'overnight' && ($booking_to_display['room_current_zone'] ?? $room['zone']) === 'F' && $displayActualDepositCollected == 0): ?>
-         <?php if (isset($room['ask_deposit_on_overnight']) && $room['ask_deposit_on_overnight'] == 1): ?>
-            <p><strong>ค่ามัดจำที่เก็บไว้:</strong> <span class="text-danger">0 บาท (โซน F - แต่ตั้งค่าให้เก็บมัดจำ)</span></p>
-         <?php else: ?>
-            <p><strong>ค่ามัดจำที่เก็บไว้:</strong> <span class="text-muted">0 บาท (โซน F - ไม่ได้เลือกเก็บมัดจำ)</span></p>
-         <?php endif; ?>
-      <?php endif; ?>
-
-      <p><strong>ยอดเรียกเก็บลูกค้ารวม:</strong> <span class="highlight-value"><?= h(number_format($displayServiceValue, 0)) ?></span> บาท</p>
-      <p><strong>ยอดชำระแล้วทั้งหมด:</strong> <span id="current-amount-paid-display" class="highlight-value"><?= h(number_format($displayTotalPaid, 0)) ?></span> บาท</p>
-
-      <?php // ***** START: V3.1 FIX - อัปเกรดการแสดงผลสลิป (บรรทัด 284 โดยประมาณ) ***** ?>
-      <?php if (!empty($all_group_receipts_for_display)): ?>
-        <div style="margin-top: 20px;">
-            <h4 style="margin: 0 0 10px 0; font-size: 1.1rem; color: #004080; border-bottom: 1px solid #ccc; padding-bottom: 5px;">
-                <i class="fas fa-receipt" style="margin-right: 8px;"></i>ประวัติการชำระเงิน/สลิปของกลุ่ม
-            </h4>
-            <?php foreach ($all_group_receipts_for_display as $receipt): ?>
-                <div class="receipt-item-detail" style="display: flex; align-items: center; padding: 8px; background-color: #fff; border-radius: 5px; margin-bottom: 8px; border: 1px solid #e0e0e0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-                    <!-- รูปภาพสลิปที่กดเพื่อดูรูปใหญ่ได้ -->
-                    <?php 
-                        $image_path = '/hotel_booking/uploads/receipts/' . h($receipt['receipt_path']);
-                        $is_pdf = (strtolower(pathinfo($receipt['receipt_path'], PATHINFO_EXTENSION)) == 'pdf');
-                        $placeholder_icon = $is_pdf ? 'fas fa-file-pdf' : 'fas fa-image';
-                    ?>
-                    <div style="width: 60px; height: 60px; object-fit: cover; border-radius: 4px; margin-right: 15px; cursor: pointer; background-color: #f0f0f0; display: flex; align-items: center; justify-content: center; border: 1px solid #ddd;"
-                         class="receipt-btn" data-src="<?= h($image_path) ?>" title="คลิกเพื่อดูสลิป">
-                         
-                        <?php if ($is_pdf): ?>
-                            <i class="<?= h($placeholder_icon) ?>" style="font-size: 24px; color: #dc3545;"></i>
-                        <?php else: ?>
-                            <img src="<?= h($image_path) ?>" alt="สลิป" 
-                                 style="width: 100%; height: 100%; object-fit: cover; border-radius: 4px;">
-                        <?php endif; ?>
-                    </div>
-                    
-                    <div style="flex-grow: 1; font-size: 0.9rem;">
-                        <?php if (!empty($receipt['description'])): ?>
-                            <strong><?= h($receipt['description']) ?></strong><br>
-                        <?php endif; ?>
-                        <small>วิธีชำระ: 
-                            <span style="font-weight: 500; color: #333;">
-                                <?= h($receipt['payment_method'] ?? '-') ?>
-                            </span> 
-                            | อัปโหลด: 
-                            <span style="font-weight: 500; color: #666;">
-                                <?= h(date('d/m/Y H:i', strtotime($receipt['uploaded_at']))) ?>
-                            </span>
-                        </small>
-                    </div>
-                    <?php if (isset($receipt['amount']) && is_numeric($receipt['amount'])): ?>
-                        <div style="font-weight: bold; font-size: 1rem; text-align: right; min-width: 100px;">
-                            <span style="color: <?= (float)$receipt['amount'] >= 0 ? '#218838' : '#c82333' ?>;">
-                                <?= h(number_format((float)$receipt['amount'], 2)) ?> บาท
-                            </span>
-                        </div>
-                    <?php endif; ?>
-                </div>
-            <?php endforeach; ?>
-        </div>
-      <?php elseif (!empty($booking_to_display['receipt_path']) || !empty($booking_to_display['extended_receipt_path'])): // Fallback สำหรับข้อมูลเก่า ?>
-        <h4 style="margin-top: 15px; margin-bottom: 5px;">หลักฐานการชำระเงิน (ข้อมูลเก่า):</h4>
-        <?php if (!empty($booking_to_display['receipt_path'])): ?>
-            <div class="receipt-actions" style="margin-top: 10px; margin-bottom:5px;">
-              <button class="button-small receipt-btn" data-src="/hotel_booking/uploads/receipts/<?= h($booking_to_display['receipt_path']) ?>">สลิปหลัก (เก่า)</button>
-            </div>
+    <h3>ห้อง <?= h($room['zone'] . $room['room_number']) ?> (สถานะ: <span class="room-status-<?= h($room['status']) ?>"><?= h(ucfirst($room['status'])) ?></span>)</h3>
+    <p>ราคาปกติ: <?= h(number_format((float)($room['price_per_day'] ?? 0), 0)) ?> บาท
+        <?php if (isset($room['allow_short_stay']) && $room['allow_short_stay']): ?>
+            / ชั่วคราว: <?= h(number_format((float)($room['price_short_stay'] ?? 0), 0)) ?> บาท (<?= h($room['short_stay_duration_hours'] ?? DEFAULT_SHORT_STAY_DURATION_HOURS) ?> ชม.)
         <?php endif; ?>
-        <?php if (!empty($booking_to_display['extended_receipt_path'])): ?>
-            <div class="receipt-actions" style="margin-top: 5px; margin-bottom:15px;">
-              <button class="button-small receipt-btn" data-src="/hotel_booking/uploads/receipts/<?= h($booking_to_display['extended_receipt_path']) ?>">สลิปส่วนขยาย (เก่า)</button>
-            </div>
-        <?php endif; ?>
-      <?php endif; ?>
-      <?php // ***** END: V3.1 FIX ***** ?>
+    </p>
+    <hr>
 
-      <p><strong>สร้างโดย:</strong> <?= h($booking_to_display['creator_username'] ?? 'N/A') ?></p>
-      <?php if (isset($booking_to_display['last_modifier_username']) && $booking_to_display['last_modifier_username'] !== $booking_to_display['creator_username']): ?>
-          <p><strong>แก้ไขล่าสุดโดย:</strong> <?= h($booking_to_display['last_modifier_username']) ?></p>
-      <?php endif; ?>
-
-      <div class="button-group stack-on-mobile" style="margin-top: 15px;">
-          <?php
-            if ($show_occupy_button_for_booking_id):
-                $button_text = $can_early_checkin_after_14 ? 'เช็คอิน (ก่อนเวลาที่กำหนด)' : 'ดำเนินการเช็คอิน';
-            ?>
-              <button id="occupy-btn-in-modal-<?= h($show_occupy_button_for_booking_id) ?>" class="button occupy-btn alert" data-action="occupy" data-booking-id="<?= h($show_occupy_button_for_booking_id) ?>"><?= h($button_text) ?></button>
-            <?php endif; ?>
-
-            <?php
-            // --- START: Logic for Main and Modify Action Buttons ---
-            $canShowCheckoutAndExtendActions = false;
-            $canShowEditMainBookingAction = false;
-            $canShowCancelBookingAction = false;
-
-            if ($booking_to_display) { // This block is now inside `if ($booking_to_display && !$isAdvanceBookingPrimaryDisplay)`
-                $bookingIdForActions = $booking_to_display['id'];
-
-                if ($isEffectivelyOverdue || $activeBooking) {
-                    $canShowCheckoutAndExtendActions = true;
-                    $canShowEditMainBookingAction = true;
-                    $canShowCancelBookingAction = true;
-                } elseif ($isPendingToday) {
-                    $canShowCheckoutAndExtendActions = false;
-                    $canShowEditMainBookingAction = true;
-                    $canShowCancelBookingAction = true;
-                }
-                // $isAdvanceBookingPrimaryDisplay case is handled by the outer condition, so it's false here.
-            }
-
-
-            if ($canShowCheckoutAndExtendActions && isset($bookingIdForActions)):
-                $actualDepositCollectedForActions = (float)($booking_to_display['deposit_amount'] ?? 0);
-                $showDepositProofForm = true;
-                $roomZoneForButtonLogic = $booking_to_display['room_current_zone'] ?? $room['zone'];
-                $bookingTypeForButtonLogic = $booking_to_display['booking_type'] ?? 'overnight';
-
-                $completeButtonText = "คืนมัดจำ & ดําเนินการเช็คเอาท์";
-                if ($actualDepositCollectedForActions == 0) { $completeButtonText = "ดำเนินการเช็คเอาท์ (ไม่มีมัดจำ)"; $showDepositProofForm = false; }
-                elseif ($roomZoneForButtonLogic === 'F' && $bookingTypeForButtonLogic === 'short_stay') { $completeButtonText = "ดำเนินการเช็คเอาท์ (โซน F ชั่วคราว)"; $showDepositProofForm = false; }
-                elseif ($bookingTypeForButtonLogic === 'short_stay' && $actualDepositCollectedForActions == 0) { $completeButtonText = "ดำเนินการเช็คเอาท์ (ชั่วคราว)"; $showDepositProofForm = false; }
-            ?>
-              <button id="return-deposit-btn" class="button secondary"><?= h($completeButtonText) ?></button>
-              <button id="show-extend-stay-form-btn" class="button info" data-booking-id="<?= h($bookingIdForActions) ?>">เพิ่มชั่วโมง/คืน</button>
-              <button id="show-edit-booking-details-btn" class="button warning" data-booking-id="<?= h($bookingIdForActions) ?>">แก้ไขหมายเหตุ/ปรับยอด</button>
-              
-              <?php // ***** START: โค้ดที่เพิ่มเข้ามา ***** ?>
-              <button type="button" class="button outline-secondary show-move-room-modal-btn"
-                      data-booking-id="<?= h($bookingIdForActions) ?>"
-                      data-current-room-id="<?= h($room['id']) ?>"
-                      data-customer-name="<?= h($booking_to_display['customer_name']) ?>">
-                  <img src="/hotel_booking/assets/image/move_room.png" alt="Move" style="width:16px; height:16px; margin-right:5px; vertical-align:middle;">
-                  ย้ายห้อง
-              </button>
-              <?php // ***** END: โค้ดที่เพิ่มเข้ามา ***** ?>
-              
-            <?php endif; ?>
-
-            <?php if ($canShowEditMainBookingAction && isset($bookingIdForActions)): ?>
-                <a href="/hotel_booking/pages/booking.php?edit_booking_id=<?= h($bookingIdForActions) ?>" class="button primary" title="แก้ไขข้อมูลการจองหลัก เช่น ลูกค้า, จำนวนคืน, บริการเสริม">แก้ไขการจองหลัก</a>
-            <?php endif; ?>
-
-            <?php if ($canShowCancelBookingAction && isset($bookingIdForActions)): ?>
-                <button class="button-small delete-booking-btn alert" data-booking-id="<?= h($bookingIdForActions) ?>" id="delete-current-booking-dtl-<?=h($bookingIdForActions)?>">ยกเลิกการจอง</button>
-            <?php endif; ?>
-
-            <?php if ($canShowCheckoutAndExtendActions && isset($bookingIdForActions)): ?>
-              <div id="return-deposit-form" style="display:none; margin-top:10px; padding:10px; border:1px solid var(--color-border); border-radius:var(--border-radius-md); background-color: #f8f9fa; width:100%;">
-                <?php
-                    if ($showDepositProofForm && $actualDepositCollectedForActions > 0):
-                ?>
-                    <h4>กรอกข้อมูลเพื่อดำเนินการคืนมัดจำ</h4>
-                    <label for="deposit-proof">หลักฐานการคืนมัดจำ (สำหรับยอดมัดจำ <?=h(number_format($actualDepositCollectedForActions,0))?> บาท):</label>
-                    <input type="file" id="deposit-proof" name="deposit_proof" accept="image/*,application/pdf" required style="margin-bottom:10px; width:100%;" />
-                    <button id="submit-deposit" class="button alert complete-booking-btn" data-booking-id="<?= h($bookingIdForActions) ?>" data-booking-type="overnight_with_deposit_return">อัปโหลดและยืนยันการย้าย</button>
-                    <hr style="margin: 1.5rem 0;">
-                    <p style="text-align:center; margin-bottom:0.5rem;">หรือ</p>
-                     <button id="complete-no-refund-action-btn" class="button warning"
-                             style="width:100%;"
-                             data-booking-id="<?= h($bookingIdForActions) ?>"
-                             title="ดำเนินการเช็คเอาท์และย้ายไปประวัติ โดยไม่ทำการคืนเงินมัดจำ (เช่น กรณีลูกค้าผิดเงื่อนไข)">
-                         ดำเนินการต่อ (ไม่คืนมัดจำ <?=h(number_format($actualDepositCollectedForActions,0))?> บาท)
-                     </button>
-                <?php else:
-                    $noDepositReturnText = 'ยืนยันการดำเนินการเช็คเอาท์';
-                    if (($booking_to_display['room_current_zone'] ?? $room['zone']) === 'F' && ($booking_to_display['booking_type'] ?? 'overnight') === 'short_stay') {
-                         $noDepositReturnText = 'ยืนยันการย้ายการจองชั่วคราว (โซน F) และดำเนินการเช็คเอาท์';
-                    } elseif (($booking_to_display['booking_type'] ?? 'overnight') === 'short_stay') {
-                        $noDepositReturnText = 'ยืนยันการย้ายการจองชั่วคราว และดำเนินการเช็คเอาท์';
-                    } elseif ($actualDepositCollectedForActions == 0) {
-                        $noDepositReturnText = 'ยืนยันการย้ายการจอง (ไม่มีมัดจำ) และดำเนินการเช็คเอาท์';
-                    }
-                ?>
-                     <p><?= $noDepositReturnText ?></p>
-                     <button id="submit-deposit" class="button alert complete-booking-btn" data-booking-id="<?= h($bookingIdForActions) ?>" data-booking-type="no_deposit_return_needed"><?= (($booking_to_display['room_current_zone'] ?? $room['zone']) === 'F' && ($booking_to_display['booking_type'] ?? 'overnight') === 'short_stay' ? 'ยืนยัน (โซน F ชั่วคราว)' : 'ยืนยันการย้าย') ?></button>
-                <?php endif; ?>
-              </div>
-            <?php endif; ?>
-      </div> <?php // End button-group ?>
-
-    <?php
-    $bookingForExtendAndEditForms = $booking_to_display;
-    if ($canShowCheckoutAndExtendActions && $bookingForExtendAndEditForms ):
+    <?php // ***** START: MODIFIED CONDITION FOR DISPLAYING PRIMARY BOOKING DETAILS ***** 
     ?>
-      <div id="extend-stay-form-container" style="display:none; margin-top:20px; padding:15px; border:1px solid var(--color-info); border-radius:var(--border-radius-md); background-color: #f0f9ff;">
-        <?php /* Extend stay form content as before, it's shown based on $canShowCheckoutAndExtendActions */ ?>
-        <h4>ขยายเวลาการเข้าพัก / เปลี่ยนเป็นค้างคืน</h4>
-        <?php
-            $hourly_rate_from_system_settings_details = (defined('HOURLY_RATE_DB') ? (float)HOURLY_RATE_DB : 100);
-            // HOURLY_RATE constant should be used here if it's the effective one, or HOURLY_RATE_DB.
-            // Assuming HOURLY_RATE is defined somewhere or get_system_setting_value is preferred.
-            $_rate_val_temp = get_system_setting_value($pdo, 'hourly_extension_rate', 100);
-            $hourly_rate_from_system_settings_details = is_numeric($_rate_val_temp) && (float)$_rate_val_temp > 0 ? (float)$_rate_val_temp : 100;
+    <?php if ($booking_to_display && !$isAdvanceBookingPrimaryDisplay): ?>
+        <section class="current-booking-details">
+            <h4>
+                <?php
+                $bookingHeaderTitle = 'ข้อมูลการจอง'; // Default
+                $bookingStatusIndicatorText = '';
 
+                if ($isEffectivelyOverdue) {
+                    $bookingHeaderTitle = 'ข้อมูลการจองที่เกินกำหนด ';
+                    $bookingStatusIndicatorText = '<span style="color: var(--color-alert-dark); font-weight: bold;">(อยู่เกินกำหนดเวลาเช็คเอาท์)</span>';
+                } elseif ($activeBooking) {
+                    $bookingHeaderTitle = 'ข้อมูลการจองปัจจุบัน ';
+                } elseif ($isPendingToday) {
+                    $bookingHeaderTitle = 'ข้อมูลการจอง (รอเช็คอินวันนี้) ';
+                }
+                // Note: $isAdvanceBookingPrimaryDisplay case is handled by the new elseif block below
+                echo $bookingHeaderTitle . $bookingStatusIndicatorText;
+                ?>
+            </h4>
+            <?php if ($isEffectivelyOverdue): ?>
+                <p style="color: var(--color-alert-dark); font-weight: bold; background-color: var(--color-error-bg); padding: 8px; border-radius: var(--border-radius-sm); border: 1px solid var(--color-error-border);">
+                    <img src="/hotel_booking/assets/image/warning.png" alt="Warning" style="width:16px; height:16px; margin-right:5px; vertical-align:middle;">
+                    <strong>แจ้งเตือน:</strong> การจองนี้อยู่เกินกำหนดเวลาเช็คเอาท์แล้ว! กรุณาติดต่อลูกค้าเพื่อดำเนินการต่อ หรือขยายเวลาการเข้าพัก
+                </p>
+            <?php endif; ?>
 
-            $room_specific_hourly_rate_details = null;
-            if (isset($bookingForExtendAndEditForms['price_per_hour_extension']) && $bookingForExtendAndEditForms['price_per_hour_extension'] !== null && (float)$bookingForExtendAndEditForms['price_per_hour_extension'] > 0) {
-                $room_specific_hourly_rate_details = (float)$bookingForExtendAndEditForms['price_per_hour_extension'];
-            } elseif (isset($room['price_per_hour_extension']) && $room['price_per_hour_extension'] !== null && (float)$room['price_per_hour_extension'] > 0) {
-                $room_specific_hourly_rate_details = (float)$room['price_per_hour_extension'];
-            }
-            $room_price_per_hour_for_js_details = ($room_specific_hourly_rate_details !== null && $room_specific_hourly_rate_details > 0) ? $room_specific_hourly_rate_details : $hourly_rate_from_system_settings_details;
+            <p><strong>ID การจอง:</strong> <?= h($booking_to_display['id']) ?></p>
+            <?php $bookingType = $booking_to_display['booking_type'] ?? 'overnight'; ?>
+            <p><strong>ชื่อผู้จอง/ลูกค้า:</strong> <?= h($booking_to_display['customer_name']) ?></p>
+            <?php if (!empty($booking_to_display['customer_phone'])): ?>
+                <p><strong>เบอร์โทรศัพท์:</strong> <a href="tel:<?= h(preg_replace('/[^0-9+]/', '', $booking_to_display['customer_phone'])) ?>" class="link-like"><?= h($booking_to_display['customer_phone']) ?></a></p>
+            <?php endif; ?>
+            <p><strong>เช็กอิน:</strong> <?= h($booking_to_display['formatted_checkin']) ?></p>
+            <p><strong>เช็กเอาต์ (รวมส่วนขยาย):</strong> <span id="current-checkout-datetime-display"><?= h($booking_to_display['current_checkout_display_with_ext'] ?? 'N/A') ?></span></p>
 
-            $initial_short_stay_room_cost_for_js_details = 0;
-            if ($bookingForExtendAndEditForms && $bookingForExtendAndEditForms['booking_type'] === 'short_stay') {
-                $initial_short_stay_room_cost_for_js_details = (float)($bookingForExtendAndEditForms['total_price'] ?? 0) - $calculated_total_addon_cost_for_display - (float)($bookingForExtendAndEditForms['deposit_amount'] ?? 0);
-            }
-            $pricePerNightForExtendDetails = (int)round((float)($bookingForExtendAndEditForms['price_per_night'] ?? ($room['price_per_day'] ?? 0)));
-        ?>
-        <form id="extend-stay-form"
-              data-current-room-zone="<?= h($bookingForExtendAndEditForms['room_current_zone'] ?? $room['zone']) ?>"
-              data-room-hourly-rate="<?= h((int)round($room_price_per_hour_for_js_details)) ?>"
-              data-room-overnight-price="<?= h((int)round((float)($room['price_per_day'] ?? 0))) ?>"
-              data-room-ask-deposit-f="<?= h($room['ask_deposit_on_overnight'] ?? 0) ?>"
-              data-initial-short-stay-room-cost="<?= h((int)round($initial_short_stay_room_cost_for_js_details)) ?>">
-            <input type="hidden" name="booking_id_extend" value="<?= h($bookingForExtendAndEditForms['id']) ?>">
-            <input type="hidden" id="js-current-total-price" value="<?= h((int)round((float)($bookingForExtendAndEditForms['total_price'] ?? 0))) ?>">
-            <input type="hidden" id="js-current-price-per-night" value="<?= h($pricePerNightForExtendDetails) ?>">
-            <input type="hidden" id="js-current-checkout-datetime-obj" value="<?= h($bookingForExtendAndEditForms['php_calculated_actual_checkout_datetime_str_for_js'] ?? '') ?>">
-            <input type="hidden" id="js-current-booking-type" value="<?= h($bookingForExtendAndEditForms['booking_type']) ?>">
-            <input type="hidden" id="js-standard-checkout-time-str" value="<?= h(CHECKOUT_TIME_STR) ?>">
-            <input type="hidden" id="js-fixed-deposit-amount" value="<?= h((int)FIXED_DEPOSIT_AMOUNT) ?>">
             <?php
-                if (isset($bookingForExtendAndEditForms['checkin_datetime'])) echo '<input type="hidden" id="js-current-checkin" value="' . h($bookingForExtendAndEditForms['checkin_datetime']) . '">';
-                if (isset($bookingForExtendAndEditForms['booking_type']) && $bookingForExtendAndEditForms['booking_type'] == 'overnight' && isset($bookingForExtendAndEditForms['nights'])) echo '<input type="hidden" id="js-current-nights" value="' . h($bookingForExtendAndEditForms['nights']) . '">';
-                if (isset($bookingForExtendAndEditForms['extended_hours'])) echo '<input type="hidden" id="js-current-extended-hours" value="' . h($bookingForExtendAndEditForms['extended_hours'] ?? 0) . '">';
-                if (isset($bookingForExtendAndEditForms['booking_type']) && $bookingForExtendAndEditForms['booking_type'] === 'short_stay') {
-                    echo '<input type="hidden" id="js-current-short-stay-duration-hours" value="' . h($bookingForExtendAndEditForms['room_short_stay_duration'] ?? DEFAULT_SHORT_STAY_DURATION_HOURS) . '">';
+            // --- START: ปรับปรุงการแสดงผล Nights และ Extended Hours ---
+            if ($bookingType === 'overnight') {
+                echo "<p><strong>ประเภทการจอง:</strong> <span style=\"font-weight:bold; color: var(--color-primary);\">ค้างคืน</span></p>";
+                echo "<p><strong>จำนวนคืนหลัก:</strong> <span id='current-nights-display'>" . h($booking_to_display['nights']) . "</span> คืน</p>";
+                if (isset($booking_to_display['extended_hours']) && (int)$booking_to_display['extended_hours'] > 0) {
+                    echo "<p><strong>ชั่วโมงที่ขยายเพิ่ม:</strong> <span id='current-extended-hours-display'>" . h((int)$booking_to_display['extended_hours']) . "</span> ชั่วโมง</p>";
+                }
+                echo "<p><strong>ราคาต่อคืน (ห้องพัก):</strong> " . h(isset($booking_to_display['price_per_night']) ? number_format((float)$booking_to_display['price_per_night'], 0) : '0') . " บาท</p>";
+            } else { // short_stay
+                echo "<p><strong>ประเภทการจอง:</strong> <span style=\"font-weight:bold; color: var(--color-primary);\">ชั่วคราว (" . h($booking_to_display['room_short_stay_duration'] ?? DEFAULT_SHORT_STAY_DURATION_HOURS) . " ชม.)</span></p>";
+                // สำหรับ short_stay ถ้ามีการขยายเป็นชั่วโมง จะแสดงรวมใน checkout_datetime_calculated อยู่แล้ว
+                // ถ้าต้องการแสดง "ชั่วโมงที่ขยายเพิ่ม" แยกสำหรับ short_stay ด้วย ก็สามารถเพิ่มเงื่อนไขคล้ายด้านบนได้
+                if (isset($booking_to_display['extended_hours']) && (int)$booking_to_display['extended_hours'] > 0) {
+                    echo "<p><strong>ชั่วโมงที่ขยายเพิ่ม:</strong> <span id='current-extended-hours-display'>" . h((int)$booking_to_display['extended_hours']) . "</span> ชั่วโมง</p>";
+                }
+                echo "<p><strong>ราคาห้องพัก (ชั่วคราว):</strong> " . h(number_format((float)($room['price_short_stay'] ?? 0), 0)) . " บาท</p>";
+            }
+            // --- END: ปรับปรุงการแสดงผล Nights และ Extended Hours ---
+            ?>
+
+            <?php if (isset($booking_to_display['notes']) && !empty(trim($booking_to_display['notes']))): ?>
+                <p><strong>หมายเหตุ:</strong> <span id="current-notes-display" class="notes-display-box"><?= nl2br(h($booking_to_display['notes'])) ?></span></p>
+            <?php else: ?>
+                <p><strong>หมายเหตุ:</strong> <span id="current-notes-display"><em>ไม่มีหมายเหตุ</em></span></p>
+            <?php endif; ?>
+
+            <?php if (!empty($current_booking_addons)): ?>
+                <div class="booking-addons-summary">
+                    <h4>บริการเสริมที่เลือก:</h4>
+                    <ul class="booking-addons-list">
+                        <?php foreach ($current_booking_addons as $addon):
+                            $addon_total_price = (float)$addon['price_at_booking'] * (int)$addon['quantity'];
+                        ?>
+                            <li class="addon-item">
+                                <span class="addon-name"><?= h($addon['addon_name']) ?></span>
+                                <span class="addon-quantity">x <?= h($addon['quantity']) ?></span>
+                                <span class="addon-price-each">(<?= h(number_format((float)$addon['price_at_booking'], 0)) ?> บ./หน่วย)</span>
+                                <span class="addon-price-total"><?= h(number_format($addon_total_price, 0)) ?> บ.</span>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                    <p><strong>ยอดรวมค่าบริการเสริม:</strong> <?= h(number_format($calculated_total_addon_cost_for_display, 0)) ?> บาท</p>
+                </div>
+            <?php else: ?>
+                <div class="booking-addons-summary">
+                    <p><em>ไม่มีบริการเสริมที่เลือก</em></p>
+                </div>
+            <?php endif; ?>
+            <hr style="margin: 1rem 0;">
+
+            <?php
+            $displayServiceValue = (float)($booking_to_display['total_price'] ?? 0);
+            $displayActualDepositCollected = (float)($booking_to_display['deposit_amount'] ?? 0);
+            $displayTotalPaid = (float)($booking_to_display['amount_paid'] ?? 0);
+            ?>
+
+            <p><strong>มูลค่าบริการรวม (ห้องพัก + บริการเสริม + ส่วนขยาย):</strong> <span id="displayed-total-service-price"><?= h(number_format(($displayServiceValue - $displayActualDepositCollected), 0)) ?></span> บาท</p>
+            <?php if ($displayActualDepositCollected > 0): ?>
+                <p><strong>ค่ามัดจำที่เก็บไว้:</strong> <?= h(number_format($displayActualDepositCollected, 0)) ?> บาท</p>
+            <?php elseif ($bookingType === 'overnight' && ($booking_to_display['room_current_zone'] ?? $room['zone']) !== 'F'):
+                // Check if room itself is configured to ask for deposit (relevant for non-Zone F overnight where deposit is standard but might be missing)
+                $roomRequiresDeposit = isset($room['ask_deposit_on_overnight']) && $room['ask_deposit_on_overnight'] == 1;
+                if ($roomRequiresDeposit || ($booking_to_display['room_current_zone'] ?? $room['zone']) !== 'F') { // Default to expecting deposit for Non-F overnight
+                    echo '<p><strong>ค่ามัดจำที่เก็บไว้:</strong> <span class="text-danger">0 บาท (ควรมีค่ามัดจำ)</span></p>';
                 }
             ?>
-            <div class="form-group">
-                <label for="extend_type">ประเภทการดำเนินการ:</label>
-                <select name="extend_type" id="extend_type" class="form-control">
-                    <option value="hours">เพิ่มชั่วโมง (ราคา: <span id="hourly_rate_display_extend_val"><?=h((int)round($room_price_per_hour_for_js_details))?></span> บ./ชม.)</option>
-                    <?php if (isset($bookingForExtendAndEditForms['booking_type']) && $bookingForExtendAndEditForms['booking_type'] === 'overnight'): ?>
-                    <option value="nights">เพิ่มคืน (ราคาต่อคืน: <span id="price_per_night_display_extend_val"><?= h($pricePerNightForExtendDetails) ?></span> บ.)</option>
-                    <?php endif; ?>
-                    <?php if ($bookingForExtendAndEditForms && ($bookingForExtendAndEditForms['booking_type'] ?? '') === 'short_stay' && ($bookingForExtendAndEditForms['room_current_zone'] ?? $room['zone']) === 'F'): ?>
-                    <option value="upgrade_to_overnight">เปลี่ยนเป็นค้างคืน (โซน F ยอดรวมค่าห้อง <?=h((int)round((float)($room['price_per_day'] ?? 0)))?> บ.)</option>
-                    <?php endif; ?>
-                </select>
-            </div>
-            <div class="form-group" id="extend_hours_group">
-                <label for="extend_hours">จำนวนชั่วโมงที่เพิ่ม:</label>
-                <input type="number" name="extend_hours" id="extend_hours" min="1" value="1" class="form-control">
-            </div>
-            <div class="form-group" id="extend_nights_group" style="<?= (isset($bookingForExtendAndEditForms['booking_type']) && $bookingForExtendAndEditForms['booking_type'] !== 'overnight') ? 'display:none;' : '' ?>">
-                <label for="extend_nights">จำนวนคืนที่เพิ่ม:</label>
-                <input type="number" name="extend_nights" id="extend_nights" min="1" value="1" class="form-control">
-            </div>
-            <?php // ***** START: MODIFIED PAYMENT DETAILS SECTION ***** ?>
-            <div class="form-group">
-                <p><strong>ค่าบริการส่วนเพิ่ม/ส่วนต่างที่ต้องชำระ (สำหรับการขยายนี้):</strong> <span id="additional_cost_display">0</span> บาท</p>
-                <p><strong>ระยะเวลาที่จะขยายเพิ่ม:</strong> <span id="extension_duration_details_display" style="font-weight:bold; color: var(--color-info-dark);">-</span></p>
-                <p><strong>เช็คเอาต์ใหม่โดยประมาณ:</strong> <span id="new_checkout_time_display" style="font-weight:bold; color:var(--color-primary-dark);"><?= h($bookingForExtendAndEditForms['current_checkout_display_with_ext'] ?? 'N/A') ?></span></p>
-                <hr style="margin: 0.5rem 0;">
-                <p><strong>มูลค่าการจองใหม่ทั้งหมด (หลังการขยาย):</strong> <span id="new_total_amount_display"><?= h((int)round((float)($bookingForExtendAndEditForms['total_price'] ?? 0))) ?></span> บาท</p>
-                <p style="margin-top: 0.5rem;"><strong>ยอดชำระแล้วทั้งหมด (เดิม):</strong> <span id="current_paid_for_extend_display" style="color: var(--color-text-muted);"><?= h(number_format((float)($bookingForExtendAndEditForms['amount_paid'] ?? 0), 0)) ?></span> บาท</p>
-                <p style="font-size: 1.1em;"><strong>ยอดที่ต้องเรียกเก็บจากลูกค้า (สำหรับการดำเนินการนี้):</strong> <strong id="payment_due_for_extension_display" style="color: var(--color-success-text); background-color: var(--color-success-bg); padding: 3px 6px; border-radius: var(--border-radius-sm);">0</strong> บาท</p>
-            </div>
-            <?php // ***** END: MODIFIED PAYMENT DETAILS SECTION ***** ?>
-            <div class="form-group">
-                <label for="extend_payment_method">วิธีการชำระเงิน (สำหรับส่วนเพิ่ม/ส่วนต่าง):</label>
-                <select name="extend_payment_method" id="extend_payment_method" class="form-control" required>
-                    <option value="เงินสด">เงินสด</option>
-                    <option value="เงินโอน">เงินโอน</option>
-                    <option value="บัตรเครดิต">บัตรเครดิต</option>
-                    <option value="อื่นๆ">อื่นๆ</option>
-                </select>
-            </div>
-             <div class="form-group">
-                <label for="extend_receipt">หลักฐานการชำระ (ส่วนที่เพิ่ม ถ้ามี):</label>
-                <input type="file" name="extend_receipt" id="extend_receipt" accept="image/*,application/pdf">
-            </div>
-            <div class="button-group stack-on-mobile">
-                <button type="button" id="submit-extend-stay-btn" class="button primary">ยืนยันการดำเนินการ</button>
-                <button type="button" id="cancel-extend-stay-btn" class="button outline-primary close-modal-btn">ยกเลิก</button>
-            </div>
-        </form>
-      </div>
+            <?php elseif ($bookingType === 'overnight' && ($booking_to_display['room_current_zone'] ?? $room['zone']) === 'F' && $displayActualDepositCollected == 0): ?>
+                <?php if (isset($room['ask_deposit_on_overnight']) && $room['ask_deposit_on_overnight'] == 1): ?>
+                    <p><strong>ค่ามัดจำที่เก็บไว้:</strong> <span class="text-danger">0 บาท (โซน F - แต่ตั้งค่าให้เก็บมัดจำ)</span></p>
+                <?php else: ?>
+                    <p><strong>ค่ามัดจำที่เก็บไว้:</strong> <span class="text-muted">0 บาท (โซน F - ไม่ได้เลือกเก็บมัดจำ)</span></p>
+                <?php endif; ?>
+            <?php endif; ?>
 
-      <div id="edit-booking-details-form-container" style="display:none; margin-top:20px; padding:15px; border:1px solid var(--color-warning); border-radius:var(--border-radius-md); background-color: #fffbeb;">
-        <?php /* Edit booking details form content as before */ ?>
-         <h4>แก้ไขหมายเหตุ และ/หรือ ปรับยอดชำระ</h4>
-        <?php
-            $editFormServiceValueDetails = (int)round((float)($bookingForExtendAndEditForms['total_price'] ?? 0));
-            $editFormRoomCostDetails = 0;
-            if (isset($bookingForExtendAndEditForms['booking_type']) && $bookingForExtendAndEditForms['booking_type'] === 'short_stay') {
-                // For short stay, original room cost is total - addons - deposit
-                $original_deposit_edit = (float)($bookingForExtendAndEditForms['deposit_amount'] ?? 0);
-                $editFormRoomCostDetails = (float)($bookingForExtendAndEditForms['total_price'] ?? 0) - $calculated_total_addon_cost_for_display - $original_deposit_edit;
-            } else { // overnight
-                $editFormRoomCostDetails = (float)($bookingForExtendAndEditForms['price_per_night'] ?? 0) * (int)($bookingForExtendAndEditForms['nights'] ?? 1);
-            }
-            $editFormTotalPaidDetails = (int)round((float)($bookingForExtendAndEditForms['amount_paid'] ?? 0));
-            $editFormActualDepositDetails = (int)round((float)($bookingForExtendAndEditForms['deposit_amount'] ?? 0));
-        ?>
-        <form id="edit-booking-details-form">
-            <input type="hidden" name="booking_id_edit_details" value="<?= h($bookingForExtendAndEditForms['id']) ?>">
-            <input type="hidden" id="js-edit-initial-service-total-price" value="<?= h($editFormServiceValueDetails) ?>">
-            <input type="hidden" id="js-edit-initial-room-cost" value="<?= h((int)round($editFormRoomCostDetails)) ?>">
-            <input type="hidden" id="js-edit-initial-total-paid" value="<?= h($editFormTotalPaidDetails) ?>">
-            <input type="hidden" id="js-edit-initial-booking-type" value="<?= h($bookingForExtendAndEditForms['booking_type']) ?>">
-            <input type="hidden" id="js-edit-initial-deposit-amount" value="<?= h($editFormActualDepositDetails) ?>">
-            <div class="form-group">
-                <label for="edit_notes">หมายเหตุ:</label>
-                <textarea name="edit_notes" id="edit_notes" rows="3" class="form-control" data-initial-value="<?= h($bookingForExtendAndEditForms['notes'] ?? '') ?>"><?= h($bookingForExtendAndEditForms['notes'] ?? '') ?></textarea>
-            </div>
-            <?php if (!empty($all_active_addons_for_modal_edit)): ?>
-            <div class="form-group">
-                <label>บริการเสริม (Add-ons):</label>
-                <div id="edit-addon-chips-container-modal" class="addon-chips-flex-container" style="background-color: white; padding:10px; border-radius:var(--border-radius-sm);">
-                    <?php foreach ($all_active_addons_for_modal_edit as $modal_addon):
-                            $modal_addon_id_details = (int)$modal_addon['id'];
-                            $current_quantity_for_this_addon_details = 1;
-                            $is_checked_in_modal_details = false;
-                            if(isset($current_booking_addons) && is_array($current_booking_addons)){
-                                foreach($current_booking_addons as $cba_item){
-                                    if(isset($cba_item['addon_service_id']) && (int)$cba_item['addon_service_id'] == $modal_addon_id_details){
-                                        $is_checked_in_modal_details = true;
-                                        $current_quantity_for_this_addon_details = (int)$cba_item['quantity'];
-                                        break;
-                                    }
-                                }
-                            }
-                        ?>
-                        <div class="addon-chip-wrapper <?= $is_checked_in_modal_details ? 'selected' : '' ?>">
-                            <input type="checkbox"
-                                   name="selected_addons_modal[<?= h($modal_addon_id_details) ?>][id]"
-                                   value="<?= h($modal_addon_id_details) ?>"
-                                   id="modal_addon_<?= h($modal_addon_id_details) ?>"
-                                   data-price="<?= h((int)round((float)$modal_addon['price'])) ?>"
-                                   class="addon-checkbox-modal"
-                                   <?= $is_checked_in_modal_details ? 'checked' : '' ?>
-                                   data-initial-checked="<?= $is_checked_in_modal_details ? 'true' : 'false' ?>"
-                                   data-initial-quantity="<?= h($current_quantity_for_this_addon_details) ?>">
-                            <label for="modal_addon_<?= h($modal_addon_id_details) ?>" class="addon-chip-label">
-                                <?= h($modal_addon['name']) ?> (<?= h((int)round((float)$modal_addon['price'])) ?> บ.)
-                            </label>
-                            <input type="number"
-                                   name="selected_addons_modal[<?= h($modal_addon_id_details) ?>][quantity]"
-                                   value="<?= h($current_quantity_for_this_addon_details) ?>"
-                                   min="1" step="1"
-                                   class="addon-quantity-modal"
-                                   data-addon-id="<?= h($modal_addon_id_details) ?>"
-                                   style="width: 60px; margin-left: 5px; <?= !$is_checked_in_modal_details ? 'display:none;' : 'display:inline-block;' ?>"
-                                   <?= !$is_checked_in_modal_details ? 'disabled' : '' ?>>
+            <p><strong>ยอดเรียกเก็บลูกค้ารวม:</strong> <span class="highlight-value"><?= h(number_format($displayServiceValue, 0)) ?></span> บาท</p>
+            <p><strong>ยอดชำระแล้วทั้งหมด:</strong> <span id="current-amount-paid-display" class="highlight-value"><?= h(number_format($displayTotalPaid, 0)) ?></span> บาท</p>
+
+            <?php // ***** START: V3.1 FIX - อัปเกรดการแสดงผลสลิป (บรรทัด 284 โดยประมาณ) ***** 
+            ?>
+            <?php if (!empty($all_group_receipts_for_display)): ?>
+                <div style="margin-top: 20px;">
+                    <h4 style="margin: 0 0 10px 0; font-size: 1.1rem; color: #004080; border-bottom: 1px solid #ccc; padding-bottom: 5px;">
+                        <i class="fas fa-receipt" style="margin-right: 8px;"></i>ประวัติการชำระเงิน/สลิปของกลุ่ม
+                    </h4>
+                    <?php foreach ($all_group_receipts_for_display as $receipt): ?>
+                        <div class="receipt-item-detail" style="display: flex; align-items: center; padding: 8px; background-color: #fff; border-radius: 5px; margin-bottom: 8px; border: 1px solid #e0e0e0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                            <!-- รูปภาพสลิปที่กดเพื่อดูรูปใหญ่ได้ -->
+                            <?php
+                            $image_path = '/hotel_booking/uploads/receipts/' . h($receipt['receipt_path']);
+                            $is_pdf = (strtolower(pathinfo($receipt['receipt_path'], PATHINFO_EXTENSION)) == 'pdf');
+                            $placeholder_icon = $is_pdf ? 'fas fa-file-pdf' : 'fas fa-image';
+                            ?>
+                            <div style="width: 60px; height: 60px; object-fit: cover; border-radius: 4px; margin-right: 15px; cursor: pointer; background-color: #f0f0f0; display: flex; align-items: center; justify-content: center; border: 1px solid #ddd;"
+                                class="receipt-btn" data-src="<?= h($image_path) ?>" title="คลิกเพื่อดูสลิป">
+
+                                <?php if ($is_pdf): ?>
+                                    <i class="<?= h($placeholder_icon) ?>" style="font-size: 24px; color: #dc3545;"></i>
+                                <?php else: ?>
+                                    <img src="<?= h($image_path) ?>" alt="สลิป"
+                                        style="width: 100%; height: 100%; object-fit: cover; border-radius: 4px;">
+                                <?php endif; ?>
+                            </div>
+
+                            <div style="flex-grow: 1; font-size: 0.9rem;">
+                                <?php if (!empty($receipt['description'])): ?>
+                                    <strong><?= h($receipt['description']) ?></strong><br>
+                                <?php endif; ?>
+                                <small>วิธีชำระ:
+                                    <span style="font-weight: 500; color: #333;">
+                                        <?= h($receipt['payment_method'] ?? '-') ?>
+                                    </span>
+                                    | อัปโหลด:
+                                    <span style="font-weight: 500; color: #666;">
+                                        <?= h(date('d/m/Y H:i', strtotime($receipt['uploaded_at']))) ?>
+                                    </span>
+                                </small>
+                            </div>
+                            <?php if (isset($receipt['amount']) && is_numeric($receipt['amount'])): ?>
+                                <div style="font-weight: bold; font-size: 1rem; text-align: right; min-width: 100px;">
+                                    <span style="color: <?= (float)$receipt['amount'] >= 0 ? '#218838' : '#c82333' ?>;">
+                                        <?= h(number_format((float)$receipt['amount'], 2)) ?> บาท
+                                    </span>
+                                </div>
+                            <?php endif; ?>
                         </div>
                     <?php endforeach; ?>
                 </div>
-                <p style="margin-top:5px;"><strong>ยอดบริการเสริม (ใหม่):</strong> <span id="modal-total-addon-price-display">0</span> บาท</p>
-            </div>
+            <?php elseif (!empty($booking_to_display['receipt_path']) || !empty($booking_to_display['extended_receipt_path'])): // Fallback สำหรับข้อมูลเก่า 
+            ?>
+                <h4 style="margin-top: 15px; margin-bottom: 5px;">หลักฐานการชำระเงิน (ข้อมูลเก่า):</h4>
+                <?php if (!empty($booking_to_display['receipt_path'])): ?>
+                    <div class="receipt-actions" style="margin-top: 10px; margin-bottom:5px;">
+                        <button class="button-small receipt-btn" data-src="/hotel_booking/uploads/receipts/<?= h($booking_to_display['receipt_path']) ?>">สลิปหลัก (เก่า)</button>
+                    </div>
+                <?php endif; ?>
+                <?php if (!empty($booking_to_display['extended_receipt_path'])): ?>
+                    <div class="receipt-actions" style="margin-top: 5px; margin-bottom:15px;">
+                        <button class="button-small receipt-btn" data-src="/hotel_booking/uploads/receipts/<?= h($booking_to_display['extended_receipt_path']) ?>">สลิปส่วนขยาย (เก่า)</button>
+                    </div>
+                <?php endif; ?>
             <?php endif; ?>
-            <div class="form-group">
-                <label for="adjustment_type">ประเภทการปรับยอด (การชำระเงิน/คืนเงิน เพิ่มเติม):</label>
-                <select name="adjustment_type" id="adjustment_type" class="form-control">
-                    <option value="none" selected>ไม่ปรับยอดชำระ</option>
-                    <option value="add">ลูกค้าชำระเพิ่ม</option>
-                    <option value="reduce">คืนเงินให้ลูกค้า</option>
-                </select>
-            </div>
-            <div class="form-group" id="adjustment_amount_group" style="display:none;">
-                <label for="adjustment_amount">จำนวนเงินที่ชำระเพิ่ม/คืนเงิน (บาท):</label>
-                <input type="number" name="adjustment_amount" id="adjustment_amount" step="1" min="0" value="0" class="form-control">
-            </div>
-            <div class="form-group" id="adjustment_payment_method_group" style="display:none;">
-                <label for="adjustment_payment_method">วิธีการชำระ/คืนเงิน:</label>
-                <select name="adjustment_payment_method" id="adjustment_payment_method" class="form-control">
-                    <option value="เงินสด">เงินสด</option>
-                    <option value="เงินโอน">เงินโอน</option>
-                    <option value="บัตรเครดิต">บัตรเครดิต (คืนยอด)</option>
-                    <option value="อื่นๆ">อื่นๆ</option>
-                </select>
-            </div>
-            <div class="form-group" id="adjustment_receipt_group" style="display:none;">
-                <label for="adjustment_receipt">หลักฐานการชำระ/คืนเงิน (ถ้ามี):</label>
-                <input type="file" name="adjustment_receipt" id="adjustment_receipt" accept="image/*,application/pdf">
-            </div>
-            <hr style="margin: 1rem 0;">
-            <p><strong>ยอดที่ลูกค้าชำระแล้วทั้งหมด (เดิม):</strong> <span id="current_paid_for_edit_display"><?= h($editFormTotalPaidDetails) ?></span> บาท</p>
-            <p><strong>มูลค่าบริการใหม่ทั้งหมด (ห้องพัก + บริการเสริมใหม่ <?= $editFormActualDepositDetails > 0 ? '+ มัดจำ '.h($editFormActualDepositDetails).' บ.' : ((isset($bookingForExtendAndEditForms['booking_type']) && $bookingForExtendAndEditForms['booking_type'] === 'overnight' && ($bookingForExtendAndEditForms['room_current_zone'] ?? $room['zone']) !== 'F' && (!isset($room['ask_deposit_on_overnight']) || $room['ask_deposit_on_overnight']==1)) ? '+ มัดจำที่ควรมี' : '') ?>):</strong> <span id="new_total_price_after_adjustment_display"><?= h($editFormServiceValueDetails) ?></span> บาท</p>
-            <p><strong>ยอดที่ต้องดำเนินการสุทธิ:</strong> <span id="net_change_amount_display" style="font-weight:bold;">0</span></p>
-            <div class="button-group stack-on-mobile">
-                <button type="button" id="submit-edit-booking-details-btn" class="button primary">บันทึกการแก้ไข</button>
-                <button type="button" id="cancel-edit-booking-details-btn" class="button outline-primary close-modal-btn">ยกเลิก</button>
-            </div>
-        </form>
-      </div>
-    <?php endif; ?>
-    </section>
-  <?php // ***** START: NEW ELSEIF BLOCK for $isAdvanceBookingPrimaryDisplay ***** ?>
-  <?php elseif ($booking_to_display && $isAdvanceBookingPrimaryDisplay): ?>
-    <section class="current-booking-details">
-        <h4>สถานะห้องปัจจุบัน</h4>
-        <p>ห้อง <?= h($room['zone'] . $room['room_number']) ?> นี้ <strong style="color: var(--color-secondary-dark);">ว่างอยู่ในปัจจุบัน</strong></p>
-        <?php
+            <?php // ***** END: V3.1 FIX ***** 
+            ?>
+
+            <p><strong>สร้างโดย:</strong> <?= h($booking_to_display['creator_username'] ?? 'N/A') ?></p>
+            <?php if (isset($booking_to_display['last_modifier_username']) && $booking_to_display['last_modifier_username'] !== $booking_to_display['creator_username']): ?>
+                <p><strong>แก้ไขล่าสุดโดย:</strong> <?= h($booking_to_display['last_modifier_username']) ?></p>
+            <?php endif; ?>
+
+            <div class="button-group stack-on-mobile" style="margin-top: 15px;">
+                <?php
+                if ($show_occupy_button_for_booking_id):
+                    $button_text = $can_early_checkin_after_14 ? 'เช็คอิน (ก่อนเวลาที่กำหนด)' : 'ดำเนินการเช็คอิน';
+                ?>
+                    <button id="occupy-btn-in-modal-<?= h($show_occupy_button_for_booking_id) ?>" class="button occupy-btn alert" data-action="occupy" data-booking-id="<?= h($show_occupy_button_for_booking_id) ?>"><?= h($button_text) ?></button>
+                <?php endif; ?>
+
+                <?php
+                // --- START: Logic for Main and Modify Action Buttons ---
+                $canShowCheckoutAndExtendActions = false;
+                $canShowEditMainBookingAction = false;
+                $canShowCancelBookingAction = false;
+
+                if ($booking_to_display) { // This block is now inside `if ($booking_to_display && !$isAdvanceBookingPrimaryDisplay)`
+                    $bookingIdForActions = $booking_to_display['id'];
+
+                    if ($isEffectivelyOverdue || $activeBooking) {
+                        $canShowCheckoutAndExtendActions = true;
+                        $canShowEditMainBookingAction = true;
+                        $canShowCancelBookingAction = true;
+                    } elseif ($isPendingToday) {
+                        $canShowCheckoutAndExtendActions = false;
+                        $canShowEditMainBookingAction = true;
+                        $canShowCancelBookingAction = true;
+                    }
+                    // $isAdvanceBookingPrimaryDisplay case is handled by the outer condition, so it's false here.
+                }
+
+
+                if ($canShowCheckoutAndExtendActions && isset($bookingIdForActions)):
+                    $actualDepositCollectedForActions = (float)($booking_to_display['deposit_amount'] ?? 0);
+                    $showDepositProofForm = true;
+                    $roomZoneForButtonLogic = $booking_to_display['room_current_zone'] ?? $room['zone'];
+                    $bookingTypeForButtonLogic = $booking_to_display['booking_type'] ?? 'overnight';
+
+                    $completeButtonText = "คืนมัดจำ & ดําเนินการเช็คเอาท์";
+                    if ($actualDepositCollectedForActions == 0) {
+                        $completeButtonText = "ดำเนินการเช็คเอาท์ (ไม่มีมัดจำ)";
+                        $showDepositProofForm = false;
+                    } elseif ($roomZoneForButtonLogic === 'F' && $bookingTypeForButtonLogic === 'short_stay') {
+                        $completeButtonText = "ดำเนินการเช็คเอาท์ (โซน F ชั่วคราว)";
+                        $showDepositProofForm = false;
+                    } elseif ($bookingTypeForButtonLogic === 'short_stay' && $actualDepositCollectedForActions == 0) {
+                        $completeButtonText = "ดำเนินการเช็คเอาท์ (ชั่วคราว)";
+                        $showDepositProofForm = false;
+                    }
+                ?>
+                    <button id="return-deposit-btn" class="button secondary"><?= h($completeButtonText) ?></button>
+                    <button id="show-extend-stay-form-btn" class="button info" data-booking-id="<?= h($bookingIdForActions) ?>">เพิ่มชั่วโมง/คืน</button>
+                    <button id="show-edit-booking-details-btn" class="button warning" data-booking-id="<?= h($bookingIdForActions) ?>">แก้ไขหมายเหตุ/ปรับยอด</button>
+
+                    <?php // ***** START: โค้ดที่เพิ่มเข้ามา ***** 
+                    ?>
+                    <button type="button" class="button outline-secondary show-move-room-modal-btn"
+                        data-booking-id="<?= h($bookingIdForActions) ?>"
+                        data-current-room-id="<?= h($room['id']) ?>"
+                        data-customer-name="<?= h($booking_to_display['customer_name']) ?>">
+                        <img src="/hotel_booking/assets/image/move_room.png" alt="Move" style="width:16px; height:16px; margin-right:5px; vertical-align:middle;">
+                        ย้ายห้อง
+                    </button>
+                    <?php // ***** END: โค้ดที่เพิ่มเข้ามา ***** 
+                    ?>
+
+                <?php endif; ?>
+
+                <?php if ($canShowEditMainBookingAction && isset($bookingIdForActions)): ?>
+                    <a href="/hotel_booking/pages/booking.php?edit_booking_id=<?= h($bookingIdForActions) ?>" class="button primary" title="แก้ไขข้อมูลการจองหลัก เช่น ลูกค้า, จำนวนคืน, บริการเสริม">แก้ไขการจองหลัก</a>
+                <?php endif; ?>
+
+                <?php if ($canShowCancelBookingAction && isset($bookingIdForActions)): ?>
+                    <button class="button-small delete-booking-btn alert" data-booking-id="<?= h($bookingIdForActions) ?>" id="delete-current-booking-dtl-<?= h($bookingIdForActions) ?>">ยกเลิกการจอง</button>
+                <?php endif; ?>
+
+                <?php if ($canShowCheckoutAndExtendActions && isset($bookingIdForActions)): ?>
+                    <div id="return-deposit-form" style="display:none; margin-top:10px; padding:10px; border:1px solid var(--color-border); border-radius:var(--border-radius-md); background-color: #f8f9fa; width:100%;">
+                        <?php
+                        if ($showDepositProofForm && $actualDepositCollectedForActions > 0):
+                        ?>
+                            <h4>กรอกข้อมูลเพื่อดำเนินการคืนมัดจำ</h4>
+                            <label for="deposit-proof">หลักฐานการคืนมัดจำ (สำหรับยอดมัดจำ <?= h(number_format($actualDepositCollectedForActions, 0)) ?> บาท):</label>
+                            <input type="file" id="deposit-proof" name="deposit_proof" accept="image/*,application/pdf" required style="margin-bottom:10px; width:100%;" />
+                            <button id="submit-deposit" class="button alert complete-booking-btn" data-booking-id="<?= h($bookingIdForActions) ?>" data-booking-type="overnight_with_deposit_return">อัปโหลดและยืนยันการย้าย</button>
+                            <hr style="margin: 1.5rem 0;">
+                            <p style="text-align:center; margin-bottom:0.5rem;">หรือ</p>
+                            <button id="complete-no-refund-action-btn" class="button warning"
+                                style="width:100%;"
+                                data-booking-id="<?= h($bookingIdForActions) ?>"
+                                title="ดำเนินการเช็คเอาท์และย้ายไปประวัติ โดยไม่ทำการคืนเงินมัดจำ (เช่น กรณีลูกค้าผิดเงื่อนไข)">
+                                ดำเนินการต่อ (ไม่คืนมัดจำ <?= h(number_format($actualDepositCollectedForActions, 0)) ?> บาท)
+                            </button>
+                        <?php else:
+                            $noDepositReturnText = 'ยืนยันการดำเนินการเช็คเอาท์';
+                            if (($booking_to_display['room_current_zone'] ?? $room['zone']) === 'F' && ($booking_to_display['booking_type'] ?? 'overnight') === 'short_stay') {
+                                $noDepositReturnText = 'ยืนยันการย้ายการจองชั่วคราว (โซน F) และดำเนินการเช็คเอาท์';
+                            } elseif (($booking_to_display['booking_type'] ?? 'overnight') === 'short_stay') {
+                                $noDepositReturnText = 'ยืนยันการย้ายการจองชั่วคราว และดำเนินการเช็คเอาท์';
+                            } elseif ($actualDepositCollectedForActions == 0) {
+                                $noDepositReturnText = 'ยืนยันการย้ายการจอง (ไม่มีมัดจำ) และดำเนินการเช็คเอาท์';
+                            }
+                        ?>
+                            <p><?= $noDepositReturnText ?></p>
+                            <button id="submit-deposit" class="button alert complete-booking-btn" data-booking-id="<?= h($bookingIdForActions) ?>" data-booking-type="no_deposit_return_needed"><?= (($booking_to_display['room_current_zone'] ?? $room['zone']) === 'F' && ($booking_to_display['booking_type'] ?? 'overnight') === 'short_stay' ? 'ยืนยัน (โซน F ชั่วคราว)' : 'ยืนยันการย้าย') ?></button>
+                        <?php endif; ?>
+                    </div>
+                <?php endif; ?>
+            </div> <?php // End button-group 
+                    ?>
+
+            <?php
+            $bookingForExtendAndEditForms = $booking_to_display;
+            if ($canShowCheckoutAndExtendActions && $bookingForExtendAndEditForms):
+            ?>
+                <div id="extend-stay-form-container" style="display:none; margin-top:20px; padding:15px; border:1px solid var(--color-info); border-radius:var(--border-radius-md); background-color: #f0f9ff;">
+                    <?php /* Extend stay form content as before, it's shown based on $canShowCheckoutAndExtendActions */ ?>
+                    <h4>ขยายเวลาการเข้าพัก / เปลี่ยนเป็นค้างคืน</h4>
+                    <?php
+                    $hourly_rate_from_system_settings_details = (defined('HOURLY_RATE_DB') ? (float)HOURLY_RATE_DB : 100);
+                    // HOURLY_RATE constant should be used here if it's the effective one, or HOURLY_RATE_DB.
+                    // Assuming HOURLY_RATE is defined somewhere or get_system_setting_value is preferred.
+                    $_rate_val_temp = get_system_setting_value($pdo, 'hourly_extension_rate', 100);
+                    $hourly_rate_from_system_settings_details = is_numeric($_rate_val_temp) && (float)$_rate_val_temp > 0 ? (float)$_rate_val_temp : 100;
+
+
+                    $room_specific_hourly_rate_details = null;
+                    if (isset($bookingForExtendAndEditForms['price_per_hour_extension']) && $bookingForExtendAndEditForms['price_per_hour_extension'] !== null && (float)$bookingForExtendAndEditForms['price_per_hour_extension'] > 0) {
+                        $room_specific_hourly_rate_details = (float)$bookingForExtendAndEditForms['price_per_hour_extension'];
+                    } elseif (isset($room['price_per_hour_extension']) && $room['price_per_hour_extension'] !== null && (float)$room['price_per_hour_extension'] > 0) {
+                        $room_specific_hourly_rate_details = (float)$room['price_per_hour_extension'];
+                    }
+                    $room_price_per_hour_for_js_details = ($room_specific_hourly_rate_details !== null && $room_specific_hourly_rate_details > 0) ? $room_specific_hourly_rate_details : $hourly_rate_from_system_settings_details;
+
+                    $initial_short_stay_room_cost_for_js_details = 0;
+                    if ($bookingForExtendAndEditForms && $bookingForExtendAndEditForms['booking_type'] === 'short_stay') {
+                        $initial_short_stay_room_cost_for_js_details = (float)($bookingForExtendAndEditForms['total_price'] ?? 0) - $calculated_total_addon_cost_for_display - (float)($bookingForExtendAndEditForms['deposit_amount'] ?? 0);
+                    }
+                    $pricePerNightForExtendDetails = (int)round((float)($bookingForExtendAndEditForms['price_per_night'] ?? ($room['price_per_day'] ?? 0)));
+                    ?>
+                    <form id="extend-stay-form"
+                        data-current-room-zone="<?= h($bookingForExtendAndEditForms['room_current_zone'] ?? $room['zone']) ?>"
+                        data-room-hourly-rate="<?= h((int)round($room_price_per_hour_for_js_details)) ?>"
+                        data-room-overnight-price="<?= h((int)round((float)($room['price_per_day'] ?? 0))) ?>"
+                        data-room-ask-deposit-f="<?= h($room['ask_deposit_on_overnight'] ?? 0) ?>"
+                        data-initial-short-stay-room-cost="<?= h((int)round($initial_short_stay_room_cost_for_js_details)) ?>">
+                        <input type="hidden" name="booking_id_extend" value="<?= h($bookingForExtendAndEditForms['id']) ?>">
+                        <input type="hidden" id="js-current-total-price" value="<?= h((int)round((float)($bookingForExtendAndEditForms['total_price'] ?? 0))) ?>">
+                        <input type="hidden" id="js-current-price-per-night" value="<?= h($pricePerNightForExtendDetails) ?>">
+                        <input type="hidden" id="js-current-checkout-datetime-obj" value="<?= h($bookingForExtendAndEditForms['php_calculated_actual_checkout_datetime_str_for_js'] ?? '') ?>">
+                        <input type="hidden" id="js-current-booking-type" value="<?= h($bookingForExtendAndEditForms['booking_type']) ?>">
+                        <input type="hidden" id="js-standard-checkout-time-str" value="<?= h(CHECKOUT_TIME_STR) ?>">
+                        <input type="hidden" id="js-fixed-deposit-amount" value="<?= h((int)FIXED_DEPOSIT_AMOUNT) ?>">
+                        <?php
+                        if (isset($bookingForExtendAndEditForms['checkin_datetime'])) echo '<input type="hidden" id="js-current-checkin" value="' . h($bookingForExtendAndEditForms['checkin_datetime']) . '">';
+                        if (isset($bookingForExtendAndEditForms['booking_type']) && $bookingForExtendAndEditForms['booking_type'] == 'overnight' && isset($bookingForExtendAndEditForms['nights'])) echo '<input type="hidden" id="js-current-nights" value="' . h($bookingForExtendAndEditForms['nights']) . '">';
+                        if (isset($bookingForExtendAndEditForms['extended_hours'])) echo '<input type="hidden" id="js-current-extended-hours" value="' . h($bookingForExtendAndEditForms['extended_hours'] ?? 0) . '">';
+                        if (isset($bookingForExtendAndEditForms['booking_type']) && $bookingForExtendAndEditForms['booking_type'] === 'short_stay') {
+                            echo '<input type="hidden" id="js-current-short-stay-duration-hours" value="' . h($bookingForExtendAndEditForms['room_short_stay_duration'] ?? DEFAULT_SHORT_STAY_DURATION_HOURS) . '">';
+                        }
+                        ?>
+                        <div class="form-group">
+                            <label for="extend_type">ประเภทการดำเนินการ:</label>
+                            <select name="extend_type" id="extend_type" class="form-control">
+                                <option value="hours">เพิ่มชั่วโมง (ราคา: <span id="hourly_rate_display_extend_val"><?= h((int)round($room_price_per_hour_for_js_details)) ?></span> บ./ชม.)</option>
+                                <?php if (isset($bookingForExtendAndEditForms['booking_type']) && $bookingForExtendAndEditForms['booking_type'] === 'overnight'): ?>
+                                    <option value="nights">เพิ่มคืน (ราคาต่อคืน: <span id="price_per_night_display_extend_val"><?= h($pricePerNightForExtendDetails) ?></span> บ.)</option>
+                                <?php endif; ?>
+                                <?php if ($bookingForExtendAndEditForms && ($bookingForExtendAndEditForms['booking_type'] ?? '') === 'short_stay' && ($bookingForExtendAndEditForms['room_current_zone'] ?? $room['zone']) === 'F'): ?>
+                                    <option value="upgrade_to_overnight">เปลี่ยนเป็นค้างคืน (โซน F ยอดรวมค่าห้อง <?= h((int)round((float)($room['price_per_day'] ?? 0))) ?> บ.)</option>
+                                <?php endif; ?>
+                            </select>
+                        </div>
+                        <div class="form-group" id="extend_hours_group">
+                            <label for="extend_hours">จำนวนชั่วโมงที่เพิ่ม:</label>
+                            <input type="number" name="extend_hours" id="extend_hours" min="1" value="1" class="form-control">
+                        </div>
+                        <div class="form-group" id="extend_nights_group" style="<?= (isset($bookingForExtendAndEditForms['booking_type']) && $bookingForExtendAndEditForms['booking_type'] !== 'overnight') ? 'display:none;' : '' ?>">
+                            <label for="extend_nights">จำนวนคืนที่เพิ่ม:</label>
+                            <input type="number" name="extend_nights" id="extend_nights" min="1" value="1" class="form-control">
+                        </div>
+                        <?php // ***** START: MODIFIED PAYMENT DETAILS SECTION ***** 
+                        ?>
+                        <div class="form-group">
+                            <p><strong>ค่าบริการส่วนเพิ่ม/ส่วนต่างที่ต้องชำระ (สำหรับการขยายนี้):</strong> <span id="additional_cost_display">0</span> บาท</p>
+                            <p><strong>ระยะเวลาที่จะขยายเพิ่ม:</strong> <span id="extension_duration_details_display" style="font-weight:bold; color: var(--color-info-dark);">-</span></p>
+                            <p><strong>เช็คเอาต์ใหม่โดยประมาณ:</strong> <span id="new_checkout_time_display" style="font-weight:bold; color:var(--color-primary-dark);"><?= h($bookingForExtendAndEditForms['current_checkout_display_with_ext'] ?? 'N/A') ?></span></p>
+                            <hr style="margin: 0.5rem 0;">
+                            <p><strong>มูลค่าการจองใหม่ทั้งหมด (หลังการขยาย):</strong> <span id="new_total_amount_display"><?= h((int)round((float)($bookingForExtendAndEditForms['total_price'] ?? 0))) ?></span> บาท</p>
+                            <p style="margin-top: 0.5rem;"><strong>ยอดชำระแล้วทั้งหมด (เดิม):</strong> <span id="current_paid_for_extend_display" style="color: var(--color-text-muted);"><?= h(number_format((float)($bookingForExtendAndEditForms['amount_paid'] ?? 0), 0)) ?></span> บาท</p>
+                            <p style="font-size: 1.1em;"><strong>ยอดที่ต้องเรียกเก็บจากลูกค้า (สำหรับการดำเนินการนี้):</strong> <strong id="payment_due_for_extension_display" style="color: var(--color-success-text); background-color: var(--color-success-bg); padding: 3px 6px; border-radius: var(--border-radius-sm);">0</strong> บาท</p>
+                        </div>
+                        <?php // ***** END: MODIFIED PAYMENT DETAILS SECTION ***** 
+                        ?>
+                        <div class="form-group">
+                            <label for="extend_payment_method">วิธีการชำระเงิน (สำหรับส่วนเพิ่ม/ส่วนต่าง):</label>
+                            <select name="extend_payment_method" id="extend_payment_method" class="form-control" required>
+                                <option value="เงินสด">เงินสด</option>
+                                <option value="เงินโอน">เงินโอน</option>
+                                <option value="บัตรเครดิต">บัตรเครดิต</option>
+                                <option value="อื่นๆ">อื่นๆ</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="extend_receipt">หลักฐานการชำระ (ส่วนที่เพิ่ม ถ้ามี):</label>
+                            <input type="file" name="extend_receipt" id="extend_receipt" accept="image/*,application/pdf">
+                        </div>
+                        <div class="button-group stack-on-mobile">
+                            <button type="button" id="submit-extend-stay-btn" class="button primary">ยืนยันการดำเนินการ</button>
+                            <button type="button" id="cancel-extend-stay-btn" class="button outline-primary close-modal-btn">ยกเลิก</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div id="edit-booking-details-form-container" style="display:none; margin-top:20px; padding:15px; border:1px solid var(--color-warning); border-radius:var(--border-radius-md); background-color: #fffbeb;">
+                    <?php /* Edit booking details form content as before */ ?>
+                    <h4>แก้ไขหมายเหตุ และ/หรือ ปรับยอดชำระ</h4>
+                    <?php
+                    $editFormServiceValueDetails = (int)round((float)($bookingForExtendAndEditForms['total_price'] ?? 0));
+                    $editFormRoomCostDetails = 0;
+                    if (isset($bookingForExtendAndEditForms['booking_type']) && $bookingForExtendAndEditForms['booking_type'] === 'short_stay') {
+                        // For short stay, original room cost is total - addons - deposit
+                        $original_deposit_edit = (float)($bookingForExtendAndEditForms['deposit_amount'] ?? 0);
+                        $editFormRoomCostDetails = (float)($bookingForExtendAndEditForms['total_price'] ?? 0) - $calculated_total_addon_cost_for_display - $original_deposit_edit;
+                    } else { // overnight
+                        $editFormRoomCostDetails = (float)($bookingForExtendAndEditForms['price_per_night'] ?? 0) * (int)($bookingForExtendAndEditForms['nights'] ?? 1);
+                    }
+                    $editFormTotalPaidDetails = (int)round((float)($bookingForExtendAndEditForms['amount_paid'] ?? 0));
+                    $editFormActualDepositDetails = (int)round((float)($bookingForExtendAndEditForms['deposit_amount'] ?? 0));
+                    ?>
+                    <form id="edit-booking-details-form">
+                        <input type="hidden" name="booking_id_edit_details" value="<?= h($bookingForExtendAndEditForms['id']) ?>">
+                        <input type="hidden" id="js-edit-initial-service-total-price" value="<?= h($editFormServiceValueDetails) ?>">
+                        <input type="hidden" id="js-edit-initial-room-cost" value="<?= h((int)round($editFormRoomCostDetails)) ?>">
+                        <input type="hidden" id="js-edit-initial-total-paid" value="<?= h($editFormTotalPaidDetails) ?>">
+                        <input type="hidden" id="js-edit-initial-booking-type" value="<?= h($bookingForExtendAndEditForms['booking_type']) ?>">
+                        <input type="hidden" id="js-edit-initial-deposit-amount" value="<?= h($editFormActualDepositDetails) ?>">
+                        <div class="form-group">
+                            <label for="edit_notes">หมายเหตุ:</label>
+                            <textarea name="edit_notes" id="edit_notes" rows="3" class="form-control" data-initial-value="<?= h($bookingForExtendAndEditForms['notes'] ?? '') ?>"><?= h($bookingForExtendAndEditForms['notes'] ?? '') ?></textarea>
+                        </div>
+                        <?php if (!empty($all_active_addons_for_modal_edit)): ?>
+                            <div class="form-group">
+                                <label>บริการเสริม (Add-ons):</label>
+                                <div id="edit-addon-chips-container-modal" class="addon-chips-flex-container" style="background-color: white; padding:10px; border-radius:var(--border-radius-sm);">
+                                    <?php foreach ($all_active_addons_for_modal_edit as $modal_addon):
+                                        $modal_addon_id_details = (int)$modal_addon['id'];
+                                        $current_quantity_for_this_addon_details = 1;
+                                        $is_checked_in_modal_details = false;
+                                        if (isset($current_booking_addons) && is_array($current_booking_addons)) {
+                                            foreach ($current_booking_addons as $cba_item) {
+                                                if (isset($cba_item['addon_service_id']) && (int)$cba_item['addon_service_id'] == $modal_addon_id_details) {
+                                                    $is_checked_in_modal_details = true;
+                                                    $current_quantity_for_this_addon_details = (int)$cba_item['quantity'];
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    ?>
+                                        <div class="addon-chip-wrapper <?= $is_checked_in_modal_details ? 'selected' : '' ?>">
+                                            <input type="checkbox"
+                                                name="selected_addons_modal[<?= h($modal_addon_id_details) ?>][id]"
+                                                value="<?= h($modal_addon_id_details) ?>"
+                                                id="modal_addon_<?= h($modal_addon_id_details) ?>"
+                                                data-price="<?= h((int)round((float)$modal_addon['price'])) ?>"
+                                                class="addon-checkbox-modal"
+                                                <?= $is_checked_in_modal_details ? 'checked' : '' ?>
+                                                data-initial-checked="<?= $is_checked_in_modal_details ? 'true' : 'false' ?>"
+                                                data-initial-quantity="<?= h($current_quantity_for_this_addon_details) ?>">
+                                            <label for="modal_addon_<?= h($modal_addon_id_details) ?>" class="addon-chip-label">
+                                                <?= h($modal_addon['name']) ?> (<?= h((int)round((float)$modal_addon['price'])) ?> บ.)
+                                            </label>
+                                            <input type="number"
+                                                name="selected_addons_modal[<?= h($modal_addon_id_details) ?>][quantity]"
+                                                value="<?= h($current_quantity_for_this_addon_details) ?>"
+                                                min="1" step="1"
+                                                class="addon-quantity-modal"
+                                                data-addon-id="<?= h($modal_addon_id_details) ?>"
+                                                style="width: 60px; margin-left: 5px; <?= !$is_checked_in_modal_details ? 'display:none;' : 'display:inline-block;' ?>"
+                                                <?= !$is_checked_in_modal_details ? 'disabled' : '' ?>>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                                <p style="margin-top:5px;"><strong>ยอดบริการเสริม (ใหม่):</strong> <span id="modal-total-addon-price-display">0</span> บาท</p>
+                            </div>
+                        <?php endif; ?>
+                        <div class="form-group">
+                            <label for="adjustment_type">ประเภทการปรับยอด (การชำระเงิน/คืนเงิน เพิ่มเติม):</label>
+                            <select name="adjustment_type" id="adjustment_type" class="form-control">
+                                <option value="none" selected>ไม่ปรับยอดชำระ</option>
+                                <option value="add">ลูกค้าชำระเพิ่ม</option>
+                                <option value="reduce">คืนเงินให้ลูกค้า</option>
+                            </select>
+                        </div>
+                        <div class="form-group" id="adjustment_amount_group" style="display:none;">
+                            <label for="adjustment_amount">จำนวนเงินที่ชำระเพิ่ม/คืนเงิน (บาท):</label>
+                            <input type="number" name="adjustment_amount" id="adjustment_amount" step="1" min="0" value="0" class="form-control">
+                        </div>
+                        <div class="form-group" id="adjustment_payment_method_group" style="display:none;">
+                            <label for="adjustment_payment_method">วิธีการชำระ/คืนเงิน:</label>
+                            <select name="adjustment_payment_method" id="adjustment_payment_method" class="form-control">
+                                <option value="เงินสด">เงินสด</option>
+                                <option value="เงินโอน">เงินโอน</option>
+                                <option value="บัตรเครดิต">บัตรเครดิต (คืนยอด)</option>
+                                <option value="อื่นๆ">อื่นๆ</option>
+                            </select>
+                        </div>
+                        <div class="form-group" id="adjustment_receipt_group" style="display:none;">
+                            <label for="adjustment_receipt">หลักฐานการชำระ/คืนเงิน (ถ้ามี):</label>
+                            <input type="file" name="adjustment_receipt" id="adjustment_receipt" accept="image/*,application/pdf">
+                        </div>
+                        <hr style="margin: 1rem 0;">
+                        <p><strong>ยอดที่ลูกค้าชำระแล้วทั้งหมด (เดิม):</strong> <span id="current_paid_for_edit_display"><?= h($editFormTotalPaidDetails) ?></span> บาท</p>
+                        <p><strong>มูลค่าบริการใหม่ทั้งหมด (ห้องพัก + บริการเสริมใหม่ <?= $editFormActualDepositDetails > 0 ? '+ มัดจำ ' . h($editFormActualDepositDetails) . ' บ.' : ((isset($bookingForExtendAndEditForms['booking_type']) && $bookingForExtendAndEditForms['booking_type'] === 'overnight' && ($bookingForExtendAndEditForms['room_current_zone'] ?? $room['zone']) !== 'F' && (!isset($room['ask_deposit_on_overnight']) || $room['ask_deposit_on_overnight'] == 1)) ? '+ มัดจำที่ควรมี' : '') ?>):</strong> <span id="new_total_price_after_adjustment_display"><?= h($editFormServiceValueDetails) ?></span> บาท</p>
+                        <p><strong>ยอดที่ต้องดำเนินการสุทธิ:</strong> <span id="net_change_amount_display" style="font-weight:bold;">0</span></p>
+                        <div class="button-group stack-on-mobile">
+                            <button type="button" id="submit-edit-booking-details-btn" class="button primary">บันทึกการแก้ไข</button>
+                            <button type="button" id="cancel-edit-booking-details-btn" class="button outline-primary close-modal-btn">ยกเลิก</button>
+                        </div>
+                    </form>
+                </div>
+            <?php endif; ?>
+        </section>
+        <?php // ***** START: NEW ELSEIF BLOCK for $isAdvanceBookingPrimaryDisplay ***** 
+        ?>
+    <?php elseif ($booking_to_display && $isAdvanceBookingPrimaryDisplay): ?>
+        <section class="current-booking-details">
+            <h4>สถานะห้องปัจจุบัน</h4>
+            <p>ห้อง <?= h($room['zone'] . $room['room_number']) ?> นี้ <strong style="color: var(--color-secondary-dark);">ว่างอยู่ในปัจจุบัน</strong></p>
+            <?php
             // We already have $booking_to_display which is the earliest future booking.
             // The $advanceBookings list contains OTHER future bookings for this room.
             $nextUpcomingBookingToDisplay = $booking_to_display; // This is the one that triggered $isAdvanceBookingPrimaryDisplay
 
             echo "<p>จะมีการเช็คอินครั้งถัดไปโดยคุณ <strong>" . h($nextUpcomingBookingToDisplay['customer_name']) . "</strong>";
             echo " ในวันที่ " . h($nextUpcomingBookingToDisplay['formatted_checkin']) . "</p>";
+            ?>
+            <p>รายละเอียดการจองล่วงหน้าทั้งหมดสำหรับห้องนี้ (รวมถึงรายการนี้) แสดงอยู่ด้านล่าง</p>
+            <div class="button-group stack-on-mobile" style="margin-top: 15px;">
+                <a href="/hotel_booking/pages/booking.php?edit_booking_id=<?= h($nextUpcomingBookingToDisplay['id']) ?>" class="button primary" title="แก้ไขข้อมูลการจองล่วงหน้านี้">แก้ไขการจองนี้</a>
+                <button class="button-small delete-booking-btn alert" data-booking-id="<?= h($nextUpcomingBookingToDisplay['id']) ?>" id="delete-adv-booking-dtl-primary-<?= h($nextUpcomingBookingToDisplay['id']) ?>">ยกเลิกการจองนี้</button>
+            </div>
+        </section>
+        <?php // ***** END: NEW ELSEIF BLOCK ***** 
         ?>
-        <p>รายละเอียดการจองล่วงหน้าทั้งหมดสำหรับห้องนี้ (รวมถึงรายการนี้) แสดงอยู่ด้านล่าง</p>
-         <div class="button-group stack-on-mobile" style="margin-top: 15px;">
-             <a href="/hotel_booking/pages/booking.php?edit_booking_id=<?= h($nextUpcomingBookingToDisplay['id']) ?>" class="button primary" title="แก้ไขข้อมูลการจองล่วงหน้านี้">แก้ไขการจองนี้</a>
-             <button class="button-small delete-booking-btn alert" data-booking-id="<?= h($nextUpcomingBookingToDisplay['id']) ?>" id="delete-adv-booking-dtl-primary-<?=h($nextUpcomingBookingToDisplay['id'])?>">ยกเลิกการจองนี้</button>
-        </div>
-    </section>
-  <?php // ***** END: NEW ELSEIF BLOCK ***** ?>
-  <?php else: ?>
-    <p style="padding:10px 0;">ห้องนี้ <strong style="color: var(--color-secondary-dark);">ว่าง</strong> และยังไม่มีการจองที่เกี่ยวข้องในปัจจุบัน, รอการเช็คอินสำหรับวันนี้, หรือข้อมูลการจองที่เกินกำหนด</p>
-  <?php endif; ?>
-  <?php // ***** END: MODIFIED CONDITION ***** ?>
+    <?php else: ?>
+        <p style="padding:10px 0;">ห้องนี้ <strong style="color: var(--color-secondary-dark);">ว่าง</strong> และยังไม่มีการจองที่เกี่ยวข้องในปัจจุบัน, รอการเช็คอินสำหรับวันนี้, หรือข้อมูลการจองที่เกินกำหนด</p>
+    <?php endif; ?>
+    <?php // ***** END: MODIFIED CONDITION ***** 
+    ?>
 
 
-  <?php
-  // --- START: ตรรกะใหม่สำหรับแสดงปุ่ม "สร้างการจองใหม่" ---
-  $showCreateBookingButton_details = false;
-  if (isset($room['status']) && $room['status'] === 'free') {
-    // ห้องต้องมีสถานะเป็น 'free' ในตาราง rooms
-    // และต้องไม่มีการเข้าพักปัจจุบัน หรือรอเช็คอินวันนี้
-    if (!$activeBooking && !$isPendingToday) {
-        $showCreateBookingButton_details = true;
+    <?php
+    // --- START: ตรรกะใหม่สำหรับแสดงปุ่ม "สร้างการจองใหม่" ---
+    $showCreateBookingButton_details = false;
+    if (isset($room['status']) && $room['status'] === 'free') {
+        // ห้องต้องมีสถานะเป็น 'free' ในตาราง rooms
+        // และต้องไม่มีการเข้าพักปัจจุบัน หรือรอเช็คอินวันนี้
+        if (!$activeBooking && !$isPendingToday) {
+            $showCreateBookingButton_details = true;
+        }
     }
-  }
 
-  if ($showCreateBookingButton_details): ?>
-    <div class="button-group" style="margin-top: 15px; border-top: 1px dashed var(--color-border); padding-top: 15px;">
-        <button class="button primary create-booking-btn" data-room-id="<?= h($room['id']) ?>">สร้างการจองใหม่สำหรับห้องนี้ (สำหรับช่วงเวลาที่ยังว่าง)</button>
-    </div>
-  <?php endif; ?>
-  <?php // --- END: ตรรกะใหม่ --- ?>
-
-  <?php if (!empty($advanceBookings)): ?>
-    <section class="advance-booking-details" style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee;">
-        <h4>การจองล่วงหน้าอื่นๆ สำหรับห้องนี้</h4>
-        <div class="table-responsive">
-            <table class="report-table advance-table-popup">
-                <thead>
-                    <tr>
-                        <th>ผู้จอง</th>
-                        <th>เบอร์โทร</th>
-                        <th>เช็กอิน</th>
-                        <th>เช็กเอาต์</th>
-                        <th>ประเภท</th>
-                        <th>ระยะเวลา</th>
-                        <th>ยอดชำระ</th>
-                        <th>หลักฐาน</th>
-                        <th>ผู้สร้าง</th>
-                        <th>ผู้แก้ไขล่าสุด</th>
-                        <th>ดำเนินการ</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($advanceBookings as $advBooking): ?>
-                        <?php $advBookingType = $advBooking['booking_type'] ?? 'overnight'; ?>
-                        <tr>
-                            <td><?= h($advBooking['customer_name']) ?></td>
-                            <td>
-                                <?php if (!empty($advBooking['customer_phone'])): ?>
-                                    <a href="tel:<?= h(preg_replace('/[^0-9+]/', '', $advBooking['customer_phone'])) ?>" class="link-like"><?= h($advBooking['customer_phone']) ?></a>
-                                <?php else: echo '-'; endif; ?>
-                            </td>
-                            <td><?= h($advBooking['formatted_checkin']) ?></td>
-                            <td><?= h($advBooking['formatted_checkout']) ?></td>
-                            <td><?= h($advBookingType === 'short_stay' ? 'ชั่วคราว' : 'ค้างคืน') ?></td>
-                            <td style="text-align:center;"><?= h($advBookingType === 'short_stay' ? (($advBooking['short_stay_duration_hours'] ?? DEFAULT_SHORT_STAY_DURATION_HOURS) . ' ชม.') : (($advBooking['nights'] ?? 'N/A') . ' คืน')) ?></td>
-                            <td style="text-align:right;"><?= h(number_format((float)($advBooking['amount_paid'] ?? 0), 0)) ?></td>
-                            <td>
-                                <?php if (!empty($advBooking['receipt_path'])): ?>
-                                  <button class="button-small receipt-btn" data-src="/hotel_booking/uploads/receipts/<?= h($advBooking['receipt_path']) ?>">ดูสลิป</button>
-                                <?php else: ?>
-                                  <span class="text-muted"><em>ไม่มี</em></span>
-                                <?php endif; ?>
-                            </td>
-                            <td><?= h($advBooking['creator_username'] ?? 'N/A') ?></td>
-                            <td>
-                                <?php if (isset($advBooking['last_modifier_username']) && $advBooking['last_modifier_username'] !== $advBooking['creator_username']): ?>
-                                    <?= h($advBooking['last_modifier_username']) ?>
-                                <?php else: ?>
-                                    -
-                                <?php endif; ?>
-                            </td>
-                            <td class="actions-cell">
-                                <a href="/hotel_booking/pages/booking.php?edit_booking_id=<?= h($advBooking['booking_id']) ?>" class="button-small edit-booking-btn info">แก้ไข</a>
-                                <button class="button-small delete-booking-btn alert" data-booking-id="<?= h($advBooking['booking_id']) ?>" id="delete-adv-booking-dtl-<?=h($advBooking['booking_id'])?>">ลบ</button>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
+    if ($showCreateBookingButton_details): ?>
+        <div class="button-group" style="margin-top: 15px; border-top: 1px dashed var(--color-border); padding-top: 15px;">
+            <button class="button primary create-booking-btn" data-room-id="<?= h($room['id']) ?>">สร้างการจองใหม่สำหรับห้องนี้ (สำหรับช่วงเวลาที่ยังว่าง)</button>
         </div>
-    </section>
-  <?php // ***** START: MODIFIED CONDITION FOR "NO ADVANCE BOOKINGS" MESSAGE ***** ?>
-  <?php elseif (!($booking_to_display && $isAdvanceBookingPrimaryDisplay) && !$activeBooking && !$isEffectivelyOverdue && !$isPendingToday ): ?>
-    <p style="margin-top:10px;"><em>ไม่มีการจองล่วงหน้าสำหรับห้องนี้</em></p>
-  <?php endif; ?>
-  <?php // ***** END: MODIFIED CONDITION ***** ?>
+    <?php endif; ?>
+    <?php // --- END: ตรรกะใหม่ --- 
+    ?>
+
+    <?php if (!empty($advanceBookings)): ?>
+        <section class="advance-booking-details" style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee;">
+            <h4>การจองล่วงหน้าอื่นๆ สำหรับห้องนี้</h4>
+            <div class="table-responsive">
+                <table class="report-table advance-table-popup">
+                    <thead>
+                        <tr>
+                            <th>ผู้จอง</th>
+                            <th>เบอร์โทร</th>
+                            <th>เช็กอิน</th>
+                            <th>เช็กเอาต์</th>
+                            <th>ประเภท</th>
+                            <th>ระยะเวลา</th>
+                            <th>ยอดชำระ</th>
+                            <th>หลักฐาน</th>
+                            <th>ผู้สร้าง</th>
+                            <th>ผู้แก้ไขล่าสุด</th>
+                            <th>ดำเนินการ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($advanceBookings as $advBooking): ?>
+                            <?php $advBookingType = $advBooking['booking_type'] ?? 'overnight'; ?>
+                            <tr>
+                                <td><?= h($advBooking['customer_name']) ?></td>
+                                <td>
+                                    <?php if (!empty($advBooking['customer_phone'])): ?>
+                                        <a href="tel:<?= h(preg_replace('/[^0-9+]/', '', $advBooking['customer_phone'])) ?>" class="link-like"><?= h($advBooking['customer_phone']) ?></a>
+                                    <?php else: echo '-';
+                                    endif; ?>
+                                </td>
+                                <td><?= h($advBooking['formatted_checkin']) ?></td>
+                                <td><?= h($advBooking['formatted_checkout']) ?></td>
+                                <td><?= h($advBookingType === 'short_stay' ? 'ชั่วคราว' : 'ค้างคืน') ?></td>
+                                <td style="text-align:center;"><?= h($advBookingType === 'short_stay' ? (($advBooking['short_stay_duration_hours'] ?? DEFAULT_SHORT_STAY_DURATION_HOURS) . ' ชม.') : (($advBooking['nights'] ?? 'N/A') . ' คืน')) ?></td>
+                                <td style="text-align:right;"><?= h(number_format((float)($advBooking['amount_paid'] ?? 0), 0)) ?></td>
+                                <td>
+                                    <?php if (!empty($advBooking['receipt_path'])): ?>
+                                        <button class="button-small receipt-btn" data-src="/hotel_booking/uploads/receipts/<?= h($advBooking['receipt_path']) ?>">ดูสลิป</button>
+                                    <?php else: ?>
+                                        <span class="text-muted"><em>ไม่มี</em></span>
+                                    <?php endif; ?>
+                                </td>
+                                <td><?= h($advBooking['creator_username'] ?? 'N/A') ?></td>
+                                <td>
+                                    <?php if (isset($advBooking['last_modifier_username']) && $advBooking['last_modifier_username'] !== $advBooking['creator_username']): ?>
+                                        <?= h($advBooking['last_modifier_username']) ?>
+                                    <?php else: ?>
+                                        -
+                                    <?php endif; ?>
+                                </td>
+                                <td class="actions-cell">
+                                    <a href="/hotel_booking/pages/booking.php?edit_booking_id=<?= h($advBooking['booking_id']) ?>" class="button-small edit-booking-btn info">แก้ไข</a>
+                                    <button class="button-small delete-booking-btn alert" data-booking-id="<?= h($advBooking['booking_id']) ?>" id="delete-adv-booking-dtl-<?= h($advBooking['booking_id']) ?>">ลบ</button>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+        <?php // ***** START: MODIFIED CONDITION FOR "NO ADVANCE BOOKINGS" MESSAGE ***** 
+        ?>
+    <?php elseif (!($booking_to_display && $isAdvanceBookingPrimaryDisplay) && !$activeBooking && !$isEffectivelyOverdue && !$isPendingToday): ?>
+        <p style="margin-top:10px;"><em>ไม่มีการจองล่วงหน้าสำหรับห้องนี้</em></p>
+    <?php endif; ?>
+    <?php // ***** END: MODIFIED CONDITION ***** 
+    ?>
 </div>
 <style>
-    .room-status-free { color: var(--color-secondary-dark); font-weight: bold; }
-    .room-status-booked { color: var(--color-warning-dark); font-weight: bold; }
-    .room-status-occupied { color: var(--color-alert-dark); font-weight: bold; }
-    .room-status-advance_booking { color: var(--color-info-dark); font-weight: bold; }
-    .room-status-overdue_occupied { color: var(--color-danger, #dc3545); font-weight: bold; }
+    /* ========================================
+       details.php — Premium Blue Theme v2.0
+       ======================================== */
 
-    .notes-display-box {
-        white-space: pre-wrap;
-        background-color: var(--color-muted-bg);
-        padding: 8px 12px;
-        border-radius: var(--border-radius-sm);
-        display: block;
-        border: 1px solid var(--color-border);
-        max-height: 150px;
-        overflow-y: auto;
+    .details-container {
+        font-family: 'Inter', 'Sarabun', sans-serif;
+        max-width: 680px;
+        margin: 0 auto;
+        padding: 0 0.5rem 2rem;
     }
-    .highlight-value { font-weight: bold; color: var(--color-primary-dark); }
+
+    /* ---------- Room Header ---------- */
+    .details-container>h3 {
+        font-size: 1.4rem;
+        font-weight: 800;
+        background: linear-gradient(135deg, #1d4ed8, #0ea5e9);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin: 0 0 0.25rem;
+        letter-spacing: -0.3px;
+    }
+
+    .details-container>p:first-of-type {
+        color: var(--color-text-muted, #64748b);
+        font-size: 0.9rem;
+        margin: 0 0 1.25rem;
+    }
+
+    .details-container>hr {
+        border: none;
+        border-top: 1px solid var(--color-border, #e2e8f0);
+        margin: 0 0 1.5rem;
+    }
+
+    /* ---------- Sections ---------- */
+    .current-booking-details,
+    .advance-booking-details {
+        background: var(--color-surface, #fff);
+        border: 1px solid var(--color-border, #e2e8f0);
+        border-radius: 18px;
+        overflow: hidden;
+        box-shadow: 0 4px 24px rgba(37, 99, 235, 0.07);
+        margin-bottom: 1.5rem;
+    }
+
+    .current-booking-details h4,
+    .advance-booking-details h4 {
+        background: linear-gradient(135deg, #1d4ed8, #2563eb);
+        color: #fff;
+        margin: 0;
+        padding: 1rem 1.5rem;
+        font-size: 1rem;
+        font-weight: 700;
+        letter-spacing: 0.2px;
+        border-radius: 0;
+    }
+
+    .current-booking-details section.current-booking-details h4,
+    .advance-booking-details section h4 {
+        background: linear-gradient(135deg, #1d4ed8, #2563eb);
+    }
+
+    .current-booking-details>h4,
+    section.current-booking-details h4 {
+        background: linear-gradient(135deg, #1d4ed8, #0ea5e9);
+        color: #fff;
+        margin: 0;
+        padding: 1rem 1.5rem;
+        font-size: 1rem;
+        font-weight: 700;
+    }
+
+    .current-booking-details p,
+    .current-booking-details section p {
+        margin: 0 0 0.6rem;
+        padding: 0 1.5rem;
+        font-size: 0.92rem;
+        line-height: 1.6;
+        color: var(--color-text, #1e293b);
+    }
+
+    .current-booking-details p:first-of-type {
+        padding-top: 1.1rem;
+    }
+
+    .current-booking-details p:last-of-type {
+        padding-bottom: 0;
+    }
+
+    /* ---------- Data Row Styling ---------- */
+    .current-booking-details p strong {
+        color: var(--color-text-muted, #64748b);
+        font-weight: 600;
+        font-size: 0.82rem;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        display: block;
+        margin-bottom: 1px;
+    }
+
+    /* ---------- Highlight Values ---------- */
+    .highlight-value {
+        font-weight: 800;
+        font-size: 1.15rem;
+        color: #1d4ed8;
+    }
+
+    /* ---------- Status Chips ---------- */
+    .room-status-free {
+        font-weight: 700;
+        color: #16a34a;
+    }
+
+    .room-status-booked {
+        font-weight: 700;
+        color: #d97706;
+    }
+
+    .room-status-occupied {
+        font-weight: 700;
+        color: #dc2626;
+    }
+
+    .room-status-advance_booking {
+        font-weight: 700;
+        color: #0ea5e9;
+    }
+
+    .room-status-overdue_occupied {
+        font-weight: 700;
+        color: #dc2626;
+    }
+
+    /* ---------- Overdue Alert ---------- */
+    .current-booking-details p[style*="color: var(--color-alert-dark)"] {
+        background: linear-gradient(135deg, #fff1f2, #fee2e2);
+        border: 1px solid #fecaca;
+        border-radius: 10px;
+        margin: 0.75rem 1.5rem;
+        padding: 0.9rem 1rem !important;
+        font-size: 0.87rem;
+    }
+
+    /* ---------- Button Groups ---------- */
+    .button-group.stack-on-mobile {
+        padding: 1rem 1.5rem 1.25rem;
+        gap: 0.6rem;
+        flex-wrap: wrap;
+    }
+
+    .details-container .button {
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 0.87rem;
+        padding: 0.6rem 1.2rem;
+        transition: transform 0.15s, box-shadow 0.15s;
+    }
+
+    .details-container .button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+    }
+
+    .details-container .button.primary {
+        background: linear-gradient(135deg, #1d4ed8, #2563eb);
+        color: #fff;
+        border: none;
+    }
+
+    .details-container .button.secondary {
+        background: linear-gradient(135deg, #0f766e, #0d9488);
+        color: #fff;
+        border: none;
+    }
+
+    .details-container .button.info {
+        background: linear-gradient(135deg, #0369a1, #0ea5e9);
+        color: #fff;
+        border: none;
+    }
+
+    .details-container .button.warning {
+        background: linear-gradient(135deg, #b45309, #d97706);
+        color: #fff;
+        border: none;
+    }
+
+    .details-container .button.alert,
+    .details-container .button-small.alert {
+        background: linear-gradient(135deg, #b91c1c, #dc2626);
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        font-size: 0.82rem;
+        padding: 0.45rem 0.9rem;
+    }
+
+    .details-container .button.outline-secondary {
+        border: 1.5px solid #94a3b8;
+        color: #475569;
+        background: transparent;
+    }
+
+    /* ---------- Forms inside containers ---------- */
+    #extend-stay-form-container,
+    #edit-booking-details-form-container {
+        margin: 0 1.5rem 1.25rem;
+        border-radius: 12px;
+    }
+
+    #return-deposit-form {
+        margin: 0 1.5rem 1.25rem !important;
+        border-radius: 12px !important;
+    }
+
+    /* ---------- Receipt items ---------- */
+    .receipt-item-detail {
+        border-radius: 10px !important;
+        transition: box-shadow 0.2s;
+    }
+
+    .receipt-item-detail:hover {
+        box-shadow: 0 4px 14px rgba(37, 99, 235, 0.1) !important;
+    }
+
+    /* ---------- Addons ---------- */
+    .booking-addons-summary {
+        background: #f1f5f9;
+        border-radius: 10px;
+        margin: 0.75rem 1.5rem;
+        padding: 0.9rem 1.1rem;
+        font-size: 0.88rem;
+    }
+
+    body.dark-theme .booking-addons-summary {
+        background: rgba(51, 65, 85, 0.4);
+    }
+
+    .booking-addons-list {
+        padding-left: 1.1rem;
+        margin: 0.4rem 0;
+    }
+
+    .addon-item {
+        margin-bottom: 0.35rem;
+    }
+
+    .addon-name {
+        font-weight: 600;
+    }
+
+    .addon-price-total {
+        float: right;
+        color: #1d4ed8;
+        font-weight: 700;
+    }
+
+    /* ---------- Advance Bookings Table ---------- */
+    .advance-booking-details {
+        margin-top: 1.5rem;
+    }
+
+    .advance-booking-details h4 {
+        background: linear-gradient(135deg, #0f766e, #0d9488);
+    }
+
+    .advance-table-popup {
+        font-size: 0.85rem;
+    }
+
+    /* ---------- Notes Box ---------- */
+    .notes-display-box {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-left: 3px solid #3b82f6;
+        border-radius: 8px;
+        padding: 0.7rem 1rem;
+        white-space: pre-wrap;
+        display: block;
+        max-height: 180px;
+        overflow-y: auto;
+        font-size: 0.87rem;
+        color: var(--color-text, #1e293b);
+    }
+
+    /* ---------- Links ---------- */
     .link-like {
-        color: var(--link-color, var(--color-primary));
+        color: #1d4ed8;
+        text-decoration: none;
+        font-weight: 600;
+    }
+
+    .link-like:hover {
         text-decoration: underline;
     }
+
+    /* ---------- Addon Chips ---------- */
     .addon-chips-flex-container {
-        background-color: var(--color-surface);
+        background: var(--color-surface, #fff);
         display: flex;
         flex-wrap: wrap;
         gap: 8px;
+        border-radius: 8px;
     }
+
+    .addon-chip-wrapper {
+        border: 1.5px solid var(--color-border, #e2e8f0);
+        border-radius: 8px;
+        padding: 0.35rem 0.7rem;
+        display: flex;
+        align-items: center;
+        transition: border-color 0.2s, background 0.2s;
+    }
+
     .addon-chip-wrapper.selected {
-        background-color: var(--color-primary-light, #e0efff);
-        border-color: var(--color-primary, #007bff);
+        background: #eff6ff;
+        border-color: #3b82f6;
     }
+
     .addon-chip-label {
         cursor: pointer;
         margin-left: 4px;
         user-select: none;
+        font-size: 0.85rem;
     }
-    .addon-checkbox-modal, .addon-quantity-modal {
+
+    .addon-checkbox-modal,
+    .addon-quantity-modal {
         margin-right: 5px;
     }
-    
-    /* เพิ่ม style สำหรับ icon ของ font awesome หากยังไม่มี */
-    @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css');
+
+    /* ---------- Dark Theme Overrides ---------- */
+    body.dark-theme .current-booking-details,
+    body.dark-theme .advance-booking-details {
+        background: var(--color-surface, #0f172a);
+        border-color: rgba(51, 65, 85, 0.6);
+    }
+
+    body.dark-theme .details-container>h3 {
+        -webkit-text-fill-color: #93c5fd;
+    }
+
+    body.dark-theme .highlight-value {
+        color: #60a5fa;
+    }
+
+    body.dark-theme .notes-display-box {
+        background: rgba(15, 23, 42, 0.6);
+        border-left-color: #3b82f6;
+    }
 </style>

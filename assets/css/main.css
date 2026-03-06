@@ -1464,16 +1464,16 @@ body.dark-theme .calendar-table td.calendar-day.today .date-number { color: var(
 .booking-entries-area::-webkit-scrollbar-thumb:hover { background: var(--color-scrollbar-thumb-hover-bg); }
 .booking-group { margin-bottom: 5px; padding: 6px 8px; border-radius: 0.5rem; cursor: pointer; display: block; line-height: 1.4; font-size: 0.78rem; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border: 1px solid transparent; transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
 .booking-group:hover { box-shadow: 0 6px 12px rgba(0,0,0,0.1); transform: translateY(-3px) scale(1.02); z-index: 10; border-color: var(--color-primary-light); }
-.booking-room-names { font-weight: 400; font-size: 0.75rem; color: var(--color-text-muted); display: block; margin-bottom: 2px; }
-.booking-customer-name-highlight { font-weight: 600; font-size: 0.8rem; color: var(--color-text); text-decoration: none !important; }
+.booking-room-names { font-weight: 400; font-size: 0.75rem; color: #8e9aaf; display: block; margin-bottom: 2px; }
+.booking-customer-name-highlight { font-weight: 600; font-size: 0.8rem; color: #5c677d; text-decoration: none !important; }
 .booking-customer-name-highlight:hover { color: var(--color-primary); }
 .highlighted-transaction { background-color: var(--color-info-bg-light); border-left: 3px solid var(--color-primary); color: var(--color-text); }
 .highlighted-transaction .booking-customer-name-highlight, .highlighted-transaction .booking-room-names { color: inherit; }
 body.dark-theme .highlighted-transaction { color: var(--dt-color-text); }
 .regular-booking-entry { background-color: var(--color-surface-alt); border: 1px solid var(--color-border); border-left: 3px solid var(--color-text-muted); }
 .regular-booking-entry:hover { background-color: var(--color-booking-entry-regular-hover-bg); }
-.regular-booking-entry .booking-customer-name-highlight { color: var(--color-info-dark); }
-.regular-booking-entry .booking-room-names { color: var(--color-booking-roomnames-lighttheme); }
+.regular-booking-entry .booking-customer-name-highlight { color: #4a5568; }
+.regular-booking-entry .booking-room-names { color: #718096; }
 
 /* Past booking entry styles */
 .past-booking-entry {
