@@ -1,0 +1,259 @@
+/* Progress Bar (Flat UI) */
+.progress-bar-steps {
+    display: flex;
+    justify-content: space-between;
+    margin: 2rem 0;
+    padding: 0;
+    list-style: none;
+    position: relative;
+    background: var(--color-surface);
+    border: 2px solid var(--color-border);
+    border-radius: 0.5rem;
+    overflow: hidden;
+}
+
+.progress-step {
+    flex: 1;
+    text-align: center;
+    padding: 0.75rem 0.5rem;
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    font-weight: 500;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    border-right: 1px solid var(--color-border);
+}
+
+.progress-step:last-child {
+    border-right: none;
+}
+
+.progress-step span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    background: var(--color-bg);
+    border: 2px solid var(--color-border);
+    border-radius: 50%;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.progress-step.active {
+    background: var(--color-primary-light);
+    color: var(--color-primary-dark);
+}
+
+.progress-step.active span {
+    background: var(--color-primary);
+    color: var(--color-white);
+    border-color: var(--color-primary-dark);
+}
+
+.progress-step.completed {
+    color: var(--color-secondary-dark);
+}
+
+.progress-step.completed span {
+    background: var(--color-secondary);
+    color: var(--color-white);
+    border-color: var(--color-secondary-dark);
+}
+
+.booking-section {
+    display: none;
+    animation: fadeIn 0.3s ease;
+    padding: 1.5rem;
+    border: 2px solid var(--color-border);
+    border-radius: var(--border-radius-md);
+    background: var(--color-surface);
+}
+
+.booking-section.active-section {
+    display: block;
+}
+
+.section-title {
+    font-size: 1.25rem;
+    color: var(--color-primary-dark);
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid var(--color-border);
+}
+
+.navigation-buttons {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--color-border);
+}
+
+/* Multi-room Selection Grid */
+.rooms-selection-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 0.75rem;
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+}
+
+.room-checkbox-card {
+    position: relative;
+    cursor: pointer;
+}
+
+.room-checkbox-card input {
+    position: absolute;
+    opacity: 0;
+}
+
+.room-card-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 1rem;
+    background: var(--color-surface);
+    border: 2px solid var(--color-border);
+    border-radius: 0.5rem;
+    transition: all 0.2s ease;
+}
+
+.room-checkbox-card:hover .room-card-content {
+    border-color: var(--color-primary);
+    background: var(--color-surface-alt);
+}
+
+.room-checkbox-card input:checked+.room-card-content {
+    background: var(--color-primary);
+    border-color: var(--color-primary-dark);
+    color: var(--color-white);
+}
+
+.room-checkbox-card input:checked+.room-card-content .room-price {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.room-name {
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+
+.room-price {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.file-preview-item {
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-sm);
+    background-color: var(--color-surface);
+    padding: 0.5rem;
+    position: relative;
+}
+
+.preview-element-container {
+    width: 100%;
+    height: 80px;
+    /* Smaller preview height */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 0.5rem;
+    background-color: var(--color-surface-alt);
+    border-radius: var(--border-radius-sm);
+    overflow: hidden;
+}
+
+.receipt-preview-thumb {
+    /* Reusing existing class for consistency */
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+.pdf-icon-preview,
+.other-file-preview {
+    font-size: 2rem;
+    color: var(--color-text-muted);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+}
+
+.pdf-filename-preview,
+.other-filename-preview {
+    font-size: 0.65rem;
+    /* Smaller font for filename */
+    color: var(--color-text-muted);
+    word-break: break-all;
+    line-height: 1.2;
+    text-align: center;
+    margin-top: 0.2rem;
+}
+
+.receipt-description-group {
+    margin-top: 0.5rem;
+    width: 100%;
+}
+
+.receipt-description-group label {
+    font-size: 0.75rem !important;
+    margin-bottom: 0.1rem !important;
+}
+
+.form-control-sm {
+    font-size: 0.8rem !important;
+    padding: 0.3rem 0.5rem !important;
+}
+
+.remove-file-btn {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    background-color: var(--color-alert);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    font-size: 12px;
+    line-height: 18px;
+    text-align: center;
+    cursor: pointer;
+    padding: 0;
+    font-weight: bold;
+}
+
+.remove-file-btn:hover {
+    background-color: var(--color-alert-dark);
+}
+
+.filenames-display-area p {
+    margin: 0.2rem 0;
+}
+
+.input-error-highlight {
+    border-color: var(--color-alert-dark) !important;
+    box-shadow: 0 0 0 2px rgba(217, 28, 28, 0.2);
+}

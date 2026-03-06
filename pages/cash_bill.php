@@ -1,9 +1,9 @@
 <?php
 // FILEX: hotel_booking/pages/cash_bill.php
-// VERSION: 4.2 - Added Customer Directory & Autocomplete
+// VERSION: 4.2.1 - Updated Logo Path to image/logo.ico
 // DESC: Added customer search (autocomplete) from new `customer_directory` table.
 //       Updated `save_receipt` action to auto-save/update customer info
-//       to the directory.
+//       to the directory. Updated logo path.
 
 require_once __DIR__ . '/../bootstrap.php';
 
@@ -29,7 +29,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['act
         $stmt->execute(['%' . $term . '%']);
         $customers = $stmt->fetchAll(PDO::FETCH_ASSOC);
         echo json_encode($customers);
-
     } catch (Exception $e) {
         error_log("Customer search failed: " . $e->getMessage());
         http_response_code(500);
@@ -41,22 +40,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['act
 // --- API Action: Save Receipt ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action']) && $_GET['action'] === 'save_receipt') {
     header('Content-Type: application/json');
-    
+
     if (session_status() == PHP_SESSION_NONE) {
         session_start();
     }
-    
+
     $data = json_decode(file_get_contents('php://input'), true);
-    
+
     try {
         // 1. Get current user ID
         $userId = get_current_user_id(); // From bootstrap.php
         if (!$userId) {
             throw new Exception('User not authenticated. Please log in again.');
         }
-        
+
         // 2. Get new receipt number (function from bootstrap.php)
-        $receiptNumber = getNextReceiptNumber($pdo); 
+        $receiptNumber = getNextReceiptNumber($pdo);
 
         // 3. Prepare data for insertion
         $bookingGroupId = !empty($data['booking_group_id']) ? (int)$data['booking_group_id'] : null;
@@ -65,9 +64,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action']) && $_GET['ac
         $customerName = $data['customer_name'] ?? '';
         $customerAddress = $data['customer_address'] ?? '';
         $customerTaxId = $data['customer_tax_id'] ?? '';
-        
+
         // 4. Create the full JSON snapshot for auditing
-        $receiptDataJson = json_encode($data); 
+        $receiptDataJson = json_encode($data);
         if (json_last_error() !== JSON_ERROR_NONE) {
             throw new Exception('Failed to encode receipt data: ' . json_last_error_msg());
         }
@@ -81,7 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action']) && $_GET['ac
             (booking_group_id, receipt_number, receipt_date, customer_name, customer_address, customer_tax_id, total_amount, payment_method, issued_by_user_id, receipt_data_json, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
         ");
-        
+
         $stmt->execute([
             $bookingGroupId,
             $receiptNumber,
@@ -94,9 +93,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action']) && $_GET['ac
             $userId,
             $receiptDataJson
         ]);
-        
+
         $receiptId = $pdo->lastInsertId();
-        
+
         // 6. ***** NEW: Save/Update Customer Directory *****
         // If a customer name was provided, save it to the directory
         if (!empty($customerName)) {
@@ -110,12 +109,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action']) && $_GET['ac
             ");
             $stmt_cust->execute([$customerName, $customerAddress, $customerTaxId]);
         }
-        
+
         // Commit transaction
         $pdo->commit();
-        
-        echo json_encode(['success' => true, 'receipt_id' => $receiptId, 'receipt_number' => $receiptNumber]);
 
+        echo json_encode(['success' => true, 'receipt_id' => $receiptId, 'receipt_number' => $receiptNumber]);
     } catch (Exception $e) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
@@ -129,7 +127,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action']) && $_GET['ac
 // ***** END: API HANDLER BLOCK *****
 
 
-require_login(); 
+require_login();
 
 $pageTitle = 'ออกใบเสร็จรับเงิน / บิลเงินสด';
 
@@ -151,141 +149,542 @@ $active_addons_for_bill = $addons_stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // --- Utility Functions & Defaults ---
 $current_thai_year = date('Y') + 543;
-$default_bill_number_prefix = "01"; 
-
-$logo_path = '/hotel_booking/assets/image/logo_bill.png'; 
-if (!file_exists(__DIR__ . '/..' . $logo_path)) {
-    $logo_path = ''; 
-    error_log("Cash Bill Logo not found at: " . __DIR__ . '/..' . $logo_path);
-}
+$default_bill_number_prefix = "01";
 
 ob_start();
 ?>
 
 <style>
-    /* ... existing styles ... */
-    /* General Styles */
-    .cash-bill-container { max-width: 900px; margin: 0 auto; }
-    .bill-form-section, .bill-preview-section {
-        background-color: var(--color-surface); padding: 1.5rem;
-        border-radius: var(--border-radius-lg); box-shadow: var(--shadow-md);
-        margin-bottom: 2rem; border: 1px solid var(--color-border);
+    /* ============================
+       Cash Bill - Modern Invoice Design
+       ============================  */
+    @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&display=swap');
+
+    .cash-bill-container {
+        max-width: 1000px;
+        margin: 0 auto;
     }
-    .bill-form-section h3, .bill-preview-section h3 {
-        margin-top: 0; color: var(--color-primary-dark);
-        padding-bottom: 0.75rem; border-bottom: 1px solid var(--color-border);
+
+    /* --- Form Section --- */
+    .bill-form-section,
+    .bill-preview-section {
+        background-color: var(--color-surface);
+        padding: 1.5rem;
+        border-radius: var(--border-radius-lg);
+        box-shadow: var(--shadow-md);
+        margin-bottom: 2rem;
+        border: 1px solid var(--color-border);
     }
-    .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; }
-    .item-entry-form { border: 1px dashed var(--color-border); padding: 1rem; margin-bottom: 1rem; border-radius: var(--border-radius-md); }
-    #added-items-table { width: 100%; margin-top: 1rem; border-collapse: collapse; table-layout: fixed; }
-    #added-items-table th, #added-items-table td { 
-        border: 1px solid var(--color-border); padding: 0.5rem; 
-        text-align: left; font-size:0.9em; word-break: break-word;
+
+    .bill-form-section h3,
+    .bill-preview-section h3 {
+        margin-top: 0;
+        color: var(--color-primary-dark);
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid var(--color-border);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
     }
-    #added-items-table th { background-color: var(--color-table-head-bg); }
-    #added-items-table .action-cell { width: 80px; text-align: center; }
-    #added-items-table .number-cell { text-align: right; width: 120px; }
-    .editable-cell { cursor: pointer; }
-    .editable-cell:hover { background-color: var(--color-primary-light); }
-    .editable-cell input { width: 100%; box-sizing: border-box; text-align: right; padding: 2px 4px; }
-    
-    /* Bill Preview Styles */
+
+    .form-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+    }
+
+    .item-entry-form {
+        border: 1px dashed var(--color-border);
+        padding: 1rem;
+        margin-bottom: 1rem;
+        border-radius: var(--border-radius-md);
+    }
+
+    #added-items-table {
+        width: 100%;
+        margin-top: 1rem;
+        border-collapse: collapse;
+        table-layout: fixed;
+    }
+
+    #added-items-table th,
+    #added-items-table td {
+        border: 1px solid var(--color-border);
+        padding: 0.5rem;
+        text-align: left;
+        font-size: 0.9em;
+        word-break: break-word;
+    }
+
+    #added-items-table th {
+        background-color: var(--color-table-head-bg);
+    }
+
+    #added-items-table .action-cell {
+        width: 80px;
+        text-align: center;
+    }
+
+    #added-items-table .number-cell {
+        text-align: right;
+        width: 120px;
+    }
+
+    .editable-cell {
+        cursor: pointer;
+    }
+
+    .editable-cell:hover {
+        background-color: var(--color-primary-light);
+    }
+
+    .editable-cell input {
+        width: 100%;
+        box-sizing: border-box;
+        text-align: right;
+        padding: 2px 4px;
+    }
+
+    /* --- Bill Preview Wrapper --- */
     #bill-content-wrapper {
-        padding: 20px; background-color: #525659;
-        display: flex; justify-content: center; align-items: flex-start; 
-        /* ***** MODIFIED: Changed overflow-y to overflow to allow horizontal scrolling ***** */
-        overflow: auto; 
-        max-height: 80vh; border-radius: var(--border-radius-md);
+        padding: 20px;
+        background-color: #e8edf2;
+        display: block;
+        /* เปลี่ยนจาก flex เป็น block เพื่อแก้ปัญหาเบียดและคลิปหน้าจอในมือถือ */
+        overflow-x: auto;
+        /* เพิ่ม scroll แนวนอน */
+        overflow-y: auto;
+        max-height: 90vh;
+        border-radius: var(--border-radius-md);
+        -webkit-overflow-scrolling: touch;
+        text-align: center;
+        /* จัดให้บิลอยู่ตรงกลางหน้าจอ */
     }
+
+    /* ============================
+       INVOICE DOCUMENT STYLES
+       ============================ */
     #bill-content {
-        font-family: 'Sarabun', sans-serif; background-color: #fff; color: #000;
+        font-family: 'Sarabun', sans-serif;
+        background-color: #fff;
+        color: #1a1a2e;
         width: 210mm;
+        min-width: 210mm;
+        /* บังคับขนาด A4 เสมอ ป้องกันการเบียดบนมือถือ */
         min-height: 297mm;
-        font-size: 12pt;
-        overflow: hidden; 
-        padding: 10mm; 
-        box-shadow: 0 5px 15px rgba(0,0,0,0.25);
-        box-sizing: border-box; 
-        display: flex; flex-direction: column; 
+        margin: 0 auto;
+        /* จัดกึ่งกลาง */
+        text-align: left;
+        /* รีเซ็ต text-align ภายในเอกสาร */
+        font-size: 11pt;
+        padding: 0;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
         position: relative;
-        flex-shrink: 0; /* ***** NEW: ป้องกันการหดตัวใน flex container ***** */
-    }
-    
-    .bill-body {
-        border: 1.5px solid #333; padding: 8mm; width: 100%; height: 100%;
-        display: flex; flex-direction: column; position: relative; z-index: 2;
-    }
-    
-    #bill-content::after {
-        content: ''; position: absolute; top: 50%; left: 50%;
-        transform: translate(-50%, -50%) rotate(-45deg);
-        font-size: 150pt; font-weight: 800; color: rgba(0, 0, 0, 0.04);
-        z-index: 1; pointer-events: none;
+        flex-shrink: 0;
+        overflow: hidden;
     }
 
-    #bill-content header { text-align: center; margin-bottom: 5mm; flex-shrink: 0;}
-    #bill-content .logo-container img { max-width: 150px; max-height: 50px; object-fit: contain; }
-    #bill-content h1 { font-size: 1.5em; margin: 0 0 1mm 0; color: #000; } 
-    #bill-content h2 { font-size: 1.2em; margin: 1mm 0; color: #000; } 
-    #bill-content .address-phone p { margin: 0.5mm 0; font-size: 0.9em; line-height: 1.4; } 
-    #bill-content .bill-meta { display: flex; justify-content: space-between; margin-bottom: 5mm; font-size: 0.9em; flex-shrink: 0;}
-    #bill-content .customer-info { border: 1px solid #ccc; padding: 2mm 3mm; margin-bottom: 5mm; font-size: 0.9em; flex-shrink: 0;}
-    #bill-content .customer-info p { margin: 1mm 0; } 
-    hr.section-divider { border: 0; border-top: 1px solid #000; margin: 4mm 0; }
-    
-    #bill-content .line-items { flex-grow: 1; margin-bottom: 5mm; border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 1mm 0;}
-    #bill-content .line-items-table { width: 100%; border-collapse: collapse; font-size: 0.9em; } 
-    #bill-content .line-items-table th, #bill-content .line-items-table td { 
-        border: none; padding: 1.5mm 1mm; text-align: left; vertical-align: top;
+    /* Header Bar */
+    .inv-header {
+        background: linear-gradient(135deg, #cde4f5 0%, #dceef8 50%, #e8f4fd 100%);
+        padding: 8mm 10mm 6mm 10mm;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 3px solid #5BA4CF;
+        flex-shrink: 0;
     }
-    #bill-content .line-items-table th { font-weight: bold; border-bottom: 1px solid #999;}
-    #bill-content .line-items-table td { border-bottom: 1px dotted #ccc; }
-    #bill-content .line-items-table tr:last-child td { border-bottom: none; }
-    
-    #bill-content .col-desc { width: 55%; }
-    #bill-content .col-qty { width: 15%; text-align: center; }
-    #bill-content .col-unit-price { width: 15%; text-align: right; }
-    #bill-content .col-amount { width: 15%; text-align: right; }
 
-    #bill-content .checkin-checkout-info { font-size: 0.9em; margin-bottom: 5mm; flex-shrink: 0; } 
-    #bill-content .totals { text-align: right; margin-top: auto; padding-top: 3mm; font-size: 1em; flex-shrink: 0;} 
-    #bill-content .totals table { width: 50%; margin-left: auto; border-collapse: collapse; } 
-    #bill-content .totals td { padding: 1.5mm; } 
-    #bill-content .totals .grand-total td { font-weight: bold; font-size: 1.2em; border-top: 1px solid #000; border-bottom: 3px double #000;}
-    #bill-content .signatures { display: flex; justify-content: center; margin-top: 15mm; font-size: 0.9em; flex-shrink: 0;} 
-    #bill-content .signature-box { text-align: center; width: 50%; } 
-    #bill-content .signature-line { border-bottom: 1px dotted #000; height: 12mm; margin: 2mm 0 1mm 0; } 
-    #bill-content .signature-box p { margin: 0; line-height: 1.4; }
-    #bill-content .note-footer {text-align: center; font-size: 0.7em; margin-top: 5mm; color: #555; flex-shrink: 0;}
-    #bill-content .thank-you-note {text-align: center; font-weight: bold; font-size: 1em; margin-top: 8mm; flex-shrink: 0;}
-
-    .bill-actions { margin-top: 1rem; display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;}
-    .bill-actions button img, .bill-actions button svg { width: 16px; height: 16px; margin-right: 8px; vertical-align: middle; }
-    .bill-actions button:disabled { opacity: 0.6; cursor: not-allowed; }
-    
-    .form-group small.input-hint {font-size: 0.8em; color: var(--color-text-muted);}
-
-    /* ***** START: NEW CUSTOM MODAL STYLE ***** */
-    /* ... existing styles ... */
-    #custom-modal {
-        display: none; position: fixed; z-index: 1000; 
-        left: 0; top: 0; width: 100%; height: 100%; 
-        overflow: auto; background-color: rgba(0,0,0,0.5); 
-        justify-content: center; align-items: center;
+    .inv-header-left {
+        display: flex;
+        align-items: center;
+        gap: 4mm;
     }
-    #custom-modal-content {
-        background-color: var(--color-surface); padding: 25px; 
-        border-radius: var(--border-radius-lg); box-shadow: var(--shadow-lg); 
-        max-width: 450px; width: 90%; text-align: center;
+
+    .inv-logo-wrap svg {
+        width: 18mm;
+        height: 18mm;
+        padding: 2.5mm;
+        border-radius: 50%;
+        border: 2px solid #5BA4CF;
+        background: #fff;
+        color: #5BA4CF;
+        /* สีของรูปบ้าน */
     }
-    #custom-modal-message {
-        font-size: 1.1em; margin-top: 0; margin-bottom: 1.5rem;
+
+    .inv-header-right {
+        text-align: right;
+    }
+
+    .inv-title-main {
+        font-size: 2em;
+        font-weight: 800;
+        color: #1a5276;
+        line-height: 1;
+        margin: 0;
+    }
+
+    .inv-title-sub {
+        font-size: 1em;
+        font-weight: 600;
+        color: #2980b9;
+        margin: 0;
+        letter-spacing: 0.1em;
+    }
+
+    /* Company Info */
+    .inv-company {
+        padding: 4mm 10mm 3mm 10mm;
+        border-bottom: 1px solid #dce8f0;
+        flex-shrink: 0;
+    }
+
+    .inv-company-name {
+        font-size: 1.15em;
+        font-weight: 800;
+        color: #1a5276;
+        margin: 0 0 1mm 0;
+    }
+
+    .inv-company-detail {
+        font-size: 0.88em;
+        color: #555;
         line-height: 1.6;
     }
-    #custom-modal-buttons {
-        display: flex; justify-content: center; gap: 1rem;
+
+    .inv-company-contact {
+        margin-top: 2mm;
+        font-size: 0.88em;
+        color: #444;
+        display: flex;
+        gap: 6mm;
+        flex-wrap: wrap;
     }
-    /* ***** END: NEW CUSTOM MODAL STYLE ***** */
+
+    .inv-company-contact span {
+        display: flex;
+        align-items: center;
+        gap: 1mm;
+    }
+
+    /* Info Box (Customer + Meta) */
+    .inv-info-box {
+        margin: 4mm 10mm;
+        border: 1.5px solid #c8def0;
+        border-radius: 2mm;
+        display: flex;
+        gap: 0;
+        overflow: hidden;
+        flex-shrink: 0;
+        background: #f7fbff;
+    }
+
+    .inv-info-customer {
+        flex: 1 1 55%;
+        padding: 4mm 5mm;
+        border-right: 1.5px solid #c8def0;
+    }
+
+    .inv-info-meta {
+        flex: 1 1 45%;
+        padding: 4mm 5mm;
+    }
+
+    .inv-info-row {
+        display: flex;
+        margin-bottom: 1.5mm;
+        font-size: 0.9em;
+        line-height: 1.5;
+        align-items: flex-start;
+    }
+
+    .inv-info-label {
+        font-weight: 700;
+        color: #2c3e50;
+        min-width: 32mm;
+        flex-shrink: 0;
+    }
+
+    .inv-info-val {
+        color: #333;
+        word-break: break-word;
+    }
+
+    /* Line Items Table */
+    .inv-items-section {
+        margin: 3mm 10mm;
+        flex-grow: 1;
+        flex-shrink: 0;
+    }
+
+    .inv-items-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9em;
+    }
+
+    .inv-items-table thead tr {
+        background: linear-gradient(135deg, #a8d1f0, #c8e5f8);
+    }
+
+    .inv-items-table th {
+        padding: 2.5mm 2mm;
+        font-weight: 700;
+        color: #1a3a5c;
+        border: 1px solid #a0c8e8;
+        text-align: center;
+    }
+
+    .inv-items-table th:nth-child(2) {
+        text-align: center;
+    }
+
+    .inv-items-table td {
+        padding: 2mm;
+        border: 1px solid #cde4f5;
+        vertical-align: middle;
+        color: #1a1a2e;
+    }
+
+    .inv-items-table tbody tr:nth-child(even) {
+        background: #f0f8ff;
+    }
+
+    .inv-items-table .inv-col-no {
+        width: 7%;
+        text-align: center;
+    }
+
+    .inv-items-table .inv-col-desc {
+        width: 45%;
+    }
+
+    .inv-items-table .inv-col-qty {
+        width: 10%;
+        text-align: center;
+    }
+
+    .inv-items-table .inv-col-unit {
+        width: 10%;
+        text-align: center;
+    }
+
+    .inv-items-table .inv-col-price {
+        width: 14%;
+        text-align: right;
+    }
+
+    .inv-items-table .inv-col-total {
+        width: 14%;
+        text-align: right;
+        font-weight: 600;
+    }
+
+    .inv-empty-row td {
+        height: 7mm;
+    }
+
+    /* Totals Section */
+    .inv-footer-area {
+        margin: 3mm 10mm 5mm 10mm;
+        display: flex;
+        flex-direction: column;
+        flex-shrink: 0;
+    }
+
+    .inv-amount-words {
+        font-size: 0.85em;
+        color: #444;
+        margin-bottom: 3mm;
+        font-style: italic;
+        padding: 2mm 0;
+    }
+
+    .inv-totals-table {
+        width: 55%;
+        margin-left: auto;
+        border-collapse: collapse;
+        font-size: 0.9em;
+    }
+
+    .inv-totals-table td {
+        padding: 2mm 3mm;
+        border: 1px solid #cde4f5;
+    }
+
+    .inv-totals-table .inv-total-label {
+        font-weight: 600;
+        color: #1a3a5c;
+        background: #eaf4fc;
+        white-space: nowrap;
+    }
+
+    .inv-totals-table .inv-total-val {
+        text-align: right;
+        font-weight: 600;
+    }
+
+    .inv-totals-table .inv-grand-row td {
+        background: linear-gradient(135deg, #a8d1f0, #c8e5f8);
+        color: #1a3a5c;
+        font-weight: 800;
+        font-size: 1.05em;
+        border-color: #5BA4CF;
+    }
+
+    /* Signature & Footer */
+    .inv-sign-notes {
+        margin: 0 10mm 5mm 10mm;
+        display: flex;
+        gap: 5mm;
+        flex-shrink: 0;
+    }
+
+    .inv-notes-block {
+        flex: 1 1 55%;
+        font-size: 0.82em;
+        color: #444;
+    }
+
+    .inv-notes-block p {
+        margin: 0 0 1mm 0;
+        font-weight: 700;
+        color: #1a3a5c;
+    }
+
+    .inv-notes-block ul {
+        margin: 0;
+        padding-left: 4mm;
+        line-height: 1.6;
+    }
+
+    .inv-sign-block {
+        flex: 1 1 40%;
+        border: 1.5px solid #c8def0;
+        border-radius: 2mm;
+        background: #f7fbff;
+        padding: 4mm;
+        text-align: center;
+    }
+
+    .inv-sign-title {
+        font-weight: 700;
+        font-size: 0.9em;
+        color: #1a3a5c;
+        margin-bottom: 2mm;
+    }
+
+    .inv-sign-line {
+        height: 14mm;
+        border-bottom: 1px dashed #aaa;
+        margin-bottom: 2mm;
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+    }
+
+    .inv-sign-date {
+        font-size: 0.85em;
+        color: #555;
+        margin-top: 1mm;
+    }
+
+    .inv-doc-footer {
+        background: #eaf4fc;
+        border-top: 2px solid #5BA4CF;
+        text-align: center;
+        padding: 2.5mm;
+        font-size: 0.78em;
+        color: #3a82c4;
+        flex-shrink: 0;
+        margin-top: auto;
+    }
+
+    /* Action Buttons */
+    .bill-actions {
+        margin-top: 1rem;
+        display: flex;
+        gap: 0.75rem;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .bill-actions button {
+        padding: 0.65rem 1.4rem;
+        border-radius: 0.5rem;
+        font-size: 0.95rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .bill-actions button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .form-group small.input-hint {
+        font-size: 0.8em;
+        color: var(--color-text-muted);
+    }
+
+    /* Custom Modal */
+    #custom-modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        overflow: auto;
+        background-color: rgba(0, 0, 0, 0.5);
+        justify-content: center;
+        align-items: center;
+    }
+
+    #custom-modal-content {
+        background-color: var(--color-surface);
+        padding: 25px;
+        border-radius: var(--border-radius-lg);
+        box-shadow: var(--shadow-lg);
+        max-width: 450px;
+        width: 90%;
+        text-align: center;
+    }
+
+    #custom-modal-message {
+        font-size: 1.1em;
+        margin-top: 0;
+        margin-bottom: 1.5rem;
+        line-height: 1.6;
+    }
+
+    #custom-modal-buttons {
+        display: flex;
+        justify-content: center;
+        gap: 1rem;
+    }
+
+    /* Mobile Responsive (ลบการแก้ขนาดภายในบิลออก เพื่อคงสัดส่วน A4 เสมอ) */
+    @media (max-width: 768px) {
+        #bill-content-wrapper {
+            padding: 8px;
+            max-height: 75vh;
+        }
+
+        .bill-actions {
+            flex-direction: column;
+        }
+
+        .bill-actions button {
+            width: 100%;
+            justify-content: center;
+        }
+    }
 </style>
 
 <div class="cash-bill-container">
@@ -343,24 +742,26 @@ ob_start();
                 <span style="font-weight: bold;">คิดค่าบริการเพิ่มสำหรับวันหยุดนักขัตฤกษ์ (+100 บาท ต่อห้อง/คืน)</span>
             </label>
         </div>
-        
+
         <hr style="margin: 1.5rem 0;">
-        
+
         <div class="item-entry-form">
-        <!-- ... existing item entry form ... -->
+            <!-- ... existing item entry form ... -->
             <h4><i class="fas fa-plus-circle"></i> เพิ่มรายการในบิล</h4>
             <div id="item-type-selector">
                 <button type="button" class="button outline-secondary" data-type="room">เพิ่มรายการห้องพัก</button>
                 <button type="button" class="button outline-secondary" data-type="service">เพิ่มรายการบริการ/อื่นๆ</button>
             </div>
-            
+
             <div id="room-fields" style="display:none; margin-top:1rem; border-top:1px dashed #ccc; padding-top:1rem;">
                 <div class="form-grid" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));">
-                    <div class="form-group" style="grid-column: 1 / -1;"><label for="bill_room_select">เลือกห้องพัก:</label><select id="bill_room_select" class="form-control"><option value="">-- เลือกห้อง --</option><?php foreach ($all_rooms_for_bill as $room): ?><option value="<?= h($room['id']) ?>" data-price="<?= h($room['price_per_day']) ?>" data-zone="<?= h($room['zone']) ?>"><?= h($room['zone'] . $room['room_number']) ?> (<?= h(number_format((float)$room['price_per_day'], 0)) ?> บ./คืน)</option><?php endforeach; ?></select></div>
+                    <div class="form-group" style="grid-column: 1 / -1;"><label for="bill_room_select">เลือกห้องพัก:</label><select id="bill_room_select" class="form-control">
+                            <option value="">-- เลือกห้อง --</option><?php foreach ($all_rooms_for_bill as $room): ?><option value="<?= h($room['id']) ?>" data-price="<?= h($room['price_per_day']) ?>" data-zone="<?= h($room['zone']) ?>"><?= h($room['zone'] . $room['room_number']) ?> (<?= h(number_format((float)$room['price_per_day'], 0)) ?> บ./คืน)</option><?php endforeach; ?>
+                        </select></div>
                     <div class="form-group"><label for="bill_room_nights">จำนวนคืน:</label><input type="number" id="bill_room_nights" value="1" min="1" class="form-control"></div>
-                    
+
                     <div class="form-group"><label for="bill_room_price">ราคา/คืน (แก้ไขได้):</label><input type="number" id="bill_room_price" step="any" min="0" class="form-control"></div>
-                    
+
                     <div class="form-group"><label for="bill_checkin_date">วันที่เช็คอิน:</label><input type="date" id="bill_checkin_date" value="<?= date('Y-m-d') ?>" class="form-control"></div>
                     <div class="form-group"><label for="bill_checkout_date">วันที่เช็คเอาท์:</label><input type="date" id="bill_checkout_date" value="<?= date('Y-m-d', strtotime('+1 day')) ?>" class="form-control"></div>
                 </div>
@@ -369,7 +770,9 @@ ob_start();
 
             <div id="service-fields" style="display:none; margin-top:1rem; border-top:1px dashed #ccc; padding-top:1rem;">
                 <div class="form-grid">
-                    <div class="form-group"><label for="bill_service_select">เลือกบริการ (ถ้ามี):</label><select id="bill_service_select" class="form-control"><option value="">-- หรือพิมพ์รายการเอง --</option><?php foreach ($active_addons_for_bill as $addon): ?><option value="<?= h($addon['id']) ?>" data-price="<?= h($addon['price']) ?>" data-name="<?= h($addon['name']) ?>"><?= h($addon['name']) ?></option><?php endforeach; ?></select></div>
+                    <div class="form-group"><label for="bill_service_select">เลือกบริการ (ถ้ามี):</label><select id="bill_service_select" class="form-control">
+                            <option value="">-- หรือพิมพ์รายการเอง --</option><?php foreach ($active_addons_for_bill as $addon): ?><option value="<?= h($addon['id']) ?>" data-price="<?= h($addon['price']) ?>" data-name="<?= h($addon['name']) ?>"><?= h($addon['name']) ?></option><?php endforeach; ?>
+                        </select></div>
                     <div class="form-group"><label for="bill_service_name">ชื่อรายการ:</label><input type="text" id="bill_service_name" class="form-control"></div>
                     <div class="form-group"><label for="bill_service_qty">จำนวน:</label><input type="number" id="bill_service_qty" value="1" min="1" class="form-control"></div>
                     <div class="form-group"><label for="bill_service_price">ราคา/หน่วย:</label><input type="number" id="bill_service_price" step="any" min="0" class="form-control"></div>
@@ -380,7 +783,7 @@ ob_start();
 
         <h4><i class="fas fa-list-ul"></i> รายการทั้งหมดในบิล</h4>
         <div class="table-responsive">
-        <!-- ... existing items table ... -->
+            <!-- ... existing items table ... -->
             <table id="added-items-table">
                 <thead>
                     <tr>
@@ -397,7 +800,7 @@ ob_start();
         <div style="text-align: right; font-size: 1.2em; margin-top: 1rem; font-weight:bold;">
             ยอดรวมที่ต้องชำระ: <span id="bill_grand_total" style="color: var(--color-primary-dark);">0.00</span> บาท
         </div>
-        
+
         <!-- ... existing save receipt button section ... -->
         <div class="form-group" style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--color-border); text-align: center;">
             <label for="payment_method_select">วิธีชำระเงิน:</label>
@@ -415,89 +818,172 @@ ob_start();
     </div>
 
     <div class="bill-preview-section">
-        <!-- ... existing bill preview section ... -->
-        <h3><i class="fas fa-eye"></i> ตัวอย่างบิล / ใบเสร็จรับเงิน</h3>
+        <h3><i class="fas fa-eye"></i> ตัวอย่างบิล / ใบแจ้งหนี้</h3>
         <div id="bill-content-wrapper">
             <div id="bill-content">
-                <div class="bill-body">
-                    <header>
-                        <?php if ($logo_path): ?>
-                        <div class="logo-container">
-                            <img src="<?= h($logo_path) ?>" alt="Hotel Logo">
+
+                <!-- ===== INVOICE HEADER ===== -->
+                <header class="inv-header">
+                    <div class="inv-header-left">
+                        <div class="inv-logo-wrap">
+                            <!-- SVG รูปบ้านแทนการใช้ image path -->
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                                <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                            </svg>
                         </div>
-                        <?php endif; ?>
-                        <h1>ใบเสร็จรับเงิน / บิลเงินสด</h1>
-                        <h2> โรงแรมภัทรรีสอร์ท</h2>
-                        <div class="address-phone">
-                            <p>ที่อยู่: 119/2 ม.13 ต.โคกแย้ อ.หนองแค จ.สระบุรี 18230</p>
-                            <p>โทร: 089-889-5019 / 083-879-4469 / 064-879-4469</p>
-                        </div>
-                    </header>
-                    <hr class="section-divider">
-                    <section class="bill-meta">
-                        <div>เลขที่: <span id="preview_bill_number"><?= h($default_bill_number_prefix . '/' . $current_thai_year) ?></span></div>
-                        <div>วันที่: <span id="preview_bill_date"><?= toThaiDateString(date('Y-m-d')) ?></span></div>
-                    </section>
-                    <section class="customer-info">
-                        <p><strong>นามลูกค้า/บริษัท:</strong> <span id="preview_customer_name"></span></p>
-                        <p><strong>ที่อยู่:</strong> <span id="preview_customer_address"></span></p>
-                        <p><strong>เลขประจำตัวผู้เสียภาษี:</strong> <span id="preview_customer_tax_id"></span></p>
-                    </section>
-                     <section class="checkin-checkout-info">
-                        <p><strong>วันที่เข้าพัก:</strong> <span id="preview_checkin_date"></span></p>
-                        <p><strong>วันที่ออก:</strong> <span id="preview_checkout_date"></span></p>
-                    </section>
-                    <section class="line-items">
-                        <table class="line-items-table">
-                            <thead>
-                                <tr>
-                                    <th class="col-desc">รายการ</th>
-                                    <th class="col-qty">จำนวน</th>
-                                    <th class="col-unit-price">ราคา/หน่วย</th>
-                                    <th class="col-amount">จำนวนเงิน</th>
-                                </tr>
-                            </thead>
-                            <tbody id="preview_line_items">
-                                <tr><td colspan="4" style="text-align:center; color:#888; padding: 5mm;"><i>- ยังไม่มีรายการ -</i></td></tr>
-                            </tbody>
-                        </table>
-                    </section>
-                    <section class="totals">
-                        <table>
-                            <tr class="grand-total">
-                                <td>ยอดรวมทั้งสิ้น:</td>
-                                <td class="amount"><span id="preview_grand_total">0.00</span></td>
-                            </tr>
-                        </table>
-                    </section>
-                    <div class="thank-you-note">
-                        <p>*** ขอขอบคุณที่ไว้วางใจใช้บริการ ***</p>
                     </div>
-                     <section class="signatures">
-                        <div class="signature-box">
-                            <p>ผู้รับเงิน</p>
-                            <div class="signature-line"></div>
-                            <p>(............................................)</p>
-                        </div>
-                    </section>
-                     <p class="note-footer">
-                        เอกสารนี้ออกโดยระบบอัตโนมัติ - โรงแรมภัทรรีสอร์ท
-                    </p>
+                    <div class="inv-header-right">
+                        <p class="inv-title-main">บิลเงินสด</p>
+                        <p class="inv-title-sub">CASH BILL</p>
+                    </div>
+                </header>
+
+                <!-- ===== COMPANY INFO ===== -->
+                <div class="inv-company">
+                    <p class="inv-company-name">โรงแรมภัทรรีสอร์ท</p>
+                    <div class="inv-company-detail">
+                        119/2 ม.13 ต.โคกแย้ อ.หนองแค จ.สระบุรี 18230<br>
+                        เลขประจำตัวผู้เสียภาษี: 3260300408491
+                    </div>
+                    <div class="inv-company-contact">
+                        <span><i class="fas fa-phone" style="color:#2980b9;font-size:0.8em;"></i> 089-889-5019 / 083-879-4469</span>
+                    </div>
                 </div>
+
+                <!-- ===== CUSTOMER + META INFO BOX ===== -->
+                <div class="inv-info-box">
+                    <div class="inv-info-customer">
+                        <div class="inv-info-row">
+                            <span class="inv-info-label">ลูกค้า:</span>
+                            <span class="inv-info-val" id="preview_customer_name"></span>
+                        </div>
+                        <div class="inv-info-row">
+                            <span class="inv-info-label">ที่อยู่:</span>
+                            <span class="inv-info-val" id="preview_customer_address"></span>
+                        </div>
+                        <div class="inv-info-row">
+                            <span class="inv-info-label">เลขผู้เสียภาษี:</span>
+                            <span class="inv-info-val" id="preview_customer_tax_id"></span>
+                        </div>
+                        <div class="inv-info-row" id="preview_checkin_row">
+                            <span class="inv-info-label">เช็คอิน:</span>
+                            <span class="inv-info-val" id="preview_checkin_date"></span>
+                        </div>
+                        <div class="inv-info-row" id="preview_checkout_row">
+                            <span class="inv-info-label">เช็คเอาท์:</span>
+                            <span class="inv-info-val" id="preview_checkout_date"></span>
+                        </div>
+                    </div>
+                    <div class="inv-info-meta">
+                        <div class="inv-info-row">
+                            <span class="inv-info-label">เลขที่:</span>
+                            <span class="inv-info-val" id="preview_bill_number"><?= h($default_bill_number_prefix . '/' . $current_thai_year) ?></span>
+                        </div>
+                        <div class="inv-info-row">
+                            <span class="inv-info-label">วันที่:</span>
+                            <span class="inv-info-val" id="preview_bill_date"><?= toThaiDateString(date('Y-m-d')) ?></span>
+                        </div>
+                        <div class="inv-info-row">
+                            <span class="inv-info-label">วิธีชำระ:</span>
+                            <span class="inv-info-val" id="preview_payment_method">เงินสด</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ===== LINE ITEMS TABLE ===== -->
+                <div class="inv-items-section">
+                    <table class="inv-items-table">
+                        <thead>
+                            <tr>
+                                <th class="inv-col-no">#</th>
+                                <th class="inv-col-desc" style="text-align:left;">รายละเอียด</th>
+                                <th class="inv-col-qty">จำนวน</th>
+                                <th class="inv-col-unit">หน่วย</th>
+                                <th class="inv-col-price">ราคา/หน่วย</th>
+                                <th class="inv-col-total">ยอดรวม(บาท)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="preview_line_items">
+                            <tr>
+                                <td colspan="6" style="text-align:center; color:#888; padding: 6mm;"><i>- ยังไม่มีรายการ -</i></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- ===== TOTALS + SIGNATURE ===== -->
+                <div class="inv-footer-area">
+                    <div class="inv-amount-words" id="preview_amount_words"></div>
+                    <table class="inv-totals-table">
+                        <tr>
+                            <td class="inv-total-label">รวมเป็นเงิน</td>
+                            <td class="inv-total-val"><span id="preview_subtotal">0.00</span></td>
+                        </tr>
+                        <tr>
+                            <td class="inv-total-label">ส่วนลด</td>
+                            <td class="inv-total-val">0</td>
+                        </tr>
+                        <tr class="inv-grand-row">
+                            <td class="inv-total-label">ยอดชำระ</td>
+                            <td class="inv-total-val"><span id="preview_grand_total">0.00</span></td>
+                        </tr>
+                    </table>
+                </div>
+
+                <!-- ===== NOTES + SIGNATURE ===== -->
+                <div class="inv-sign-notes">
+                    <div class="inv-notes-block">
+                        <p>หมายเหตุ:</p>
+                        <ul>
+                            <li>ราคารวมค่าบริการแล้ว</li>
+                        </ul>
+                        <br>
+                        <p>สถานะการชำระเงิน:</p>
+                        <ul>
+                            <li>ได้รับเงินเรียบร้อยแล้ว</li>
+                            <li>ขอบคุณที่ใช้บริการ</li>
+                        </ul>
+                    </div>
+                    <div class="inv-sign-block">
+                        <div class="inv-sign-title">ผู้วางบิล</div>
+                        <div class="inv-sign-line"></div>
+                        <div class="inv-sign-date">วันที่ <span id="preview_sign_date"><?= toThaiDateString(date('Y-m-d')) ?></span></div>
+                    </div>
+                </div>
+
+                <!-- ===== DOCUMENT FOOTER ===== -->
+                <div class="inv-doc-footer">
+                    เอกสารออกโดยระบบ โรงแรมภัทรรีสอร์ท &nbsp;|&nbsp; 089-889-5019
+                </div>
+
             </div>
         </div>
         <div class="bill-actions">
-        <!-- ... existing action buttons ... -->
             <button type="button" id="save-bill-as-image-btn" class="button secondary" disabled>
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-image"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+                    <circle cx="9" cy="9" r="2" />
+                    <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+                </svg>
                 บันทึกเป็นรูปภาพ
             </button>
             <button type="button" id="share-bill-btn" class="button info" disabled>
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-share-2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.59 13.51 6.83 4.98"/><path d="m15.41 6.49-6.83 4.98"/></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="18" cy="5" r="3" />
+                    <circle cx="6" cy="12" r="3" />
+                    <circle cx="18" cy="19" r="3" />
+                    <path d="m8.59 13.51 6.83 4.98" />
+                    <path d="m15.41 6.49-6.83 4.98" />
+                </svg>
                 แชร์บิล
             </button>
             <button type="button" id="print-bill-btn" class="button alert" disabled>
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-printer"><path d="M6 18H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-2"/><path d="M18 14H6"/><path d="M9 18V7h6v11"/></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M6 18H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-2" />
+                    <path d="M18 14H6" />
+                    <path d="M9 18V7h6v11" />
+                </svg>
                 สั่งพิมพ์
             </button>
         </div>
@@ -519,680 +1005,849 @@ ob_start();
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // --- Element Selectors ---
-    // ... existing selectors ...
-    const groupSelect = document.getElementById('select_booking_group');
-    const itemTypeSelector = document.getElementById('item-type-selector');
-    const roomFields = document.getElementById('room-fields');
-    const serviceFields = document.getElementById('service-fields');
-    const roomSelect = document.getElementById('bill_room_select');
-    const nightsInput = document.getElementById('bill_room_nights');
-    const checkinDateInput = document.getElementById('bill_checkin_date');
-    const checkoutDateInput = document.getElementById('bill_checkout_date');
-    const roomPriceInput = document.getElementById('bill_room_price');
-    const addRoomBtn = document.getElementById('add-room-to-bill-btn');
-    const serviceSelect = document.getElementById('bill_service_select');
-    const serviceNameInput = document.getElementById('bill_service_name');
-    const serviceQtyInput = document.getElementById('bill_service_qty');
-    const servicePriceInput = document.getElementById('bill_service_price');
-    const addServiceBtn = document.getElementById('add-service-to-bill-btn');
-    const addedItemsTableBody = document.querySelector('#added-items-table tbody');
-    const billGrandTotalSpan = document.getElementById('bill_grand_total');
-    const previewBillNumber = document.getElementById('preview_bill_number');
-    const previewBillDate = document.getElementById('preview_bill_date');
-    const previewCustomerName = document.getElementById('preview_customer_name');
-    const previewCustomerAddress = document.getElementById('preview_customer_address');
-    const previewCustomerTaxId = document.getElementById('preview_customer_tax_id');
-    const previewLineItemsBody = document.getElementById('preview_line_items');
-    const previewGrandTotal = document.getElementById('preview_grand_total');
-    const previewCheckinDate = document.getElementById('preview_checkin_date');
-    const previewCheckoutDate = document.getElementById('preview_checkout_date');
-    const customerNameInput = document.getElementById('bill_customer_company_name');
-    const customerAddressInput = document.getElementById('bill_customer_address');
-    const customerTaxIdInput = document.getElementById('bill_customer_tax_id');
-    const billNumberInputEl = document.getElementById('bill_number_input');
-    const billDateInput = document.getElementById('bill_date_input'); 
-    const saveAsImageBtn = document.getElementById('save-bill-as-image-btn');
-    const shareBillBtn = document.getElementById('share-bill-btn');
-    const printBillBtn = document.getElementById('print-bill-btn');
-    const holidaySurchargeCheckbox = document.getElementById('holiday_surcharge_checkbox');
-    
-    // ***** START: NEW RECEIPT ELEMENTS *****
-    // ... existing selectors ...
-    const saveReceiptBtn = document.getElementById('confirm-save-receipt-btn');
-    const paymentMethodSelect = document.getElementById('payment_method_select');
-    
-    // ***** START: NEW CUSTOMER SEARCH ELEMENTS *****
-    const customerDatalist = document.getElementById('customer-list');
-    let customerCache = []; // To store search results
-    let searchTimeout;
-    // ***** END: NEW CUSTOMER SEARCH ELEMENTS *****
+    document.addEventListener('DOMContentLoaded', function() {
+        // --- Element Selectors ---
+        // ... existing selectors ...
+        const groupSelect = document.getElementById('select_booking_group');
+        const itemTypeSelector = document.getElementById('item-type-selector');
+        const roomFields = document.getElementById('room-fields');
+        const serviceFields = document.getElementById('service-fields');
+        const roomSelect = document.getElementById('bill_room_select');
+        const nightsInput = document.getElementById('bill_room_nights');
+        const checkinDateInput = document.getElementById('bill_checkin_date');
+        const checkoutDateInput = document.getElementById('bill_checkout_date');
+        const roomPriceInput = document.getElementById('bill_room_price');
+        const addRoomBtn = document.getElementById('add-room-to-bill-btn');
+        const serviceSelect = document.getElementById('bill_service_select');
+        const serviceNameInput = document.getElementById('bill_service_name');
+        const serviceQtyInput = document.getElementById('bill_service_qty');
+        const servicePriceInput = document.getElementById('bill_service_price');
+        const addServiceBtn = document.getElementById('add-service-to-bill-btn');
+        const addedItemsTableBody = document.querySelector('#added-items-table tbody');
+        const billGrandTotalSpan = document.getElementById('bill_grand_total');
+        const previewBillNumber = document.getElementById('preview_bill_number');
+        const previewBillDate = document.getElementById('preview_bill_date');
+        const previewCustomerName = document.getElementById('preview_customer_name');
+        const previewCustomerAddress = document.getElementById('preview_customer_address');
+        const previewCustomerTaxId = document.getElementById('preview_customer_tax_id');
+        const previewLineItemsBody = document.getElementById('preview_line_items');
+        const previewGrandTotal = document.getElementById('preview_grand_total');
+        const previewCheckinDate = document.getElementById('preview_checkin_date');
+        const previewCheckoutDate = document.getElementById('preview_checkout_date');
+        const customerNameInput = document.getElementById('bill_customer_company_name');
+        const customerAddressInput = document.getElementById('bill_customer_address');
+        const customerTaxIdInput = document.getElementById('bill_customer_tax_id');
+        const billNumberInputEl = document.getElementById('bill_number_input');
+        const billDateInput = document.getElementById('bill_date_input');
+        const saveAsImageBtn = document.getElementById('save-bill-as-image-btn');
+        const shareBillBtn = document.getElementById('share-bill-btn');
+        const printBillBtn = document.getElementById('print-bill-btn');
+        const holidaySurchargeCheckbox = document.getElementById('holiday_surcharge_checkbox');
+
+        // ***** START: NEW RECEIPT ELEMENTS *****
+        // ... existing selectors ...
+        const saveReceiptBtn = document.getElementById('confirm-save-receipt-btn');
+        const paymentMethodSelect = document.getElementById('payment_method_select');
+
+        // ***** START: NEW CUSTOMER SEARCH ELEMENTS *****
+        const customerDatalist = document.getElementById('customer-list');
+        let customerCache = []; // To store search results
+        let searchTimeout;
+        // ***** END: NEW CUSTOMER SEARCH ELEMENTS *****
 
 
-    let billItems = [];
+        let billItems = [];
 
-    // --- Custom Modal Logic (Replaces alert/confirm) ---
-    // ... existing modal logic ...
-    const modal = document.getElementById('custom-modal');
-    const modalMsg = document.getElementById('custom-modal-message');
-    const modalConfirmBtn = document.getElementById('custom-modal-btn-confirm');
-    const modalCancelBtn = document.getElementById('custom-modal-btn-cancel');
+        // --- Custom Modal Logic (Replaces alert/confirm) ---
+        // ... existing modal logic ...
+        const modal = document.getElementById('custom-modal');
+        const modalMsg = document.getElementById('custom-modal-message');
+        const modalConfirmBtn = document.getElementById('custom-modal-btn-confirm');
+        const modalCancelBtn = document.getElementById('custom-modal-btn-cancel');
 
-    let modalConfirmCallback = null;
-    let modalCancelCallback = null;
+        let modalConfirmCallback = null;
+        let modalCancelCallback = null;
 
-    function showCustomConfirm(message, onConfirm, onCancel = null) {
-        modalMsg.innerHTML = message; // Use innerHTML to allow line breaks
-        modalConfirmBtn.textContent = 'ยืนยัน';
-        modalConfirmBtn.style.display = 'inline-block';
-        modalCancelBtn.style.display = 'inline-block';
-        
-        modalConfirmCallback = onConfirm;
-        modalCancelCallback = onCancel;
-        
-        modal.style.display = 'flex';
-    }
+        function showCustomConfirm(message, onConfirm, onCancel = null) {
+            modalMsg.innerHTML = message; // Use innerHTML to allow line breaks
+            modalConfirmBtn.textContent = 'ยืนยัน';
+            modalConfirmBtn.style.display = 'inline-block';
+            modalCancelBtn.style.display = 'inline-block';
 
-    function showCustomAlert(message, onOk = null) {
-        modalMsg.innerHTML = message.replace(/\n/g, '<br>'); // Replace newlines with <br>
-        modalConfirmBtn.style.display = 'inline-block';
-        modalConfirmBtn.textContent = 'ตกลง';
-        modalCancelBtn.style.display = 'none';
-        
-        modalConfirmCallback = () => {
-            if (onOk) onOk();
-            hideModal(); // Default action is just to close
-        };
-        modalCancelCallback = null; // No cancel action
+            modalConfirmCallback = onConfirm;
+            modalCancelCallback = onCancel;
 
-        modal.style.display = 'flex';
-    }
-
-    function hideModal() {
-        modal.style.display = 'none';
-        modalConfirmBtn.textContent = 'ยืนยัน'; // Reset button text
-        modalConfirmCallback = null;
-        modalCancelCallback = null;
-    }
-
-    modalConfirmBtn.addEventListener('click', () => {
-        if (modalConfirmCallback) {
-            modalConfirmCallback();
+            modal.style.display = 'flex';
         }
-        // If it's an alert (cancel hidden), close modal on confirm
-        if (modalCancelBtn.style.display === 'none') {
-            hideModal();
+
+        function showCustomAlert(message, onOk = null) {
+            modalMsg.innerHTML = message.replace(/\n/g, '<br>'); // Replace newlines with <br>
+            modalConfirmBtn.style.display = 'inline-block';
+            modalConfirmBtn.textContent = 'ตกลง';
+            modalCancelBtn.style.display = 'none';
+
+            modalConfirmCallback = () => {
+                if (onOk) onOk();
+                hideModal(); // Default action is just to close
+            };
+            modalCancelCallback = null; // No cancel action
+
+            modal.style.display = 'flex';
         }
-    });
 
-    modalCancelBtn.addEventListener('click', () => {
-        if (modalCancelCallback) {
-            modalCancelCallback();
+        function hideModal() {
+            modal.style.display = 'none';
+            modalConfirmBtn.textContent = 'ยืนยัน'; // Reset button text
+            modalConfirmCallback = null;
+            modalCancelCallback = null;
         }
-        hideModal();
-    });
-    // --- End Custom Modal Logic ---
 
-
-    // --- Event Listeners ---
-    // ... existing listeners ...
-    itemTypeSelector.addEventListener('click', function(e) {
-        if (e.target.tagName === 'BUTTON') {
-            const type = e.target.dataset.type;
-            roomFields.style.display = type === 'room' ? 'block' : 'none';
-            serviceFields.style.display = type === 'service' ? 'block' : 'none';
-        }
-    });
-
-    roomSelect.addEventListener('change', function() {
-        const selectedOption = this.options[this.selectedIndex];
-        if (selectedOption.value && roomPriceInput) {
-            roomPriceInput.value = parseFloat(selectedOption.dataset.price || 0).toFixed(2);
-        } else if (roomPriceInput) {
-            roomPriceInput.value = '';
-        }
-    });
-
-    serviceSelect.addEventListener('change', function() {
-        const selected = this.options[this.selectedIndex];
-        if (selected.value) {
-            serviceNameInput.value = selected.dataset.name || '';
-            servicePriceInput.value = parseFloat(selected.dataset.price).toFixed(2) || '';
-        }
-    });
-
-    addServiceBtn.addEventListener('click', function() {
-        const name = serviceNameInput.value.trim();
-        const qty = parseInt(serviceQtyInput.value, 10);
-        const price = parseFloat(servicePriceInput.value);
-        if (!name || isNaN(qty) || qty < 1 || isNaN(price)) {
-            showCustomAlert('กรุณากรอกข้อมูลรายการบริการให้ครบถ้วนและถูกต้อง (ราคาต้องเป็นตัวเลข)'); 
-            return;
-        }
-        billItems.push({ id: `service-${Date.now()}`, type: 'service', description: name, quantity: qty, unitPrice: price });
-        renderAllItems();
-        serviceNameInput.value = ''; serviceQtyInput.value = '1'; servicePriceInput.value = ''; serviceSelect.value = '';
-    });
-
-    addRoomBtn.addEventListener('click', function() {
-        const roomId = roomSelect.value;
-        const nights = parseInt(nightsInput.value);
-        const checkin = checkinDateInput.value;
-        const checkout = checkoutDateInput.value;
-        const pricePerNight = parseFloat(roomPriceInput.value);
-
-        if (!roomId || isNaN(nights) || nights < 1 || !checkin || !checkout || isNaN(pricePerNight) || pricePerNight < 0) {
-            showCustomAlert('กรุณาเลือกห้องพัก, จำนวนคืน, วันที่, และราคาต่อคืนให้ถูกต้อง'); 
-            return;
-        }
-        const selectedRoomOption = roomSelect.options[roomSelect.selectedIndex];
-        const roomName = selectedRoomOption.text.split(' (')[0];
-        
-        billItems.push({ id: `room-${Date.now()}`, type: 'room', description: `ค่าห้องพัก ${roomName}`, quantity: nights, unitPrice: pricePerNight, checkin: checkin, checkout: checkout });
-        renderAllItems();
-    });
-
-    addedItemsTableBody.addEventListener('click', function(e) {
-        // ... existing editable cell logic ...
-        const cell = e.target.closest('.editable-cell');
-        if (!cell || cell.querySelector('input')) return;
-
-        const row = cell.closest('tr');
-        const itemId = row.querySelector('.remove-item-btn').dataset.itemId;
-        const fieldToEdit = cell.dataset.field;
-        const itemIndex = billItems.findIndex(item => item.id === itemId);
-        if (itemIndex === -1) return;
-
-        const originalValue = billItems[itemIndex][fieldToEdit];
-        cell.innerHTML = '';
-        const input = document.createElement('input');
-        input.type = 'number';
-        input.value = originalValue;
-        input.className = 'form-control';
-        input.style.width = '100%';
-        input.style.textAlign = 'right';
-        cell.appendChild(input);
-        input.focus();
-        input.select();
-
-        const saveChange = () => {
-            const newValue = parseFloat(input.value);
-            if (!isNaN(newValue) && newValue >= 0) {
-                billItems[itemIndex][fieldToEdit] = newValue;
+        modalConfirmBtn.addEventListener('click', () => {
+            if (modalConfirmCallback) {
+                modalConfirmCallback();
             }
-            renderAllItems();
-        };
-
-        input.addEventListener('blur', saveChange);
-        input.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') saveChange();
-            else if (e.key === 'Escape') renderAllItems();
-        });
-    });
-
-    holidaySurchargeCheckbox.addEventListener('change', renderAllItems);
-
-    [customerAddressInput, customerTaxIdInput, billNumberInputEl, billDateInput].forEach(input => input.addEventListener('input', updatePreview));
-    // Remove customerNameInput from the simple updatePreview listener
-    customerNameInput.addEventListener('input', updatePreview); // Keep this for live preview
-    
-    checkinDateInput.addEventListener('change', calculateCheckoutDate);
-    nightsInput.addEventListener('input', calculateCheckoutDate);
-
-    groupSelect.addEventListener('change', async function() {
-        // ... existing group select logic ...
-        const groupId = this.value;
-        if (!groupId) {
-            billItems = []; customerNameInput.value = ''; customerAddressInput.value = ''; customerTaxIdInput.value = '';
-            renderAllItems(); return;
-        }
-        try {
-            const response = await fetch(`/hotel_booking/pages/api.php?action=get_group_details_for_bill&booking_group_id=${groupId}`);
-            const data = await response.json();
-            if (data.success) {
-                customerNameInput.value = data.group_info.customer_name || '';
-                billItems = data.bookings.map(booking => ({ id: `room-${booking.id}`, type: 'room', description: `ค่าห้องพัก ${booking.zone}${booking.room_number}`, quantity: parseInt(booking.nights, 10), unitPrice: parseFloat(booking.price_per_night), checkin: booking.checkin_datetime.split(' ')[0], checkout: booking.checkout_datetime_calculated.split(' ')[0] }));
-                renderAllItems();
-            } else { showCustomAlert('Error: ' + data.message); }
-        } catch (error) { console.error('Error:', error); showCustomAlert('เกิดข้อผิดพลาดในการเชื่อมต่อ'); }
-    });
-    
-    // --- Core Functions ---
-    function renderAllItems() {
-        // ... existing renderAllItems logic ...
-        addedItemsTableBody.innerHTML = '';
-        let grandTotal = 0;
-        const isHoliday = holidaySurchargeCheckbox.checked;
-        const holidaySurchargeAmount = 100;
-
-        if (billItems.length === 0) {
-            addedItemsTableBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted"><i>- ยังไม่มีรายการ -</i></td></tr>';
-        } else {
-            billItems.forEach(item => {
-                let currentItemTotal = item.quantity * item.unitPrice;
-                let displayDescription = item.description;
-
-                if (item.type === 'room' && isHoliday) {
-                    currentItemTotal += item.quantity * holidaySurchargeAmount;
-                    displayDescription += '';
-                }
-                
-                const row = addedItemsTableBody.insertRow();
-                row.insertCell().textContent = displayDescription;
-                
-                const qtyCell = row.insertCell();
-                qtyCell.textContent = item.quantity;
-                qtyCell.className = 'number-cell editable-cell';
-                qtyCell.dataset.field = 'quantity';
-
-                const unitPriceCell = row.insertCell();
-                unitPriceCell.textContent = item.unitPrice.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                unitPriceCell.className = 'number-cell editable-cell';
-                unitPriceCell.dataset.field = 'unitPrice';
-
-                const totalCell = row.insertCell();
-                totalCell.textContent = currentItemTotal.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                totalCell.className = 'number-cell';
-
-                const actionCell = row.insertCell();
-                actionCell.className = 'action-cell';
-                const removeBtn = document.createElement('button');
-                removeBtn.textContent = 'ลบ';
-                removeBtn.className = 'button-small alert remove-item-btn';
-                removeBtn.dataset.itemId = item.id;
-                removeBtn.onclick = function() {
-                    billItems = billItems.filter(bItem => bItem.id !== this.dataset.itemId);
-                    renderAllItems();
-                };
-                actionCell.appendChild(removeBtn);
-                grandTotal += currentItemTotal;
-            });
-        }
-        billGrandTotalSpan.textContent = grandTotal.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        updatePreview();
-        updateActionButtonsState();
-    }
-
-    function updatePreview() {
-        // ... existing updatePreview logic ...
-        previewBillNumber.textContent = billNumberInputEl.value || 'N/A';
-        previewBillDate.textContent = toThaiDateForJS(billDateInput.value || new Date()); // ***** MODIFIED *****
-        previewCustomerName.textContent = customerNameInput.value.trim() || '-';
-        previewCustomerAddress.textContent = customerAddressInput.value.trim() || '-';
-        previewCustomerTaxId.textContent = customerTaxIdInput.value.trim() || '-';
-        
-        previewLineItemsBody.innerHTML = '';
-        let currentPreviewGrandTotal = 0;
-        let overallMinCheckin = null;
-        let overallMaxCheckout = null;
-        const isHoliday = holidaySurchargeCheckbox.checked;
-        const holidaySurchargeAmount = 100;
-
-        if (billItems.length === 0) {
-            previewLineItemsBody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#888; padding: 5mm;"><i>- ยังไม่มีรายการ -</i></td></tr>';
-        } else {
-            billItems.forEach(item => {
-                let itemTotalForPreview = item.quantity * item.unitPrice;
-                let descriptionForPreview = item.description;
-
-                if (item.type === 'room') {
-                    // Fix: Ensure date objects are valid before comparison
-                    try {
-                        const checkin = new Date(item.checkin);
-                        const checkout = new Date(item.checkout);
-                        if (!isNaN(checkin.getTime())) {
-                            if (!overallMinCheckin || checkin < overallMinCheckin) overallMinCheckin = checkin;
-                        }
-                        if (!isNaN(checkout.getTime())) {
-                            if (!overallMaxCheckout || checkout > overallMaxCheckout) overallMaxCheckout = checkout;
-                        }
-                    } catch (e) { console.error("Invalid date in bill item: ", item); }
-
-
-                    if (isHoliday) {
-                        itemTotalForPreview += item.quantity * holidaySurchargeAmount;
-                        descriptionForPreview += '';
-                    }
-                }
-                
-                const row = previewLineItemsBody.insertRow();
-                row.insertCell(0).textContent = descriptionForPreview;
-                row.cells[0].className = 'col-desc';
-                const qtyCell = row.insertCell(1);
-                qtyCell.textContent = `${item.quantity}${item.type === 'room' ? ' คืน' : ''}`;
-                qtyCell.className = 'col-qty';
-                const unitPriceCell = row.insertCell(2);
-                unitPriceCell.textContent = item.unitPrice.toLocaleString('th-TH', { minimumFractionDigits: 2 });
-                unitPriceCell.className = 'col-unit-price';
-                const amountCell = row.insertCell(3);
-                amountCell.textContent = itemTotalForPreview.toLocaleString('th-TH', { minimumFractionDigits: 2 });
-                amountCell.className = 'col-amount';
-                currentPreviewGrandTotal += itemTotalForPreview;
-            });
-        }
-        
-        previewCheckinDate.textContent = overallMinCheckin ? toThaiDateForJS(overallMinCheckin) : '-';
-        previewCheckoutDate.textContent = overallMaxCheckout ? toThaiDateForJS(overallMaxCheckout) : '-';
-        previewGrandTotal.textContent = currentPreviewGrandTotal.toLocaleString('th-TH', { minimumFractionDigits: 2 });
-    }
-    
-    function calculateCheckoutDate() {
-        // ... existing calculateCheckoutDate logic ...
-        if (!checkinDateInput.value || !nightsInput.value) { checkoutDateInput.value = ''; return; }
-        try {
-            const checkin = new Date(checkinDateInput.value);
-            const nights = parseInt(nightsInput.value);
-            if (isNaN(checkin.getTime()) || isNaN(nights) || nights < 1) { checkoutDateInput.value = ''; return; }
-            const checkout = new Date(checkin);
-            checkout.setDate(checkin.getDate() + nights);
-            checkoutDateInput.value = checkout.toISOString().split('T')[0];
-        } catch (e) { checkoutDateInput.value = ''; }
-    }
-
-    function toThaiDateForJS(dateInput) {
-        // ... existing toThaiDateForJS logic ...
-        if (!dateInput) return 'N/A';
-        const date = new Date(dateInput);
-        if (isNaN(date.getTime())) {
-            // Try to parse YYYY-MM-DD manually
-            const parts = String(dateInput).split('-');
-            if (parts.length === 3) {
-                date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-            } else {
-                return 'N/A';
-            }
-        }
-        if (isNaN(date.getTime())) return 'N/A';
-        
-        const thaiMonths = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
-        return `${date.getDate()} ${thaiMonths[date.getMonth()]} ${date.getFullYear() + 543}`;
-    }
-
-    function updateActionButtonsState() {
-        // ... existing updateActionButtonsState logic ...
-        const hasItems = billItems.length > 0;
-        saveAsImageBtn.disabled = !hasItems; 
-        shareBillBtn.disabled = !hasItems; 
-        printBillBtn.disabled = !hasItems;
-        // Also enable/disable the new save button
-        saveReceiptBtn.disabled = !hasItems;
-    }
-    
-    // ***** START: NEW CUSTOMER SEARCH FUNCTIONS *****
-    async function searchCustomers() {
-        const searchTerm = customerNameInput.value.trim();
-        
-        if (searchTerm.length < 2) {
-            customerDatalist.innerHTML = '';
-            customerCache = [];
-            return;
-        }
-
-        try {
-            const response = await fetch(`/hotel_booking/pages/cash_bill.php?action=search_customers&term=${encodeURIComponent(searchTerm)}`);
-            if (!response.ok) {
-                throw new Error('Search request failed');
-            }
-            const customers = await response.json();
-            customerCache = customers; // Store results
-            
-            customerDatalist.innerHTML = ''; // Clear old options
-            customers.forEach(cust => {
-                const option = document.createElement('option');
-                option.value = cust.customer_name;
-                // Add extra info to display, though datalist support varies
-                option.textContent = cust.customer_tax_id ? `${cust.customer_name} (${cust.customer_tax_id})` : cust.customer_name;
-                customerDatalist.appendChild(option);
-            });
-        } catch (error) {
-            console.error('Error searching customers:', error);
-            customerCache = [];
-        }
-    }
-
-    function populateCustomerDetails() {
-        const selectedName = customerNameInput.value;
-        const selectedCustomer = customerCache.find(cust => cust.customer_name === selectedName);
-
-        if (selectedCustomer) {
-            customerAddressInput.value = selectedCustomer.customer_address || '';
-            customerTaxIdInput.value = selectedCustomer.customer_tax_id || '';
-            
-            // Trigger update for preview
-            updatePreview(); 
-        }
-    }
-
-    // Add listeners for customer search
-    customerNameInput.addEventListener('input', () => {
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(searchCustomers, 300); // Debounce search
-    });
-    customerNameInput.addEventListener('change', populateCustomerDetails); // Use 'change' for when user selects from datalist
-    // ***** END: NEW CUSTOMER SEARCH FUNCTIONS *****
-
-
-    // ***** START: NEW SAVE RECEIPT LISTENER *****
-    saveReceiptBtn.addEventListener('click', async function() {
-        // ... existing saveReceiptBtn logic ...
-        if (billItems.length === 0) {
-            showCustomAlert('ไม่สามารถบันทึกได้: ยังไม่มีรายการในใบเสร็จ');
-            return;
-        }
-
-        // 1. Gather all data
-        const grandTotal = parseFloat(billGrandTotalSpan.textContent.replace(/[^0-9.-]+/g,""));
-        const dataToSave = {
-            bill_number: billNumberInputEl.value,
-            bill_date: billDateInput.value,
-            customer_name: customerNameInput.value,
-            customer_address: customerAddressInput.value,
-            customer_tax_id: customerTaxIdInput.value,
-            payment_method: paymentMethodSelect.value,
-            booking_group_id: groupSelect.value || null,
-            line_items: billItems, // The full billItems array
-            grand_total: grandTotal,
-            is_holiday_surcharge: holidaySurchargeCheckbox.checked
-            // The server will serialize this whole object into `receipt_data_json`
-        };
-
-        // 2. Confirm with the user
-        showCustomConfirm(
-            `ยืนยันการบันทึกใบเสร็จ?<br><br><strong>วันที่:</strong> ${toThaiDateForJS(dataToSave.bill_date)}<br><strong>ลูกค้า:</strong> ${dataToSave.customer_name || '-'}<br><strong>ยอดรวม:</strong> ${grandTotal.toLocaleString('th-TH')} บาท<br><br>การดำเนินการนี้จะสร้างใบเสร็จถาวรในระบบ และไม่สามารถแก้ไขได้<br><br><strong style="color: var(--color-primary);">ข้อมูลลูกค้า/บริษัทนี้ จะถูกบันทึกไว้ใช้ในอนาคต</strong>`,
-            async () => { // onConfirm callback
-                hideModal(); // Hide confirmation modal first
-                
-                const buttonId = 'confirm-save-receipt-btn';
-                if (typeof setButtonLoading === 'function') setButtonLoading(saveReceiptBtn, true, buttonId);
-
-                try {
-                    // 3. Send to API (the top of this same file)
-                    const response = await fetch('/hotel_booking/pages/cash_bill.php?action=save_receipt', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Accept': 'application/json'
-                        },
-                        body: JSON.stringify(dataToSave)
-                    });
-
-                    const result = await response.json();
-
-                    if (response.ok && result.success) {
-                        showCustomAlert(`บันทึกใบเสร็จสำเร็จ!\nเลขที่ใบเสร็จใหม่ของระบบ: ${result.receipt_number}`);
-                        // Optionally, disable the button to prevent double-save
-                        saveReceiptBtn.disabled = true;
-                        saveReceiptBtn.innerHTML = `<i class="fas fa-check-circle"></i> บันทึกใบเสร็จแล้ว (${result.receipt_number})`;
-                        // Update preview with the new permanent number
-                        previewBillNumber.textContent = result.receipt_number;
-                        billNumberInputEl.value = result.receipt_number;
-                    } else {
-                        throw new Error(result.message || 'ไม่สามารถบันทึกข้อมูลได้');
-                    }
-
-                } catch (error) {
-                    console.error('Error saving receipt:', error);
-                    showCustomAlert('เกิดข้อผิดพลาดในการบันทึกใบเสร็จ: ' + error.message);
-                } finally {
-                    // 4. Hide loading state
-                    if (typeof setButtonLoading === 'function') setButtonLoading(saveReceiptBtn, false, buttonId);
-                }
-            },
-            () => {
-                // onCancel callback
+            // If it's an alert (cancel hidden), close modal on confirm
+            if (modalCancelBtn.style.display === 'none') {
                 hideModal();
             }
-        ); // end showCustomConfirm
-    });
-    // ***** END: NEW SAVE RECEIPT LISTENER *****
+        });
 
-    // --- Action Button Listeners (Print, Save, Share) ---
-    printBillBtn.addEventListener('click', function() {
-        // ... existing printBillBtn logic ...
-        const billContentNode = document.getElementById('bill-content');
-        if (!billContentNode) {
-            showCustomAlert('ผิดพลาด: ไม่พบเนื้อหาสำหรับพิมพ์');
-            return;
-        }
-        const printWindow = window.open('', '_blank', 'width=880,height=900,scrollbars=yes,resizable=yes');
-        printWindow.document.write(`<html><head><title>พิมพ์ใบเสร็จรับเงิน</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700;800&display=swap" rel="stylesheet"><style>body{font-family:'Sarabun',sans-serif;margin:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}@page{size:A4;margin:0}#bill-content{width:210mm;height:297mm;padding:10mm;box-sizing:border-box;display:flex;flex-direction:column;position:relative;background-color:#fff;color:#000;font-size:12pt}.bill-body{border:1.5px solid #333;padding:8mm;width:100%;height:100%;display:flex;flex-direction:column;position:relative;z-index:2;box-sizing:border-box}#bill-content::after{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-45deg);font-size:150pt;font-weight:800;color:rgba(0,0,0,.04);z-index:1;pointer-events:none}header{text-align:center;margin-bottom:5mm;flex-shrink:0}.logo-container img{max-width:150px;max-height:50px;object-fit:contain}h1{font-size:1.5em;margin:0 0 1mm;color:#000}h2{font-size:1.2em;margin:1mm 0;color:#000}.address-phone p{margin:.5mm 0;font-size:.9em;line-height:1.4}.bill-meta{display:flex;justify-content:space-between;margin-bottom:5mm;font-size:.9em;flex-shrink:0}.customer-info{border:1px solid #ccc;padding:2mm 3mm;margin-bottom:5mm;font-size:.9em;flex-shrink:0}.customer-info p{margin:1mm 0}hr.section-divider{border:0;border-top:1px solid #000;margin:4mm 0}.line-items{flex-grow:1;margin-bottom:5mm;border-top:1px solid #000;border-bottom:1px solid #000;padding:1mm 0}.line-items-table{width:100%;border-collapse:collapse;font-size:.9em}.line-items-table th,.line-items-table td{border:none;padding:1.5mm 1mm;text-align:left;vertical-align:top}.line-items-table th{font-weight:700;border-bottom:1px solid #999}.line-items-table td{border-bottom:1px dotted #ccc}.line-items-table tr:last-child td{border-bottom:none}.col-desc{width:55%}.col-qty{width:15%;text-align:center}.col-unit-price{width:15%;text-align:right}.col-amount{width:15%;text-align:right}.checkin-checkout-info{font-size:.9em;margin-bottom:5mm;flex-shrink:0}.totals{text-align:right;margin-top:auto;padding-top:3mm;font-size:1em;flex-shrink:0}.totals table{width:50%;margin-left:auto;border-collapse:collapse}.totals td{padding:1.5mm}.totals .grand-total td{font-weight:700;font-size:1.2em;border-top:1px solid #000;border-bottom:3px double #000}.signatures{display:flex;justify-content:center;margin-top:15mm;font-size:.9em;flex-shrink:0}.signature-box{text-align:center;width:50%}.signature-line{border-bottom:1px dotted #000;height:12mm;margin:2mm 0 1mm}.signature-box p{margin:0;line-height:1.4}.note-footer{text-align:center;font-size:.7em;margin-top:5mm;color:#555;flex-shrink:0}.thank-you-note{text-align:center;font-weight:700;font-size:1em;margin-top:8mm;flex-shrink:0}</style></head><body><div id="bill-content">${billContentNode.innerHTML}</div></body></html>`);
-        printWindow.document.close();
-        setTimeout(() => {
-            try { printWindow.focus(); printWindow.print(); printWindow.close(); } 
-            catch (e) { console.error("Print failed:", e); showCustomAlert("ไม่สามารถสั่งพิมพ์ได้ อาจถูกบล็อกโดยเบราว์เซอร์"); }
-        }, 1000);
-    });
+        modalCancelBtn.addEventListener('click', () => {
+            if (modalCancelCallback) {
+                modalCancelCallback();
+            }
+            hideModal();
+        });
+        // --- End Custom Modal Logic ---
 
-    async function generateBillCanvas() {
-        // ... existing generateBillCanvas logic ...
-        const sourceElement = document.getElementById('bill-content');
-        if (!sourceElement || typeof html2canvas !== 'function') {
-            showCustomAlert('ไม่สามารถสร้างรูปภาพได้: ไม่พบส่วนประกอบที่จำเป็น');
-            return null;
-        }
-        const clone = sourceElement.cloneNode(true);
-        clone.style.position = 'absolute';
-        clone.style.top = '-9999px';
-        clone.style.left = '0px';
-        clone.style.width = '210mm';
-        clone.style.height = 'auto';
-        clone.style.minHeight = '297mm';
-        clone.style.margin = '0';
-        clone.style.fontSize = '12pt';
-        clone.style.fontFamily = "'Sarabun', sans-serif";
-        clone.style.color = '#000';
-        document.body.appendChild(clone);
-        try {
-            const canvas = await html2canvas(clone, { scale: 3, useCORS: true, logging: false, width: clone.offsetWidth, height: clone.offsetHeight, backgroundColor: '#ffffff' });
-            return canvas;
-        } catch (error) {
-            console.error('Error generating canvas:', error);
-            showCustomAlert('เกิดข้อผิดพลาดในการสร้างรูปภาพ: ' + error.message);
-            return null;
-        } finally {
-            if (document.body.contains(clone)) { document.body.removeChild(clone); }
-        }
-    }
-    
-    saveAsImageBtn.addEventListener('click', async function() {
-        // ... existing saveAsImageBtn logic ...
-        const buttonId = 'save-bill-as-image-btn';
-        if (typeof setButtonLoading === 'function') setButtonLoading(this, true, buttonId);
-        const canvas = await generateBillCanvas();
-        if (canvas) {
-            const image = canvas.toDataURL('image/png', 1.0);
-            const link = document.createElement('a');
-            const fileName = `bill_${(document.getElementById('bill_number_input').value || 'receipt').replace(/[\/\\]/g, '-')}.png`;
-            link.download = fileName;
-            link.href = image;
-            link.click();
-        }
-        if (typeof setButtonLoading === 'function') setButtonLoading(this, false, buttonId);
-    });
 
-    if (shareBillBtn) {
-        shareBillBtn.addEventListener('click', async function() {
-            // ... existing shareBillBtn logic (with Apple fix) ...
-            const buttonId = 'share-bill-btn';
+        // --- Event Listeners ---
+        // ... existing listeners ...
+        itemTypeSelector.addEventListener('click', function(e) {
+            if (e.target.tagName === 'BUTTON') {
+                const type = e.target.dataset.type;
+                roomFields.style.display = type === 'room' ? 'block' : 'none';
+                serviceFields.style.display = type === 'service' ? 'block' : 'none';
+            }
+        });
+
+        roomSelect.addEventListener('change', function() {
+            const selectedOption = this.options[this.selectedIndex];
+            if (selectedOption.value && roomPriceInput) {
+                roomPriceInput.value = parseFloat(selectedOption.dataset.price || 0).toFixed(2);
+            } else if (roomPriceInput) {
+                roomPriceInput.value = '';
+            }
+        });
+
+        serviceSelect.addEventListener('change', function() {
+            const selected = this.options[this.selectedIndex];
+            if (selected.value) {
+                serviceNameInput.value = selected.dataset.name || '';
+                servicePriceInput.value = parseFloat(selected.dataset.price).toFixed(2) || '';
+            }
+        });
+
+        addServiceBtn.addEventListener('click', function() {
+            const name = serviceNameInput.value.trim();
+            const qty = parseInt(serviceQtyInput.value, 10);
+            const price = parseFloat(servicePriceInput.value);
+            if (!name || isNaN(qty) || qty < 1 || isNaN(price)) {
+                showCustomAlert('กรุณากรอกข้อมูลรายการบริการให้ครบถ้วนและถูกต้อง (ราคาต้องเป็นตัวเลข)');
+                return;
+            }
+            billItems.push({
+                id: `service-${Date.now()}`,
+                type: 'service',
+                description: name,
+                quantity: qty,
+                unitPrice: price
+            });
+            renderAllItems();
+            serviceNameInput.value = '';
+            serviceQtyInput.value = '1';
+            servicePriceInput.value = '';
+            serviceSelect.value = '';
+        });
+
+        addRoomBtn.addEventListener('click', function() {
+            const roomId = roomSelect.value;
+            const nights = parseInt(nightsInput.value);
+            const checkin = checkinDateInput.value;
+            const checkout = checkoutDateInput.value;
+            const pricePerNight = parseFloat(roomPriceInput.value);
+
+            if (!roomId || isNaN(nights) || nights < 1 || !checkin || !checkout || isNaN(pricePerNight) || pricePerNight < 0) {
+                showCustomAlert('กรุณาเลือกห้องพัก, จำนวนคืน, วันที่, และราคาต่อคืนให้ถูกต้อง');
+                return;
+            }
+            const selectedRoomOption = roomSelect.options[roomSelect.selectedIndex];
+            const roomName = selectedRoomOption.text.split(' (')[0];
+
+            billItems.push({
+                id: `room-${Date.now()}`,
+                type: 'room',
+                description: `ค่าห้องพัก ${roomName}`,
+                quantity: nights,
+                unitPrice: pricePerNight,
+                checkin: checkin,
+                checkout: checkout
+            });
+            renderAllItems();
+        });
+
+        addedItemsTableBody.addEventListener('click', function(e) {
+            // ... existing editable cell logic ...
+            const cell = e.target.closest('.editable-cell');
+            if (!cell || cell.querySelector('input')) return;
+
+            const row = cell.closest('tr');
+            const itemId = row.querySelector('.remove-item-btn').dataset.itemId;
+            const fieldToEdit = cell.dataset.field;
+            const itemIndex = billItems.findIndex(item => item.id === itemId);
+            if (itemIndex === -1) return;
+
+            const originalValue = billItems[itemIndex][fieldToEdit];
+            cell.innerHTML = '';
+            const input = document.createElement('input');
+            input.type = 'number';
+            input.value = originalValue;
+            input.className = 'form-control';
+            input.style.width = '100%';
+            input.style.textAlign = 'right';
+            cell.appendChild(input);
+            input.focus();
+            input.select();
+
+            const saveChange = () => {
+                const newValue = parseFloat(input.value);
+                if (!isNaN(newValue) && newValue >= 0) {
+                    billItems[itemIndex][fieldToEdit] = newValue;
+                }
+                renderAllItems();
+            };
+
+            input.addEventListener('blur', saveChange);
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') saveChange();
+                else if (e.key === 'Escape') renderAllItems();
+            });
+        });
+
+        holidaySurchargeCheckbox.addEventListener('change', renderAllItems);
+
+        [customerAddressInput, customerTaxIdInput, billNumberInputEl, billDateInput].forEach(input => input.addEventListener('input', updatePreview));
+        // Remove customerNameInput from the simple updatePreview listener
+        customerNameInput.addEventListener('input', updatePreview); // Keep this for live preview
+
+        checkinDateInput.addEventListener('change', calculateCheckoutDate);
+        nightsInput.addEventListener('input', calculateCheckoutDate);
+
+        groupSelect.addEventListener('change', async function() {
+            // ... existing group select logic ...
+            const groupId = this.value;
+            if (!groupId) {
+                billItems = [];
+                customerNameInput.value = '';
+                customerAddressInput.value = '';
+                customerTaxIdInput.value = '';
+                renderAllItems();
+                return;
+            }
+            try {
+                const response = await fetch(`/hotel_booking/pages/api.php?action=get_group_details_for_bill&booking_group_id=${groupId}`);
+                const data = await response.json();
+                if (data.success) {
+                    customerNameInput.value = data.group_info.customer_name || '';
+                    billItems = data.bookings.map(booking => ({
+                        id: `room-${booking.id}`,
+                        type: 'room',
+                        description: `ค่าห้องพัก ${booking.zone}${booking.room_number}`,
+                        quantity: parseInt(booking.nights, 10),
+                        unitPrice: parseFloat(booking.price_per_night),
+                        checkin: booking.checkin_datetime.split(' ')[0],
+                        checkout: booking.checkout_datetime_calculated.split(' ')[0]
+                    }));
+                    renderAllItems();
+                } else {
+                    showCustomAlert('Error: ' + data.message);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showCustomAlert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+            }
+        });
+
+        // --- Core Functions ---
+        function renderAllItems() {
+            // ... existing renderAllItems logic ...
+            addedItemsTableBody.innerHTML = '';
+            let grandTotal = 0;
+            const isHoliday = holidaySurchargeCheckbox.checked;
+            const holidaySurchargeAmount = 100;
+
+            if (billItems.length === 0) {
+                addedItemsTableBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted"><i>- ยังไม่มีรายการ -</i></td></tr>';
+            } else {
+                billItems.forEach(item => {
+                    let currentItemTotal = item.quantity * item.unitPrice;
+                    let displayDescription = item.description;
+
+                    if (item.type === 'room' && isHoliday) {
+                        currentItemTotal += item.quantity * holidaySurchargeAmount;
+                        displayDescription += '';
+                    }
+
+                    const row = addedItemsTableBody.insertRow();
+                    row.insertCell().textContent = displayDescription;
+
+                    const qtyCell = row.insertCell();
+                    qtyCell.textContent = item.quantity;
+                    qtyCell.className = 'number-cell editable-cell';
+                    qtyCell.dataset.field = 'quantity';
+
+                    const unitPriceCell = row.insertCell();
+                    unitPriceCell.textContent = item.unitPrice.toLocaleString('th-TH', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                    });
+                    unitPriceCell.className = 'number-cell editable-cell';
+                    unitPriceCell.dataset.field = 'unitPrice';
+
+                    const totalCell = row.insertCell();
+                    totalCell.textContent = currentItemTotal.toLocaleString('th-TH', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                    });
+                    totalCell.className = 'number-cell';
+
+                    const actionCell = row.insertCell();
+                    actionCell.className = 'action-cell';
+                    const removeBtn = document.createElement('button');
+                    removeBtn.textContent = 'ลบ';
+                    removeBtn.className = 'button-small alert remove-item-btn';
+                    removeBtn.dataset.itemId = item.id;
+                    removeBtn.onclick = function() {
+                        billItems = billItems.filter(bItem => bItem.id !== this.dataset.itemId);
+                        renderAllItems();
+                    };
+                    actionCell.appendChild(removeBtn);
+                    grandTotal += currentItemTotal;
+                });
+            }
+            billGrandTotalSpan.textContent = grandTotal.toLocaleString('th-TH', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+            updatePreview();
+            updateActionButtonsState();
+        }
+
+        function updatePreview() {
+            // --- Basic fields ---
+            previewBillNumber.textContent = billNumberInputEl.value || 'N/A';
+            const thaiDateStr = toThaiDateForJS(billDateInput.value || new Date());
+            previewBillDate.textContent = thaiDateStr;
+
+            // Update sign date to match bill date
+            const previewSignDate = document.getElementById('preview_sign_date');
+            if (previewSignDate) previewSignDate.textContent = thaiDateStr;
+
+            previewCustomerName.textContent = customerNameInput.value.trim() || '-';
+            previewCustomerAddress.textContent = customerAddressInput.value.trim() || '-';
+            previewCustomerTaxId.textContent = customerTaxIdInput.value.trim() || '-';
+
+            // Update payment method display
+            const previewPayMethod = document.getElementById('preview_payment_method');
+            if (previewPayMethod && paymentMethodSelect) {
+                const methods = {
+                    'Cash': 'เงินสด',
+                    'Transfer': 'โอนชำระ',
+                    'Credit Card': 'บัตรเครดิต'
+                };
+                previewPayMethod.textContent = methods[paymentMethodSelect.value] || paymentMethodSelect.value;
+            }
+
+            // --- Line Items ---
+            previewLineItemsBody.innerHTML = '';
+            let currentPreviewGrandTotal = 0;
+            let overallMinCheckin = null;
+            let overallMaxCheckout = null;
+            const isHoliday = holidaySurchargeCheckbox.checked;
+            const holidaySurchargeAmount = 100;
+
+            if (billItems.length === 0) {
+                previewLineItemsBody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#888; padding: 6mm;"><i>- ยังไม่มีรายการ -</i></td></tr>';
+            } else {
+                billItems.forEach((item, idx) => {
+                    let itemTotalForPreview = item.quantity * item.unitPrice;
+                    let descriptionForPreview = item.description;
+                    const unitLabel = item.type === 'room' ? 'คืน' : 'หน่วย';
+
+                    if (item.type === 'room') {
+                        try {
+                            const checkin = new Date(item.checkin + 'T00:00:00');
+                            const checkout = new Date(item.checkout + 'T00:00:00');
+                            if (!isNaN(checkin.getTime())) {
+                                if (!overallMinCheckin || checkin < overallMinCheckin) overallMinCheckin = checkin;
+                            }
+                            if (!isNaN(checkout.getTime())) {
+                                if (!overallMaxCheckout || checkout > overallMaxCheckout) overallMaxCheckout = checkout;
+                            }
+                        } catch (e) {
+                            console.error("Invalid date in bill item: ", item);
+                        }
+
+                        if (isHoliday) {
+                            itemTotalForPreview += item.quantity * holidaySurchargeAmount;
+                        }
+                    }
+
+                    const row = previewLineItemsBody.insertRow();
+                    // # column
+                    const noCell = row.insertCell(0);
+                    noCell.textContent = idx + 1;
+                    noCell.className = 'inv-col-no';
+                    // Description
+                    const descCell = row.insertCell(1);
+                    descCell.textContent = descriptionForPreview;
+                    descCell.className = 'inv-col-desc';
+                    // Quantity
+                    const qtyCell = row.insertCell(2);
+                    qtyCell.textContent = item.quantity;
+                    qtyCell.className = 'inv-col-qty';
+                    // Unit
+                    const unitCell = row.insertCell(3);
+                    unitCell.textContent = unitLabel;
+                    unitCell.className = 'inv-col-unit';
+                    // Unit Price
+                    const upCell = row.insertCell(4);
+                    upCell.textContent = item.unitPrice.toLocaleString('th-TH', {
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 2
+                    });
+                    upCell.className = 'inv-col-price';
+                    // Total
+                    const totCell = row.insertCell(5);
+                    totCell.textContent = itemTotalForPreview.toLocaleString('th-TH', {
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 2
+                    });
+                    totCell.className = 'inv-col-total';
+
+                    currentPreviewGrandTotal += itemTotalForPreview;
+                });
+            }
+
+            // Checkin/checkout display
+            const checkinRow = document.getElementById('preview_checkin_row');
+            const checkoutRow = document.getElementById('preview_checkout_row');
+            if (overallMinCheckin) {
+                previewCheckinDate.textContent = toThaiDateForJS(overallMinCheckin);
+                if (checkinRow) checkinRow.style.display = '';
+            } else {
+                previewCheckinDate.textContent = '';
+                if (checkinRow) checkinRow.style.display = 'none';
+            }
+            if (overallMaxCheckout) {
+                previewCheckoutDate.textContent = toThaiDateForJS(overallMaxCheckout);
+                if (checkoutRow) checkoutRow.style.display = '';
+            } else {
+                previewCheckoutDate.textContent = '';
+                if (checkoutRow) checkoutRow.style.display = 'none';
+            }
+
+            // Totals
+            const subtotalEl = document.getElementById('preview_subtotal');
+            if (subtotalEl) subtotalEl.textContent = currentPreviewGrandTotal.toLocaleString('th-TH', {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 2
+            });
+            previewGrandTotal.textContent = currentPreviewGrandTotal.toLocaleString('th-TH', {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 2
+            });
+
+            // Amount in words (Thai baht)
+            const amountWordsEl = document.getElementById('preview_amount_words');
+            if (amountWordsEl) {
+                amountWordsEl.textContent = currentPreviewGrandTotal > 0 ?
+                    amountToThaiWords(currentPreviewGrandTotal) + ' บาทถ้วน' :
+                    '';
+            }
+        }
+
+        // --- Convert amount to Thai words ---
+        function amountToThaiWords(amount) {
+            const ones = ['', 'หนึ่ง', 'สอง', 'สาม', 'สี่', 'ห้า', 'หก', 'เจ็ด', 'แปด', 'เก้า'];
+            const positions = ['', 'สิบ', 'ร้อย', 'พัน', 'หมื่น', 'แสน', 'ล้าน'];
+            const int = Math.round(amount);
+            if (int === 0) return 'ศูนย์';
+            const s = String(int);
+            let words = '';
+            const len = s.length;
+            for (let i = 0; i < len; i++) {
+                const d = parseInt(s[i]);
+                const pos = len - 1 - i;
+                if (d === 0) continue;
+                if (d === 1 && pos % 6 === 1) words += 'สิบ'; // สิบ not หนึ่งสิบ
+                else if (d === 2 && pos % 6 === 1) words += 'ยี่สิบ';
+                else words += ones[d] + positions[pos % 6];
+                if (pos === 6) words += 'ล้าน';
+            }
+            return words || 'ศูนย์';
+        }
+
+        function calculateCheckoutDate() {
+            // ... existing calculateCheckoutDate logic ...
+            if (!checkinDateInput.value || !nightsInput.value) {
+                checkoutDateInput.value = '';
+                return;
+            }
+            try {
+                const checkin = new Date(checkinDateInput.value);
+                const nights = parseInt(nightsInput.value);
+                if (isNaN(checkin.getTime()) || isNaN(nights) || nights < 1) {
+                    checkoutDateInput.value = '';
+                    return;
+                }
+                const checkout = new Date(checkin);
+                checkout.setDate(checkin.getDate() + nights);
+                checkoutDateInput.value = checkout.toISOString().split('T')[0];
+            } catch (e) {
+                checkoutDateInput.value = '';
+            }
+        }
+
+        function toThaiDateForJS(dateInput) {
+            // ... existing toThaiDateForJS logic ...
+            if (!dateInput) return 'N/A';
+            const date = new Date(dateInput);
+            if (isNaN(date.getTime())) {
+                // Try to parse YYYY-MM-DD manually
+                const parts = String(dateInput).split('-');
+                if (parts.length === 3) {
+                    date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+                } else {
+                    return 'N/A';
+                }
+            }
+            if (isNaN(date.getTime())) return 'N/A';
+
+            const thaiMonths = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+            return `${date.getDate()} ${thaiMonths[date.getMonth()]} ${date.getFullYear() + 543}`;
+        }
+
+        function updateActionButtonsState() {
+            // ... existing updateActionButtonsState logic ...
+            const hasItems = billItems.length > 0;
+            saveAsImageBtn.disabled = !hasItems;
+            shareBillBtn.disabled = !hasItems;
+            printBillBtn.disabled = !hasItems;
+            // Also enable/disable the new save button
+            saveReceiptBtn.disabled = !hasItems;
+        }
+
+        // ***** START: NEW CUSTOMER SEARCH FUNCTIONS *****
+        async function searchCustomers() {
+            const searchTerm = customerNameInput.value.trim();
+
+            if (searchTerm.length < 2) {
+                customerDatalist.innerHTML = '';
+                customerCache = [];
+                return;
+            }
+
+            try {
+                const response = await fetch(`/hotel_booking/pages/cash_bill.php?action=search_customers&term=${encodeURIComponent(searchTerm)}`);
+                if (!response.ok) {
+                    throw new Error('Search request failed');
+                }
+                const customers = await response.json();
+                customerCache = customers; // Store results
+
+                customerDatalist.innerHTML = ''; // Clear old options
+                customers.forEach(cust => {
+                    const option = document.createElement('option');
+                    option.value = cust.customer_name;
+                    // Add extra info to display, though datalist support varies
+                    option.textContent = cust.customer_tax_id ? `${cust.customer_name} (${cust.customer_tax_id})` : cust.customer_name;
+                    customerDatalist.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error searching customers:', error);
+                customerCache = [];
+            }
+        }
+
+        function populateCustomerDetails() {
+            const selectedName = customerNameInput.value;
+            const selectedCustomer = customerCache.find(cust => cust.customer_name === selectedName);
+
+            if (selectedCustomer) {
+                customerAddressInput.value = selectedCustomer.customer_address || '';
+                customerTaxIdInput.value = selectedCustomer.customer_tax_id || '';
+
+                // Trigger update for preview
+                updatePreview();
+            }
+        }
+
+        // Add listeners for customer search
+        customerNameInput.addEventListener('input', () => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(searchCustomers, 300); // Debounce search
+        });
+        customerNameInput.addEventListener('change', populateCustomerDetails); // Use 'change' for when user selects from datalist
+        // ***** END: NEW CUSTOMER SEARCH FUNCTIONS *****
+
+
+        // ***** START: NEW SAVE RECEIPT LISTENER *****
+        saveReceiptBtn.addEventListener('click', async function() {
+            // ... existing saveReceiptBtn logic ...
+            if (billItems.length === 0) {
+                showCustomAlert('ไม่สามารถบันทึกได้: ยังไม่มีรายการในใบเสร็จ');
+                return;
+            }
+
+            // 1. Gather all data
+            const grandTotal = parseFloat(billGrandTotalSpan.textContent.replace(/[^0-9.-]+/g, ""));
+            const dataToSave = {
+                bill_number: billNumberInputEl.value,
+                bill_date: billDateInput.value,
+                customer_name: customerNameInput.value,
+                customer_address: customerAddressInput.value,
+                customer_tax_id: customerTaxIdInput.value,
+                payment_method: paymentMethodSelect.value,
+                booking_group_id: groupSelect.value || null,
+                line_items: billItems, // The full billItems array
+                grand_total: grandTotal,
+                is_holiday_surcharge: holidaySurchargeCheckbox.checked
+                // The server will serialize this whole object into `receipt_data_json`
+            };
+
+            // 2. Confirm with the user
+            showCustomConfirm(
+                `ยืนยันการบันทึกใบเสร็จ?<br><br><strong>วันที่:</strong> ${toThaiDateForJS(dataToSave.bill_date)}<br><strong>ลูกค้า:</strong> ${dataToSave.customer_name || '-'}<br><strong>ยอดรวม:</strong> ${grandTotal.toLocaleString('th-TH')} บาท<br><br>การดำเนินการนี้จะสร้างใบเสร็จถาวรในระบบ และไม่สามารถแก้ไขได้<br><br><strong style="color: var(--color-primary);">ข้อมูลลูกค้า/บริษัทนี้ จะถูกบันทึกไว้ใช้ในอนาคต</strong>`,
+                async () => { // onConfirm callback
+                        hideModal(); // Hide confirmation modal first
+
+                        const buttonId = 'confirm-save-receipt-btn';
+                        if (typeof setButtonLoading === 'function') setButtonLoading(saveReceiptBtn, true, buttonId);
+
+                        try {
+                            // 3. Send to API (the top of this same file)
+                            const response = await fetch('/hotel_booking/pages/cash_bill.php?action=save_receipt', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Accept': 'application/json'
+                                },
+                                body: JSON.stringify(dataToSave)
+                            });
+
+                            const result = await response.json();
+
+                            if (response.ok && result.success) {
+                                showCustomAlert(`บันทึกใบเสร็จสำเร็จ!\nเลขที่ใบเสร็จใหม่ของระบบ: ${result.receipt_number}`);
+                                // Optionally, disable the button to prevent double-save
+                                saveReceiptBtn.disabled = true;
+                                saveReceiptBtn.innerHTML = `<i class="fas fa-check-circle"></i> บันทึกใบเสร็จแล้ว (${result.receipt_number})`;
+                                // Update preview with the new permanent number
+                                previewBillNumber.textContent = result.receipt_number;
+                                billNumberInputEl.value = result.receipt_number;
+                            } else {
+                                throw new Error(result.message || 'ไม่สามารถบันทึกข้อมูลได้');
+                            }
+
+                        } catch (error) {
+                            console.error('Error saving receipt:', error);
+                            showCustomAlert('เกิดข้อผิดพลาดในการบันทึกใบเสร็จ: ' + error.message);
+                        } finally {
+                            // 4. Hide loading state
+                            if (typeof setButtonLoading === 'function') setButtonLoading(saveReceiptBtn, false, buttonId);
+                        }
+                    },
+                    () => {
+                        // onCancel callback
+                        hideModal();
+                    }
+            ); // end showCustomConfirm
+        });
+        // ***** END: NEW SAVE RECEIPT LISTENER *****
+
+        // --- Action Button Listeners (Print, Save, Share) ---
+        printBillBtn.addEventListener('click', function() {
+            // ... existing printBillBtn logic ...
+            const billContentNode = document.getElementById('bill-content');
+            if (!billContentNode) {
+                showCustomAlert('ผิดพลาด: ไม่พบเนื้อหาสำหรับพิมพ์');
+                return;
+            }
+            const printWindow = window.open('', '_blank', 'width=880,height=900,scrollbars=yes,resizable=yes');
+            printWindow.document.write(`<html><head><title>พิมพ์บิลเงินสด</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700;800&display=swap" rel="stylesheet"><style>body{font-family:'Sarabun',sans-serif;margin:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}@page{size:A4;margin:0}#bill-content{width:210mm;height:297mm;padding:10mm;box-sizing:border-box;display:flex;flex-direction:column;position:relative;background-color:#fff;color:#000;font-size:12pt}.bill-body{border:1.5px solid #333;padding:8mm;width:100%;height:100%;display:flex;flex-direction:column;position:relative;z-index:2;box-sizing:border-box}#bill-content::after{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-45deg);font-size:150pt;font-weight:800;color:rgba(0,0,0,.04);z-index:1;pointer-events:none}header{text-align:center;margin-bottom:5mm;flex-shrink:0}.logo-container img{max-width:150px;max-height:50px;object-fit:contain}h1{font-size:1.5em;margin:0 0 1mm;color:#000}h2{font-size:1.2em;margin:1mm 0;color:#000}.address-phone p{margin:.5mm 0;font-size:.9em;line-height:1.4}.bill-meta{display:flex;justify-content:space-between;margin-bottom:5mm;font-size:.9em;flex-shrink:0}.customer-info{border:1px solid #ccc;padding:2mm 3mm;margin-bottom:5mm;font-size:.9em;flex-shrink:0}.customer-info p{margin:1mm 0}hr.section-divider{border:0;border-top:1px solid #000;margin:4mm 0}.line-items{flex-grow:1;margin-bottom:5mm;border-top:1px solid #000;border-bottom:1px solid #000;padding:1mm 0}.line-items-table{width:100%;border-collapse:collapse;font-size:.9em}.line-items-table th,.line-items-table td{border:none;padding:1.5mm 1mm;text-align:left;vertical-align:top}.line-items-table th{font-weight:700;border-bottom:1px solid #999}.line-items-table td{border-bottom:1px dotted #ccc}.line-items-table tr:last-child td{border-bottom:none}.col-desc{width:55%}.col-qty{width:15%;text-align:center}.col-unit-price{width:15%;text-align:right}.col-amount{width:15%;text-align:right}.checkin-checkout-info{font-size:.9em;margin-bottom:5mm;flex-shrink:0}.totals{text-align:right;margin-top:auto;padding-top:3mm;font-size:1em;flex-shrink:0}.totals table{width:50%;margin-left:auto;border-collapse:collapse}.totals td{padding:1.5mm}.totals .grand-total td{font-weight:700;font-size:1.2em;border-top:1px solid #000;border-bottom:3px double #000}.signatures{display:flex;justify-content:center;margin-top:15mm;font-size:.9em;flex-shrink:0}.signature-box{text-align:center;width:50%}.signature-line{border-bottom:1px dotted #000;height:12mm;margin:2mm 0 1mm}.signature-box p{margin:0;line-height:1.4}.note-footer{text-align:center;font-size:.7em;margin-top:5mm;color:#555;flex-shrink:0}.thank-you-note{text-align:center;font-weight:700;font-size:1em;margin-top:8mm;flex-shrink:0} svg.house-logo{width:80px;height:80px;color:#000;}</style></head><body><div id="bill-content">${billContentNode.innerHTML}</div></body></html>`);
+            printWindow.document.close();
+            setTimeout(() => {
+                try {
+                    printWindow.focus();
+                    printWindow.print();
+                    printWindow.close();
+                } catch (e) {
+                    console.error("Print failed:", e);
+                    showCustomAlert("ไม่สามารถสั่งพิมพ์ได้ อาจถูกบล็อกโดยเบราว์เซอร์");
+                }
+            }, 1000);
+        });
+
+        async function generateBillCanvas() {
+            // ... existing generateBillCanvas logic ...
+            const sourceElement = document.getElementById('bill-content');
+            if (!sourceElement || typeof html2canvas !== 'function') {
+                showCustomAlert('ไม่สามารถสร้างรูปภาพได้: ไม่พบส่วนประกอบที่จำเป็น');
+                return null;
+            }
+            const clone = sourceElement.cloneNode(true);
+            clone.style.position = 'absolute';
+            clone.style.top = '-9999px';
+            clone.style.left = '0px';
+            clone.style.width = '210mm';
+            clone.style.height = 'auto';
+            clone.style.minHeight = '297mm';
+            clone.style.margin = '0';
+            clone.style.fontSize = '12pt';
+            clone.style.fontFamily = "'Sarabun', sans-serif";
+            clone.style.color = '#000';
+            document.body.appendChild(clone);
+            try {
+                const canvas = await html2canvas(clone, {
+                    scale: 3,
+                    useCORS: true,
+                    logging: false,
+                    width: clone.offsetWidth,
+                    height: clone.offsetHeight,
+                    backgroundColor: '#ffffff'
+                });
+                return canvas;
+            } catch (error) {
+                console.error('Error generating canvas:', error);
+                showCustomAlert('เกิดข้อผิดพลาดในการสร้างรูปภาพ: ' + error.message);
+                return null;
+            } finally {
+                if (document.body.contains(clone)) {
+                    document.body.removeChild(clone);
+                }
+            }
+        }
+
+        saveAsImageBtn.addEventListener('click', async function() {
+            // ... existing saveAsImageBtn logic ...
+            const buttonId = 'save-bill-as-image-btn';
             if (typeof setButtonLoading === 'function') setButtonLoading(this, true, buttonId);
             const canvas = await generateBillCanvas();
             if (canvas) {
-                const fileName = `receipt_${(document.getElementById('bill_number_input').value || 'receipt').replace(/[\/\\]/g, '-')}.png`;
-                canvas.toBlob(async function(blob) {
-                    if (!blob) {
-                         showCustomAlert('ไม่สามารถสร้างไฟล์รูปภาพสำหรับแชร์ได้');
-                         if (typeof setButtonLoading === 'function') setButtonLoading(shareBillBtn, false, buttonId);
-                         return;
-                    }
-                    
-                    // ***** START: MODIFICATION FOR APPLE/SHARE ISSUE *****
-                    const explicitMimeType = 'image/png'; 
-                    
-                    if (navigator.share && typeof File !== 'undefined' && navigator.canShare({ files: [new File([blob], fileName, {type: explicitMimeType})] })) {
-                        const shareFile = new File([blob], fileName, { type: explicitMimeType });
-                    // ***** END: MODIFICATION FOR APPLE/SHARE ISSUE *****
-                        
-                        try {
-                            await navigator.share({
-                                title: `ใบเสร็จรับเงิน เลขที่ ${document.getElementById('bill_number_input').value || ''}`,
-                                text: `ใบเสร็จรับเงินสำหรับ ${document.getElementById('bill_customer_company_name').value || 'ลูกค้า'}`,
-                                files: [shareFile]
-                            });
-                        } catch (error) {
-                            if (error.name !== 'AbortError') {
-                                console.error('[Share Bill] Share failed:', error);
-                                showCustomAlert('การแชร์ไม่สำเร็จ: ' + error.message);
-                            }
-                        }
-                    } else {
-                        showCustomAlert('เบราว์เซอร์นี้ไม่รองรับการแชร์ไฟล์โดยตรง กรุณาใช้ปุ่ม "บันทึกเป็นรูปภาพ" แล้วแชร์ด้วยตนเอง');
-                    }
-                    if (typeof setButtonLoading === 'function') setButtonLoading(shareBillBtn, false, buttonId);
-                }, 'image/png'); // Ensure blob is created as PNG
-            } else {
-                if (typeof setButtonLoading === 'function') setButtonLoading(shareBillBtn, false, buttonId);
+                const image = canvas.toDataURL('image/png', 1.0);
+                const link = document.createElement('a');
+                const fileName = `bill_${(document.getElementById('bill_number_input').value || 'receipt').replace(/[\/\\]/g, '-')}.png`;
+                link.download = fileName;
+                link.href = image;
+                link.click();
             }
+            if (typeof setButtonLoading === 'function') setButtonLoading(this, false, buttonId);
         });
-    }
 
-    // --- Utility Functions (Loading Spinners) ---
-    const originalButtonContents_cashbill = {}; 
-    function setButtonLoading(buttonElement, isLoading, buttonIdForTextStore) {
-        // ... existing setButtonLoading logic ...
-        if (!buttonElement) return;
-        const key = buttonIdForTextStore || buttonElement.id || `btn-cashbill-${Date.now()}`;
-        if (isLoading) {
-            if (!buttonElement.classList.contains('loading')) {
-                if (originalButtonContents_cashbill[key] === undefined) { originalButtonContents_cashbill[key] = buttonElement.innerHTML; }
-                const spinnerSpan = '<span class="button-spinner-css" style="width:1em; height:1em; border:2px solid rgba(255,255,255,0.3); border-top-color:white; border-radius:50%; display:inline-block; animation: spin 0.6s linear infinite; margin-right: 5px; vertical-align: middle;"></span>';
-                buttonElement.innerHTML = spinnerSpan + ' กำลังดำเนินการ...';
-                buttonElement.classList.add('loading');
-                buttonElement.disabled = true;
-            }
-        } else {
-            if (buttonElement.classList.contains('loading')) {
-                if (originalButtonContents_cashbill[key] !== undefined) { buttonElement.innerHTML = originalButtonContents_cashbill[key]; }
-                buttonElement.classList.remove('loading');
-                // Re-enable based on items, not just unconditionally
-                // Exception: don't re-enable save receipt button if it was successful
-                if (buttonElement.id !== 'confirm-save-receipt-btn' || !buttonElement.innerHTML.includes('บันทึกใบเสร็จแล้ว')) {
-                     updateActionButtonsState(); 
+        if (shareBillBtn) {
+            shareBillBtn.addEventListener('click', async function() {
+                // ... existing shareBillBtn logic (with Apple fix) ...
+                const buttonId = 'share-bill-btn';
+                if (typeof setButtonLoading === 'function') setButtonLoading(this, true, buttonId);
+                const canvas = await generateBillCanvas();
+                if (canvas) {
+                    const fileName = `receipt_${(document.getElementById('bill_number_input').value || 'receipt').replace(/[\/\\]/g, '-')}.png`;
+                    canvas.toBlob(async function(blob) {
+                        if (!blob) {
+                            showCustomAlert('ไม่สามารถสร้างไฟล์รูปภาพสำหรับแชร์ได้');
+                            if (typeof setButtonLoading === 'function') setButtonLoading(shareBillBtn, false, buttonId);
+                            return;
+                        }
+
+                        // ***** START: MODIFICATION FOR APPLE/SHARE ISSUE *****
+                        const explicitMimeType = 'image/png';
+
+                        if (navigator.share && typeof File !== 'undefined' && navigator.canShare({
+                                files: [new File([blob], fileName, {
+                                    type: explicitMimeType
+                                })]
+                            })) {
+                            const shareFile = new File([blob], fileName, {
+                                type: explicitMimeType
+                            });
+                            // ***** END: MODIFICATION FOR APPLE/SHARE ISSUE *****
+
+                            try {
+                                await navigator.share({
+                                    title: `ใบเสร็จรับเงิน เลขที่ ${document.getElementById('bill_number_input').value || ''}`,
+                                    text: `ใบเสร็จรับเงินสำหรับ ${document.getElementById('bill_customer_company_name').value || 'ลูกค้า'}`,
+                                    files: [shareFile]
+                                });
+                            } catch (error) {
+                                if (error.name !== 'AbortError') {
+                                    console.error('[Share Bill] Share failed:', error);
+                                    showCustomAlert('การแชร์ไม่สำเร็จ: ' + error.message);
+                                }
+                            }
+                        } else {
+                            showCustomAlert('เบราว์เซอร์นี้ไม่รองรับการแชร์ไฟล์โดยตรง กรุณาใช้ปุ่ม "บันทึกเป็นรูปภาพ" แล้วแชร์ด้วยตนเอง');
+                        }
+                        if (typeof setButtonLoading === 'function') setButtonLoading(shareBillBtn, false, buttonId);
+                    }, 'image/png'); // Ensure blob is created as PNG
+                } else {
+                    if (typeof setButtonLoading === 'function') setButtonLoading(shareBillBtn, false, buttonId);
+                }
+            });
+        }
+
+        // --- Utility Functions (Loading Spinners) ---
+        const originalButtonContents_cashbill = {};
+
+        function setButtonLoading(buttonElement, isLoading, buttonIdForTextStore) {
+            // ... existing setButtonLoading logic ...
+            if (!buttonElement) return;
+            const key = buttonIdForTextStore || buttonElement.id || `btn-cashbill-${Date.now()}`;
+            if (isLoading) {
+                if (!buttonElement.classList.contains('loading')) {
+                    if (originalButtonContents_cashbill[key] === undefined) {
+                        originalButtonContents_cashbill[key] = buttonElement.innerHTML;
+                    }
+                    const spinnerSpan = '<span class="button-spinner-css" style="width:1em; height:1em; border:2px solid rgba(255,255,255,0.3); border-top-color:white; border-radius:50%; display:inline-block; animation: spin 0.6s linear infinite; margin-right: 5px; vertical-align: middle;"></span>';
+                    buttonElement.innerHTML = spinnerSpan + ' กำลังดำเนินการ...';
+                    buttonElement.classList.add('loading');
+                    buttonElement.disabled = true;
+                }
+            } else {
+                if (buttonElement.classList.contains('loading')) {
+                    if (originalButtonContents_cashbill[key] !== undefined) {
+                        buttonElement.innerHTML = originalButtonContents_cashbill[key];
+                    }
+                    buttonElement.classList.remove('loading');
+                    // Re-enable based on items, not just unconditionally
+                    // Exception: don't re-enable save receipt button if it was successful
+                    if (buttonElement.id !== 'confirm-save-receipt-btn' || !buttonElement.innerHTML.includes('บันทึกใบเสร็จแล้ว')) {
+                        updateActionButtonsState();
+                    }
                 }
             }
         }
-    }
-    if (!document.getElementById('button-spinner-style-cashbill')) {
-        const style = document.createElement('style');
-        style.id = 'button-spinner-style-cashbill';
-        style.innerHTML = `@keyframes spin { to { transform: rotate(360deg); } }`;
-        document.head.appendChild(style);
-    }
-    
-    // --- Initial Load ---
-    renderAllItems();
+        if (!document.getElementById('button-spinner-style-cashbill')) {
+            const style = document.createElement('style');
+            style.id = 'button-spinner-style-cashbill';
+            style.innerHTML = `@keyframes spin { to { transform: rotate(360deg); } }`;
+            document.head.appendChild(style);
+        }
 
-});
+        // --- Initial Load ---
+        renderAllItems();
+
+    });
 </script>
 
 <?php

@@ -31,7 +31,8 @@ $stmt_group_rooms = $pdo->prepare("
     SELECT
         b.id as booking_id, r.zone, r.room_number, b.price_per_night, b.nights,
         b.booking_type, b.total_price AS booking_specific_total_price,
-        COALESCE(r.short_stay_duration_hours, ".DEFAULT_SHORT_STAY_DURATION_HOURS.") as effective_short_stay_duration
+        b.deposit_amount,
+        COALESCE(r.short_stay_duration_hours, " . DEFAULT_SHORT_STAY_DURATION_HOURS . ") as effective_short_stay_duration
     FROM bookings b JOIN rooms r ON b.room_id = r.id
     WHERE b.booking_group_id = :group_id
     ORDER BY r.zone ASC, CAST(r.room_number AS UNSIGNED) ASC
@@ -50,10 +51,11 @@ $stmt_group_addons = $pdo->prepare("
 $stmt_group_addons->execute([':group_id' => $bookingGroupId]);
 $groupAddons = $stmt_group_addons->fetchAll(PDO::FETCH_ASSOC);
 
-// 4. ดึงข้อมูลสลิปทั้งหมด
+$groupReceipts = [];
 $stmt_group_receipts = $pdo->prepare("
-    SELECT receipt_path, description, amount, payment_method, uploaded_at
-    FROM booking_group_receipts WHERE booking_group_id = :group_id
+    SELECT *, 0 as is_shared 
+    FROM booking_group_receipts 
+    WHERE booking_group_id = :group_id 
     ORDER BY uploaded_at ASC
 ");
 $stmt_group_receipts->execute([':group_id' => $bookingGroupId]);
@@ -102,20 +104,24 @@ foreach ($allAddonsInGroup as $addon) {
 }
 
 
+$totalDepositAmount = 0;
 // คำนวณยอดรวมค่าห้องพัก (แก้ไขส่วน short_stay)
 foreach ($groupRooms as $room) {
     if ($room['booking_type'] === 'overnight') {
         $totalRoomCost += (float)$room['price_per_night'] * (int)$room['nights'];
     } else { // short_stay
         // สำหรับ short_stay, booking_specific_total_price คือราคารวมทุกอย่างของ booking นั้น
-        // เราต้องหักค่า Addon ของ booking นั้นๆ ออก เพื่อให้ได้ค่าห้องที่แท้จริง
-        $bookingIdForLookup = $room['booking_id'] ?? null; 
+        // เราต้องหักค่า Addon และค่ามัดจำ ของ booking นั้นๆ ออก เพื่อให้ได้ค่าห้องที่แท้จริง
+        $bookingIdForLookup = $room['booking_id'] ?? null;
         $addonCostForThisBooking = isset($addonCostsPerBooking[$bookingIdForLookup]) ? $addonCostsPerBooking[$bookingIdForLookup] : 0;
-        
-        // ยอดค่าห้องที่แท้จริง = ยอดรวมของการจอง - ยอด addon ของการจองนั้น
-        $actualRoomCostForShortStay = (float)$room['booking_specific_total_price'] - $addonCostForThisBooking;
+        $depositForThisBooking = (float)($room['deposit_amount'] ?? 0);
+
+        // ยอดค่าห้องที่แท้จริง = ยอดรวมของการจอง - ยอด addon - ยอดมัดจำ
+        $actualRoomCostForShortStay = (float)$room['booking_specific_total_price'] - $addonCostForThisBooking - $depositForThisBooking;
         $totalRoomCost += $actualRoomCostForShortStay;
     }
+    // สะสมยอดมัดจำทั้งหมด
+    $totalDepositAmount += (float)($room['deposit_amount'] ?? 0);
 }
 // คำนวณยอดรวมบริการเสริม (ใช้ผลรวมที่คำนวณไว้แล้ว)
 $totalAddonCost = array_sum($addonCostsPerBooking);
@@ -131,11 +137,12 @@ foreach ($groupReceipts as $receipt) {
 
 // ** สำคัญ: totalOverallPrice คือยอดรวมทั้งหมดที่ระบบคำนวณจากการจอง ไม่ใช่ผลรวมจากรายการที่แสดง **
 // เราจะใช้ผลรวมจากรายการย่อยที่เราจะแสดงเพื่อความโปร่งใส
-$grandTotal = $totalRoomCost + $totalAddonCost;
+$grandTotal = $totalRoomCost + $totalAddonCost + $totalDepositAmount;
 $outstandingBalance = $grandTotal - $totalAmountPaid;
 
 // ฟังก์ชันสำหรับแสดงวันที่ภาษาไทย
-function toThaiDate($date) {
+function toThaiDate($date)
+{
     if (!$date) return 'N/A';
     $thaiMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
     return $date->format('j') . ' ' . $thaiMonths[$date->format('n') - 1] . ' ' . ($date->format('Y') + 543);
@@ -151,9 +158,9 @@ if (file_exists(__DIR__ . '/..' . $logo_path)) {
 
 ?>
 
-<div id="booking-group-summary-content" style="font-family: 'Sarabun', sans-serif; padding: 25px; color: #333; background-color: #f4f7f6; border-radius: 8px; border: 1px solid #ddd; width: 100%; max-width: 800px; margin: auto;">
+<div id="booking-group-summary-content" style="font-family: 'Sarabun', sans-serif; padding: 25px; color: var(--color-text-base); background-color: var(--color-surface); border-radius: var(--border-radius-md); border: 2px solid var(--color-border); width: 100%; max-width: 800px; margin: auto;">
 
-    <table style="width: 100%; border-bottom: 2px solid #0056b3; padding-bottom: 15px; margin-bottom: 20px;">
+    <table style="width: 100%; border-bottom: 2px solid var(--color-primary); padding-bottom: 15px; margin-bottom: 20px;">
         <tr>
             <td style="width: 65%;">
                 <?php if ($logo_base64): ?>
@@ -161,8 +168,8 @@ if (file_exists(__DIR__ . '/..' . $logo_path)) {
                 <?php endif; ?>
             </td>
             <td style="width: 35%; text-align: right; vertical-align: bottom;">
-                <h2 style="margin: 0; color: #0056b3; font-size: 1.8rem;">สรุปการจอง</h2>
-                <p style="margin: 0; font-size: 0.9rem;">Group ID: <?= h($bookingGroupId) ?></p>
+                <h2 style="margin: 0; color: var(--color-primary-dark); font-size: 1.8rem;">สรุปการจอง</h2>
+                <p style="margin: 0; font-size: 0.9rem; color: var(--color-text-muted);">Group ID: <?= h($bookingGroupId) ?></p>
             </td>
         </tr>
     </table>
@@ -170,7 +177,7 @@ if (file_exists(__DIR__ . '/..' . $logo_path)) {
     <table style="width: 100%; margin-bottom: 20px;">
         <tr>
             <td style="width: 60%; vertical-align: top;">
-                <h4 style="margin: 0 0 5px 0; font-size: 1.1rem; color: #004080;">ข้อมูลผู้จอง:</h4>
+                <h4 style="margin: 0 0 5px 0; font-size: 1.1rem; color: var(--color-primary-dark);">ข้อมูลผู้จอง:</h4>
                 <p style="margin: 0 0 3px 0;"><strong>ชื่อ:</strong> <?= h($groupMainInfo['customer_name']) ?></p>
                 <?php if (!empty($groupMainInfo['customer_phone'])): ?>
                     <p style="margin: 0;"><strong>โทร:</strong> <?= h($groupMainInfo['customer_phone']) ?></p>
@@ -183,80 +190,84 @@ if (file_exists(__DIR__ . '/..' . $logo_path)) {
             </td>
         </tr>
     </table>
-    
+
     <?php if (!empty(trim($groupMainInfo['notes']))): ?>
-    <div style="margin-bottom: 20px;">
-        <h4 style="margin: 0 0 5px 0; font-size: 1.1rem; color: #004080;">หมายเหตุ:</h4>
-        <div style="white-space: pre-wrap; background-color: #fff; padding: 10px; border-radius: 5px; border: 1px solid #e0e0e0; font-size: 0.9rem;"><?= h(trim($groupMainInfo['notes'])) ?></div>
-    </div>
+        <div style="margin-bottom: 20px;">
+            <h4 style="margin: 0 0 5px 0; font-size: 1.1rem; color: var(--color-primary-dark);">หมายเหตุ:</h4>
+            <div style="white-space: pre-wrap; background-color: #fff; padding: 10px; border-radius: 5px; border: 1px solid var(--color-border); font-size: 0.9rem;"><?= h(trim($groupMainInfo['notes'])) ?></div>
+        </div>
     <?php endif; ?>
 
     <div>
-        <h4 style="margin: 0 0 10px 0; font-size: 1.1rem; color: #004080; border-bottom: 1px solid #ccc; padding-bottom: 5px;">
+        <h4 style="margin: 0 0 10px 0; font-size: 1.1rem; color: var(--color-primary-dark); border-bottom: 2px solid var(--color-border); padding-bottom: 5px;">
             <i class="fas fa-bed" style="margin-right: 8px;"></i>รายละเอียดห้องพัก (<?= count($groupRooms) ?> ห้อง)
         </h4>
         <table style="width: 100%; border-collapse: collapse; font-size: 0.95rem;">
             <thead>
-                <tr style="background-color: #e9ecef; color: #333;">
-                    <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ccc;">ห้อง</th>
-                    <th style="padding: 8px; text-align: center; border-bottom: 1px solid #ccc;">ระยะเวลา</th>
-                    <th style="padding: 8px; text-align: right; border-bottom: 1px solid #ccc;">ราคา (บาท)</th>
+                <tr style="background-color: var(--color-bg); color: var(--color-text-base);">
+                    <th style="padding: 8px; text-align: left; border-bottom: 2px solid var(--color-border);">ห้อง</th>
+                    <th style="padding: 8px; text-align: center; border-bottom: 2px solid var(--color-border);">ระยะเวลา</th>
+                    <th style="padding: 8px; text-align: right; border-bottom: 2px solid var(--color-border);">ราคา (บาท)</th>
                 </tr>
             </thead>
             <tbody>
-                <?php foreach ($groupRooms as $room): 
+                <?php foreach ($groupRooms as $room):
                     $roomBasePrice = ($room['booking_type'] === 'overnight') ? (float)$room['price_per_night'] * (int)$room['nights'] : ((float)$room['booking_specific_total_price'] - (isset($addonCostsPerBooking[$room['booking_id']]) ? $addonCostsPerBooking[$room['booking_id']] : 0));
                 ?>
-                <tr style="border-bottom: 1px solid #eef2f5;">
-                    <td style="padding: 8px;"><?= h($room['zone'] . $room['room_number']) ?></td>
-                    <td style="padding: 8px; text-align: center;"><?= h($room['booking_type'] === 'overnight' ? $room['nights'] . ' คืน' : $room['effective_short_stay_duration'] . ' ชม.') ?></td>
-                    <td style="padding: 8px; text-align: right;"><?= h(number_format($roomBasePrice, 2)) ?></td>
-                </tr>
+                    <tr style="border-bottom: 1px solid #eef2f5;">
+                        <td style="padding: 8px;"><?= h($room['zone'] . $room['room_number']) ?></td>
+                        <td style="padding: 8px; text-align: center;"><?= h($room['booking_type'] === 'overnight' ? $room['nights'] . ' คืน' : $room['effective_short_stay_duration'] . ' ชม.') ?></td>
+                        <td style="padding: 8px; text-align: right;"><?= h(number_format($roomBasePrice, 2)) ?></td>
+                    </tr>
                 <?php endforeach; ?>
             </tbody>
         </table>
     </div>
 
     <?php if (!empty($groupAddons)): ?>
-    <div style="margin-top: 20px;">
-        <h4 style="margin: 0 0 10px 0; font-size: 1.1rem; color: #004080; border-bottom: 1px solid #ccc; padding-bottom: 5px;">
-            <i class="fas fa-concierge-bell" style="margin-right: 8px;"></i>บริการเสริม
-        </h4>
-        <table style="width: 100%; border-collapse: collapse; font-size: 0.95rem;">
-            <tbody>
-                <?php foreach ($groupAddons as $addon): ?>
-                <tr style="border-bottom: 1px solid #eef2f5;">
-                    <td style="padding: 8px;"><?= h($addon['addon_name']) ?> (x<?= h($addon['quantity']) ?>)</td>
-                    <td style="padding: 8px; text-align: right;"><?= h(number_format((float)$addon['price_at_booking'] * (int)$addon['quantity'], 2)) ?></td>
-                </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
-    </div>
+        <div style="margin-top: 20px;">
+            <h4 style="margin: 0 0 10px 0; font-size: 1.1rem; color: var(--color-primary-dark); border-bottom: 2px solid var(--color-border); padding-bottom: 5px;">
+                <i class="fas fa-concierge-bell" style="margin-right: 8px;"></i>บริการเสริม
+            </h4>
+            <table style="width: 100%; border-collapse: collapse; font-size: 0.95rem;">
+                <tbody>
+                    <?php foreach ($groupAddons as $addon): ?>
+                        <tr style="border-bottom: 1px solid #eef2f5;">
+                            <td style="padding: 8px;"><?= h($addon['addon_name']) ?> (x<?= h($addon['quantity']) ?>)</td>
+                            <td style="padding: 8px; text-align: right;"><?= h(number_format((float)$addon['price_at_booking'] * (int)$addon['quantity'], 2)) ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
     <?php endif; ?>
 
     <?php if (!empty($groupReceipts)): ?>
-    <div style="margin-top: 20px;">
-        <h4 style="margin: 0 0 10px 0; font-size: 1.1rem; color: #004080; border-bottom: 1px solid #ccc; padding-bottom: 5px;">
-            <i class="fas fa-receipt" style="margin-right: 8px;"></i>ประวัติการชำระเงิน
-        </h4>
-        <?php foreach ($groupReceipts as $receipt): ?>
-            <div style="display: flex; align-items: center; padding: 8px; background-color: #fff; border-radius: 5px; margin-bottom: 8px; border: 1px solid #e0e0e0;">
-                <img src="/hotel_booking/uploads/receipts/<?= h($receipt['receipt_path']) ?>" alt="สลิป" style="width: 60px; height: 60px; object-fit: cover; border-radius: 4px; margin-right: 15px;">
-                <div style="flex-grow: 1; font-size: 0.9rem;">
-                    <?php if (!empty($receipt['description'])): ?>
-                        <strong><?= h($receipt['description']) ?></strong><br>
-                    <?php endif; ?>
-                    <small>วิธีชำระ: <?= h($receipt['payment_method'] ?? '-') ?> | อัปโหลด: <?= h(date('d/m/Y H:i', strtotime($receipt['uploaded_at']))) ?></small>
+        <div style="margin-top: 20px;">
+            <h4 style="margin: 0 0 10px 0; font-size: 1.1rem; color: var(--color-primary-dark); border-bottom: 2px solid var(--color-border); padding-bottom: 5px;">
+                <i class="fas fa-receipt" style="margin-right: 8px;"></i>ประวัติการชำระเงิน
+            </h4>
+            <?php foreach ($groupReceipts as $receipt): ?>
+                <div style="display: flex; align-items: center; padding: 10px; background-color: <?= !empty($receipt['is_shared']) ? '#eff6ff' : '#fff' ?>; border-radius: var(--border-radius-sm); margin-bottom: 8px; border: 2px solid var(--color-border); position: relative;">
+                    <img src="/hotel_booking/uploads/receipts/<?= h($receipt['receipt_path']) ?>" alt="สลิป" style="width: 60px; height: 60px; object-fit: cover; border-radius: 4px; margin-right: 15px;">
+                    <div style="flex-grow: 1; font-size: 0.9rem;">
+                        <?php if (!empty($receipt['description'])): ?>
+                            <strong><?= h($receipt['description']) ?></strong>
+                        <?php endif; ?>
+                        <?php if (!empty($receipt['is_shared'])): ?>
+                            <span style="font-size: 0.75rem; background: #00b4d8; color:#fff; padding: 2px 6px; border-radius: 10px; margin-left:5px;">Shared</span>
+                        <?php endif; ?>
+                        <br>
+                        <small>วิธีชำระ: <?= h($receipt['payment_method'] ?? '-') ?> | อัปโหลด: <?= h(date('d/m/Y H:i', strtotime($receipt['uploaded_at']))) ?></small>
+                    </div>
+                    <div style="font-weight: bold; font-size: 1rem; color: #218838; text-align: right;">
+                        <?= h(number_format((float)$receipt['amount'], 2)) ?> บาท
+                    </div>
                 </div>
-                <div style="font-weight: bold; font-size: 1rem; color: #218838; text-align: right;">
-                    <?= h(number_format((float)$receipt['amount'], 2)) ?> บาท
-                </div>
-            </div>
-        <?php endforeach; ?>
-    </div>
+            <?php endforeach; ?>
+        </div>
     <?php endif; ?>
-    
+
     <div style="margin-top: 25px; padding: 20px; background-color: #e6f7ff; border-radius: 8px; border: 1px solid #b3e0ff;">
         <table style="width: 100%; font-size: 1.1rem; line-height: 1.8;">
             <tr>
@@ -267,15 +278,19 @@ if (file_exists(__DIR__ . '/..' . $logo_path)) {
                 <td>ยอดรวมค่าบริการเสริม:</td>
                 <td style="text-align: right;"><?= h(number_format($totalAddonCost, 2)) ?> บาท</td>
             </tr>
-            <tr style="font-weight: bold; border-top: 1px solid #99ccec; border-bottom: 1px solid #99ccec;">
-                <td style="padding: 8px 0;">ยอดรวมสุทธิ:</td>
-                <td style="padding: 8px 0; text-align: right;"><?= h(number_format($grandTotal, 2)) ?> บาท</td>
+            <tr>
+                <td style="color: var(--color-alert-dark);">ยอดรวมเงินมัดจำ:</td>
+                <td style="text-align: right; color: var(--color-alert-dark);"><?= h(number_format($totalDepositAmount, 2)) ?> บาท</td>
+            </tr>
+            <tr style="font-weight: bold; border-top: 2px solid var(--color-primary-light); border-bottom: 2px solid var(--color-primary-light);">
+                <td style="padding: 10px 0;">ยอดรวมสุทธิ:</td>
+                <td style="padding: 10px 0; text-align: right;"><?= h(number_format($grandTotal, 2)) ?> บาท</td>
             </tr>
             <tr>
-                <td style="color: #1e7e34;">ยอดชำระแล้ว:</td>
-                <td style="text-align: right; color: #1e7e34;"><?= h(number_format($totalAmountPaid, 2)) ?> บาท</td>
+                <td style="color: var(--color-secondary-dark);">ยอดชำระแล้ว:</td>
+                <td style="text-align: right; color: var(--color-secondary-dark);"><?= h(number_format($totalAmountPaid, 2)) ?> บาท</td>
             </tr>
-            <tr style="font-weight: bold; font-size: 1.4rem; color: <?= $outstandingBalance > 0 ? '#c82333' : '#218838' ?>;">
+            <tr style="font-weight: bold; font-size: 1.45rem; color: <?= $outstandingBalance > 0 ? 'var(--color-alert-dark)' : 'var(--color-secondary-dark)' ?>;">
                 <td style="padding-top: 10px;">ยอดคงเหลือ:</td>
                 <td style="padding-top: 10px; text-align: right;">
                     <?= h(number_format($outstandingBalance, 2)) ?> บาท
@@ -289,134 +304,139 @@ if (file_exists(__DIR__ . '/..' . $logo_path)) {
 <div class="button-group" style="margin-top: 25px; padding-top:20px; border-top:1px solid var(--color-border); text-align:right; display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
     <a href="edit_booking_group.php?booking_group_id=<?= h($bookingGroupId) ?>" class="button primary">แก้ไขข้อมูลกลุ่มนี้</a>
     <a href="cash_bill.php?booking_group_id=<?= h($bookingGroupId) ?>" class="button secondary" target="_blank">
-        <img src="/hotel_booking/assets/image/printer.png" alt="Bill" style="width:16px; height:16px; margin-right:5px; vertical-align:middle;">
-        ออกบิลเงินสด
+        <i class="fas fa-print" style="margin-right: 5px;"></i> ออกบิลเงินสด
     </a>
-    <button id="export-booking-summary-btn" class="button outline-secondary"><img src="/hotel_booking/assets/image/picture.png" alt="Export" style="width:16px; height:16px; margin-right:5px; vertical-align:middle;">Export เป็นรูปภาพ</button>
-    <button id="share-booking-summary-btn" class="button info" style="display:none;"><img src="/hotel_booking/assets/image/share.png" alt="Share" style="width:16px; height:16px; margin-right:5px; vertical-align:middle;">แชร์</button>
+    <button id="export-booking-summary-btn" class="button secondary">
+        <i class="fas fa-image" style="margin-right: 5px;"></i> Export เป็นรูปภาพ
+    </button>
+    <button id="share-booking-summary-btn" class="button info" style="display:none;">
+        <i class="fas fa-share-alt" style="margin-right: 5px;"></i> แชร์
+    </button>
 </div>
 
 <script>
-if (typeof html2canvas !== 'function') {
-    console.warn('[GroupSummaryModal] html2canvas library is not loaded. Image export will not work.');
-    const exportBtnOnLoad = document.getElementById('export-booking-summary-btn');
-    if(exportBtnOnLoad) exportBtnOnLoad.disabled = true;
-}
+    if (typeof html2canvas !== 'function') {
+        console.warn('[GroupSummaryModal] html2canvas library is not loaded. Image export will not work.');
+        const exportBtnOnLoad = document.getElementById('export-booking-summary-btn');
+        if (exportBtnOnLoad) exportBtnOnLoad.disabled = true;
+    }
 
-const exportButton = document.getElementById('export-booking-summary-btn');
-if (exportButton) {
-    exportButton.addEventListener('click', async function() {
-        const sourceElement = document.getElementById('booking-group-summary-content');
-        if (!sourceElement || typeof html2canvas !== 'function') {
-            // Replaced alert with console.error
-            console.error('ไม่พบส่วนประกอบที่จำเป็นสำหรับ Export รูปภาพ');
-            return;
-        }
-
-        const buttonId = this.id || 'export-booking-summary-btn';
-        if (typeof setButtonLoading === 'function') setButtonLoading(this, true, buttonId);
-
-        // 1. Create a clone for off-screen rendering
-        const clone = sourceElement.cloneNode(true);
-        
-        // 2. Style the clone for fixed, high-quality rendering
-        clone.style.position = 'absolute';
-        clone.style.top = '-9999px';
-        clone.style.left = '0px';
-        clone.style.width = '800px'; // A4-like width
-        clone.style.maxWidth = '800px';
-        clone.style.height = 'auto';
-        clone.style.margin = '0';
-        clone.style.padding = '25px'; // Ensure padding is consistent
-
-        document.body.appendChild(clone);
-
-        try {
-            // 3. Render the CLONE using html2canvas
-            const canvas = await html2canvas(clone, {
-                scale: 2, // Increase scale for better resolution
-                useCORS: true,
-                logging: true,
-                width: clone.offsetWidth,
-                height: clone.offsetHeight
-            });
-
-            const image = canvas.toDataURL('image/png', 1.0);
-            
-            // 4. Trigger download
-            const link = document.createElement('a');
-            const customerNameForFile = "<?= h(addslashes($groupMainInfo['customer_name'] ?? 'booking')) ?>";
-            const safeCustomerName = customerNameForFile.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'booking_summary';
-            link.download = `${safeCustomerName}_summary_${new Date().toISOString().slice(0,10)}.png`;
-            link.href = image;
-            link.click();
-
-            // Enable share button
-            const shareBtn = document.getElementById('share-booking-summary-btn');
-            if(shareBtn) {
-                shareBtn.style.display = 'inline-block';
-                shareBtn.dataset.imageDataUrl = image;
-                shareBtn.dataset.customerName = customerNameForFile;
-            }
-
-        } catch (err) {
-            console.error('[Export Image] Error generating image with html2canvas:', err);
-            // Replaced alert with console.error
-            console.error('เกิดข้อผิดพลาดในการสร้างรูปภาพสรุป: ' + err.message);
-        } finally {
-            // 5. Clean up: remove the clone and restore button state
-            document.body.removeChild(clone);
-            if (typeof setButtonLoading === 'function') setButtonLoading(exportButton, false, buttonId);
-        }
-    });
-}
-
-
-const shareButton = document.getElementById('share-booking-summary-btn');
-if (shareButton) {
-    shareButton.addEventListener('click', async function() {
-        const buttonId = this.id || 'share-booking-summary-btn';
-        if (typeof setButtonLoading === 'function') {
-            setButtonLoading(this, true, buttonId);
-        } else {
-            this.disabled = true;
-            this.textContent = 'กำลังแชร์...';
-        }
-
-        const imageDataUrl = this.dataset.imageDataUrl;
-        const customerName = this.dataset.customerName || 'ลูกค้า';
-        const safeCustomerName = customerName.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'booking_summary';
-        const fileName = `${safeCustomerName}_summary_${new Date().toISOString().slice(0,10)}.png`;
-
-        if (!imageDataUrl) {
-            // Replaced alert with console.warn
-            console.warn('กรุณา Export รูปภาพออกมาก่อนทำการแชร์');
-        } else if (navigator.share && typeof File === 'function') {
-            try {
-                const response = await fetch(imageDataUrl);
-                const blob = await response.blob();
-                const file = new File([blob], fileName, { type: 'image/png' });
-                await navigator.share({
-                    title: 'สรุปการจอง: ' + customerName,
-                    text: 'ข้อมูลสรุปการจองสำหรับ ' + customerName,
-                    files: [file]
-                });
-            } catch (error) {
-                console.error('[Share Image] Share failed:', error);
+    const exportButton = document.getElementById('export-booking-summary-btn');
+    if (exportButton) {
+        exportButton.addEventListener('click', async function() {
+            const sourceElement = document.getElementById('booking-group-summary-content');
+            if (!sourceElement || typeof html2canvas !== 'function') {
                 // Replaced alert with console.error
-                console.error('การแชร์ไม่สำเร็จ: ' + error.message);
+                console.error('ไม่พบส่วนประกอบที่จำเป็นสำหรับ Export รูปภาพ');
+                return;
             }
-        } else {
-            // Replaced alert with console.warn
-            console.warn('เบราว์เซอร์นี้ไม่รองรับการแชร์ไฟล์โดยตรง\nคุณสามารถดาวน์โหลดรูปภาพแล้วแชร์ด้วยตนเองได้ค่ะ');
-        }
-        
-        if (typeof setButtonLoading === 'function') {
-            setButtonLoading(shareButton, false, buttonId);
-        } else {
-            shareButton.disabled = false;
-            shareButton.innerHTML = '<img src="/hotel_booking/assets/image/share.png" alt="Share" style="width:16px; height:16px; margin-right:5px; vertical-align:middle;">แชร์';
-        }
-    });
-}
+
+            const buttonId = this.id || 'export-booking-summary-btn';
+            if (typeof setButtonLoading === 'function') setButtonLoading(this, true, buttonId);
+
+            // 1. Create a clone for off-screen rendering
+            const clone = sourceElement.cloneNode(true);
+
+            // 2. Style the clone for fixed, high-quality rendering
+            clone.style.position = 'absolute';
+            clone.style.top = '-9999px';
+            clone.style.left = '0px';
+            clone.style.width = '800px'; // A4-like width
+            clone.style.maxWidth = '800px';
+            clone.style.height = 'auto';
+            clone.style.margin = '0';
+            clone.style.padding = '25px'; // Ensure padding is consistent
+
+            document.body.appendChild(clone);
+
+            try {
+                // 3. Render the CLONE using html2canvas
+                const canvas = await html2canvas(clone, {
+                    scale: 2, // Increase scale for better resolution
+                    useCORS: true,
+                    logging: true,
+                    width: clone.offsetWidth,
+                    height: clone.offsetHeight
+                });
+
+                const image = canvas.toDataURL('image/png', 1.0);
+
+                // 4. Trigger download
+                const link = document.createElement('a');
+                const customerNameForFile = "<?= h(addslashes($groupMainInfo['customer_name'] ?? 'booking')) ?>";
+                const safeCustomerName = customerNameForFile.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'booking_summary';
+                link.download = `${safeCustomerName}_summary_${new Date().toISOString().slice(0,10)}.png`;
+                link.href = image;
+                link.click();
+
+                // Enable share button
+                const shareBtn = document.getElementById('share-booking-summary-btn');
+                if (shareBtn) {
+                    shareBtn.style.display = 'inline-block';
+                    shareBtn.dataset.imageDataUrl = image;
+                    shareBtn.dataset.customerName = customerNameForFile;
+                }
+
+            } catch (err) {
+                console.error('[Export Image] Error generating image with html2canvas:', err);
+                // Replaced alert with console.error
+                console.error('เกิดข้อผิดพลาดในการสร้างรูปภาพสรุป: ' + err.message);
+            } finally {
+                // 5. Clean up: remove the clone and restore button state
+                document.body.removeChild(clone);
+                if (typeof setButtonLoading === 'function') setButtonLoading(exportButton, false, buttonId);
+            }
+        });
+    }
+
+
+    const shareButton = document.getElementById('share-booking-summary-btn');
+    if (shareButton) {
+        shareButton.addEventListener('click', async function() {
+            const buttonId = this.id || 'share-booking-summary-btn';
+            if (typeof setButtonLoading === 'function') {
+                setButtonLoading(this, true, buttonId);
+            } else {
+                this.disabled = true;
+                this.textContent = 'กำลังแชร์...';
+            }
+
+            const imageDataUrl = this.dataset.imageDataUrl;
+            const customerName = this.dataset.customerName || 'ลูกค้า';
+            const safeCustomerName = customerName.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'booking_summary';
+            const fileName = `${safeCustomerName}_summary_${new Date().toISOString().slice(0,10)}.png`;
+
+            if (!imageDataUrl) {
+                // Replaced alert with console.warn
+                console.warn('กรุณา Export รูปภาพออกมาก่อนทำการแชร์');
+            } else if (navigator.share && typeof File === 'function') {
+                try {
+                    const response = await fetch(imageDataUrl);
+                    const blob = await response.blob();
+                    const file = new File([blob], fileName, {
+                        type: 'image/png'
+                    });
+                    await navigator.share({
+                        title: 'สรุปการจอง: ' + customerName,
+                        text: 'ข้อมูลสรุปการจองสำหรับ ' + customerName,
+                        files: [file]
+                    });
+                } catch (error) {
+                    console.error('[Share Image] Share failed:', error);
+                    // Replaced alert with console.error
+                    console.error('การแชร์ไม่สำเร็จ: ' + error.message);
+                }
+            } else {
+                // Replaced alert with console.warn
+                console.warn('เบราว์เซอร์นี้ไม่รองรับการแชร์ไฟล์โดยตรง\nคุณสามารถดาวน์โหลดรูปภาพแล้วแชร์ด้วยตนเองได้ค่ะ');
+            }
+
+            if (typeof setButtonLoading === 'function') {
+                setButtonLoading(shareButton, false, buttonId);
+            } else {
+                shareButton.disabled = false;
+                shareButton.innerHTML = '<img src="/hotel_booking/assets/image/share.png" alt="Share" style="width:16px; height:16px; margin-right:5px; vertical-align:middle;">แชร์';
+            }
+        });
+    }
 </script>

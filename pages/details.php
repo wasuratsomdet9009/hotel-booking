@@ -111,14 +111,23 @@ if ($booking_to_display && $room['status'] === 'booked' && !$isEffectivelyOverdu
 }
 // --- END: ปรับปรุงการ Query และการตั้งค่า Flag ---
 
-// ***** START: เพิ่มการดึงข้อมูล Group Receipts *****
+// ***** START: เพิ่มการดึงข้อมูล Group Receipts (แบบแชร์หลักฐาน) *****
 $all_group_receipts_for_display = [];
-if ($booking_to_display && !empty($booking_to_display['booking_group_id'])) {
-    // +++ START: V3.1 FIX - ดึงข้อมูลสลิปให้ครบถ้วน (เพิ่ม amount, payment_method, uploaded_at) +++
-    $stmtGroupReceiptsDetails = $pdo->prepare("SELECT receipt_path, description, amount, payment_method, uploaded_at FROM booking_group_receipts WHERE booking_group_id = ? ORDER BY uploaded_at ASC");
-    // +++ END: V3.1 FIX +++
-    $stmtGroupReceiptsDetails->execute([$booking_to_display['booking_group_id']]);
-    $all_group_receipts_for_display = $stmtGroupReceiptsDetails->fetchAll(PDO::FETCH_ASSOC);
+if ($booking_to_display) {
+    $current_group_id = !empty($booking_to_display['booking_group_id']) ? $booking_to_display['booking_group_id'] : 0;
+    $customer_name_for_sharing = $booking_to_display['customer_name'];
+    $checkin_time_for_sharing = $booking_to_display['checkin_datetime'];
+
+    if ($current_group_id) {
+        $stmtGroupReceiptsDetails = $pdo->prepare("
+            SELECT receipt_path, description, amount, payment_method, uploaded_at 
+            FROM booking_group_receipts 
+            WHERE booking_group_id = ? 
+            ORDER BY uploaded_at ASC
+        ");
+        $stmtGroupReceiptsDetails->execute([$current_group_id]);
+        $all_group_receipts_for_display = $stmtGroupReceiptsDetails->fetchAll(PDO::FETCH_ASSOC);
+    }
 }
 // ***** END: เพิ่มการดึงข้อมูล Group Receipts *****
 
@@ -292,12 +301,19 @@ if (!function_exists('h')) {
                 // Check if room itself is configured to ask for deposit (relevant for non-Zone F overnight where deposit is standard but might be missing)
                 $roomRequiresDeposit = isset($room['ask_deposit_on_overnight']) && $room['ask_deposit_on_overnight'] == 1;
                 if ($roomRequiresDeposit || ($booking_to_display['room_current_zone'] ?? $room['zone']) !== 'F') { // Default to expecting deposit for Non-F overnight
-                    echo '<p><strong>ค่ามัดจำที่เก็บไว้:</strong> <span class="text-danger">0 บาท (ควรมีค่ามัดจำ)</span></p>';
+                    echo '<p><strong>ค่ามัดจำที่เก็บไว้:</strong> <span class="text-danger" style="margin-right:10px;">0 บาท (ควรมีค่ามัดจำ)</span>';
+                    $missingDepositAmount = (float)FIXED_DEPOSIT_AMOUNT;
+                    echo '<button type="button" class="button-small warning pay-deposit-later-btn" data-booking-id="' . h($booking_to_display['id']) . '" data-deposit-amount="' . $missingDepositAmount . '">จ่ายมัดจำย้อนหลัง</button></p>';
                 }
             ?>
             <?php elseif ($bookingType === 'overnight' && ($booking_to_display['room_current_zone'] ?? $room['zone']) === 'F' && $displayActualDepositCollected == 0): ?>
                 <?php if (isset($room['ask_deposit_on_overnight']) && $room['ask_deposit_on_overnight'] == 1): ?>
-                    <p><strong>ค่ามัดจำที่เก็บไว้:</strong> <span class="text-danger">0 บาท (โซน F - แต่ตั้งค่าให้เก็บมัดจำ)</span></p>
+                    <p><strong>ค่ามัดจำที่เก็บไว้:</strong> <span class="text-danger" style="margin-right:10px;">0 บาท (โซน F - แต่ตั้งค่าให้เก็บมัดจำ)</span>
+                        <?php
+                        $missingDepositAmountF = (float)FIXED_DEPOSIT_AMOUNT;
+                        echo '<button type="button" class="button-small warning pay-deposit-later-btn" data-booking-id="' . h($booking_to_display['id']) . '" data-deposit-amount="' . $missingDepositAmountF . '">จ่ายมัดจำย้อนหลัง</button>';
+                        ?>
+                    </p>
                 <?php else: ?>
                     <p><strong>ค่ามัดจำที่เก็บไว้:</strong> <span class="text-muted">0 บาท (โซน F - ไม่ได้เลือกเก็บมัดจำ)</span></p>
                 <?php endif; ?>
@@ -309,48 +325,42 @@ if (!function_exists('h')) {
             <?php // ***** START: V3.1 FIX - อัปเกรดการแสดงผลสลิป (บรรทัด 284 โดยประมาณ) ***** 
             ?>
             <?php if (!empty($all_group_receipts_for_display)): ?>
-                <div style="margin-top: 20px;">
-                    <h4 style="margin: 0 0 10px 0; font-size: 1.1rem; color: #004080; border-bottom: 1px solid #ccc; padding-bottom: 5px;">
-                        <i class="fas fa-receipt" style="margin-right: 8px;"></i>ประวัติการชำระเงิน/สลิปของกลุ่ม
+                <div class="group-receipts-container">
+                    <h4 class="group-receipts-header">
+                        <i class="fas fa-receipt"></i> ประวัติการชำระเงิน/สลิปของกลุ่ม
                     </h4>
                     <?php foreach ($all_group_receipts_for_display as $receipt): ?>
-                        <div class="receipt-item-detail" style="display: flex; align-items: center; padding: 8px; background-color: #fff; border-radius: 5px; margin-bottom: 8px; border: 1px solid #e0e0e0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-                            <!-- รูปภาพสลิปที่กดเพื่อดูรูปใหญ่ได้ -->
+                        <div class="receipt-item-detail">
                             <?php
                             $image_path = '/hotel_booking/uploads/receipts/' . h($receipt['receipt_path']);
                             $is_pdf = (strtolower(pathinfo($receipt['receipt_path'], PATHINFO_EXTENSION)) == 'pdf');
                             $placeholder_icon = $is_pdf ? 'fas fa-file-pdf' : 'fas fa-image';
                             ?>
-                            <div style="width: 60px; height: 60px; object-fit: cover; border-radius: 4px; margin-right: 15px; cursor: pointer; background-color: #f0f0f0; display: flex; align-items: center; justify-content: center; border: 1px solid #ddd;"
-                                class="receipt-btn" data-src="<?= h($image_path) ?>" title="คลิกเพื่อดูสลิป">
-
+                            <div class="receipt-preview-box receipt-btn" data-src="<?= h($image_path) ?>" title="คลิกเพื่อดูสลิป" style="position: relative; overflow: hidden; cursor: pointer; border: 2px solid var(--color-border); border-radius: var(--border-radius-sm); width: 80px; height: 80px; display: flex; align-items: center; justify-content: center; background: #f8fafc;">
                                 <?php if ($is_pdf): ?>
-                                    <i class="<?= h($placeholder_icon) ?>" style="font-size: 24px; color: #dc3545;"></i>
+                                    <i class="<?= h($placeholder_icon) ?>" style="font-size: 2rem; color: var(--color-alert);"></i>
                                 <?php else: ?>
-                                    <img src="<?= h($image_path) ?>" alt="สลิป"
-                                        style="width: 100%; height: 100%; object-fit: cover; border-radius: 4px;">
+                                    <img src="<?= h($image_path) ?>" alt="สลิป" style="width: 100%; height: 100%; object-fit: cover;">
                                 <?php endif; ?>
+                                <div class="preview-overlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(37, 99, 235, 0.8); color: white; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.2s; font-size: 0.7rem; text-align: center; padding: 4px; font-weight: 600;">
+                                    กดเพื่อดูรูปหลักฐาน
+                                </div>
                             </div>
+                            <style>
+                                .receipt-preview-box:hover .preview-overlay {
+                                    opacity: 1 !important;
+                                }
+                            </style>
 
-                            <div style="flex-grow: 1; font-size: 0.9rem;">
+                            <div class="receipt-info">
                                 <?php if (!empty($receipt['description'])): ?>
                                     <strong><?= h($receipt['description']) ?></strong><br>
                                 <?php endif; ?>
-                                <small>วิธีชำระ:
-                                    <span style="font-weight: 500; color: #333;">
-                                        <?= h($receipt['payment_method'] ?? '-') ?>
-                                    </span>
-                                    | อัปโหลด:
-                                    <span style="font-weight: 500; color: #666;">
-                                        <?= h(date('d/m/Y H:i', strtotime($receipt['uploaded_at']))) ?>
-                                    </span>
-                                </small>
+                                <small>วิธีชำระ: <span><?= h($receipt['payment_method'] ?? '-') ?></span> | อัปโหลด: <span><?= h(date('d/m/Y H:i', strtotime($receipt['uploaded_at']))) ?></span></small>
                             </div>
                             <?php if (isset($receipt['amount']) && is_numeric($receipt['amount'])): ?>
-                                <div style="font-weight: bold; font-size: 1rem; text-align: right; min-width: 100px;">
-                                    <span style="color: <?= (float)$receipt['amount'] >= 0 ? '#218838' : '#c82333' ?>;">
-                                        <?= h(number_format((float)$receipt['amount'], 2)) ?> บาท
-                                    </span>
+                                <div class="receipt-amount <?= (float)$receipt['amount'] >= 0 ? 'positive' : 'negative' ?>">
+                                    <?= h(number_format((float)$receipt['amount'], 2)) ?> บาท
                                 </div>
                             <?php endif; ?>
                         </div>
@@ -446,14 +456,19 @@ if (!function_exists('h')) {
 
                 <?php if ($canShowEditMainBookingAction && isset($bookingIdForActions)): ?>
                     <a href="/hotel_booking/pages/booking.php?edit_booking_id=<?= h($bookingIdForActions) ?>" class="button primary" title="แก้ไขข้อมูลการจองหลัก เช่น ลูกค้า, จำนวนคืน, บริการเสริม">แก้ไขการจองหลัก</a>
+                    <?php if (!empty($booking_to_display['booking_group_id'])): ?>
+                        <a href="/hotel_booking/pages/edit_booking_group.php?booking_group_id=<?= h($booking_to_display['booking_group_id']) ?>" class="button warning" title="แก้ไขการจองกลุ่ม #<?= h($booking_to_display['booking_group_id']) ?>">
+                            <i class="fa-solid fa-layer-group"></i> แก้ไขกลุ่ม #<?= h($booking_to_display['booking_group_id']) ?>
+                        </a>
+                    <?php endif; ?>
                 <?php endif; ?>
 
                 <?php if ($canShowCancelBookingAction && isset($bookingIdForActions)): ?>
-                    <button class="button-small delete-booking-btn alert" data-booking-id="<?= h($bookingIdForActions) ?>" id="delete-current-booking-dtl-<?= h($bookingIdForActions) ?>">ยกเลิกการจอง</button>
+                    <button class="button alert delete-booking-btn" data-booking-id="<?= h($bookingIdForActions) ?>" id="delete-current-booking-dtl-<?= h($bookingIdForActions) ?>">ยกเลิกการจอง</button>
                 <?php endif; ?>
 
                 <?php if ($canShowCheckoutAndExtendActions && isset($bookingIdForActions)): ?>
-                    <div id="return-deposit-form" style="display:none; margin-top:10px; padding:10px; border:1px solid var(--color-border); border-radius:var(--border-radius-md); background-color: #f8f9fa; width:100%;">
+                    <div id="return-deposit-form" class="info-box" style="display:none; margin-top:20px; width:100%;">
                         <?php
                         if ($showDepositProofForm && $actualDepositCollectedForActions > 0):
                         ?>
@@ -495,7 +510,7 @@ if (!function_exists('h')) {
                     <?php /* Extend stay form content as before, it's shown based on $canShowCheckoutAndExtendActions */ ?>
                     <h4>ขยายเวลาการเข้าพัก / เปลี่ยนเป็นค้างคืน</h4>
                     <?php
-                    $hourly_rate_from_system_settings_details = (defined('HOURLY_RATE_DB') ? (float)HOURLY_RATE_DB : 100);
+                    $hourly_rate_from_system_settings_details = (defined('HOURLY_RATE') ? (float)HOURLY_RATE : 100);
                     // HOURLY_RATE constant should be used here if it's the effective one, or HOURLY_RATE_DB.
                     // Assuming HOURLY_RATE is defined somewhere or get_system_setting_value is preferred.
                     $_rate_val_temp = get_system_setting_value($pdo, 'hourly_extension_rate', 100);
@@ -832,7 +847,7 @@ if (!function_exists('h')) {
     .details-container>h3 {
         font-size: 1.4rem;
         font-weight: 800;
-        background: linear-gradient(135deg, #1d4ed8, #0ea5e9);
+        background: linear-gradient(135deg, #3b82f6, #60a5fa);
         -webkit-background-clip: text;
         background-clip: text;
         -webkit-text-fill-color: transparent;
@@ -865,7 +880,7 @@ if (!function_exists('h')) {
 
     .current-booking-details h4,
     .advance-booking-details h4 {
-        background: linear-gradient(135deg, #1d4ed8, #2563eb);
+        background: linear-gradient(135deg, #3b82f6, #4f46e5);
         color: #fff;
         margin: 0;
         padding: 1rem 1.5rem;
@@ -877,7 +892,7 @@ if (!function_exists('h')) {
 
     .current-booking-details section.current-booking-details h4,
     .advance-booking-details section h4 {
-        background: linear-gradient(135deg, #1d4ed8, #2563eb);
+        background: linear-gradient(135deg, #3b82f6, #4f46e5);
     }
 
     .current-booking-details>h4,
@@ -982,32 +997,37 @@ if (!function_exists('h')) {
     }
 
     .details-container .button.primary {
-        background: linear-gradient(135deg, #1d4ed8, #2563eb);
+        background: linear-gradient(135deg, #2563eb, #3b82f6);
+        /* Royal to Cerulean */
         color: #fff;
         border: none;
     }
 
     .details-container .button.secondary {
-        background: linear-gradient(135deg, #0f766e, #0d9488);
+        background: linear-gradient(135deg, #1e3a8a, #2563eb);
+        /* Deep Blue to Royal */
         color: #fff;
         border: none;
     }
 
     .details-container .button.info {
-        background: linear-gradient(135deg, #0369a1, #0ea5e9);
+        background: linear-gradient(135deg, #0ea5e9, #38bdf8);
+        /* Sky Blue gradients */
         color: #fff;
         border: none;
     }
 
     .details-container .button.warning {
-        background: linear-gradient(135deg, #b45309, #d97706);
+        background: linear-gradient(135deg, #60a5fa, #93c5fd);
+        /* Light Blue gradients */
         color: #fff;
         border: none;
     }
 
     .details-container .button.alert,
     .details-container .button-small.alert {
-        background: linear-gradient(135deg, #b91c1c, #dc2626);
+        background: linear-gradient(135deg, #475569, #64748b);
+        /* Muted slate for negative actions in blue theme */
         color: #fff;
         border: none;
         border-radius: 8px;
@@ -1071,7 +1091,7 @@ if (!function_exists('h')) {
 
     .addon-price-total {
         float: right;
-        color: #1d4ed8;
+        color: #2563eb;
         font-weight: 700;
     }
 
@@ -1081,7 +1101,7 @@ if (!function_exists('h')) {
     }
 
     .advance-booking-details h4 {
-        background: linear-gradient(135deg, #0f766e, #0d9488);
+        background: linear-gradient(135deg, #2563eb, #60a5fa);
     }
 
     .advance-table-popup {
@@ -1092,7 +1112,7 @@ if (!function_exists('h')) {
     .notes-display-box {
         background: #f8fafc;
         border: 1px solid #e2e8f0;
-        border-left: 3px solid #3b82f6;
+        border-left: 3px solid #2563eb;
         border-radius: 8px;
         padding: 0.7rem 1rem;
         white-space: pre-wrap;
@@ -1105,7 +1125,7 @@ if (!function_exists('h')) {
 
     /* ---------- Links ---------- */
     .link-like {
-        color: #1d4ed8;
+        color: #2563eb;
         text-decoration: none;
         font-weight: 600;
     }
@@ -1134,7 +1154,7 @@ if (!function_exists('h')) {
 
     .addon-chip-wrapper.selected {
         background: #eff6ff;
-        border-color: #3b82f6;
+        border-color: #2563eb;
     }
 
     .addon-chip-label {

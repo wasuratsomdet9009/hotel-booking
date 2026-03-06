@@ -110,6 +110,7 @@ ob_start();
         margin: 0;
         background: linear-gradient(135deg, var(--color-primary-dark), #4f46e5);
         -webkit-background-clip: text;
+        background-clip: text;
         -webkit-text-fill-color: transparent;
         letter-spacing: -0.5px;
     }
@@ -419,55 +420,55 @@ ob_start();
     }
 
     .mini-room-item.status-free {
-        background-color: var(--color-secondary);
+        background-color: var(--status-free-bg);
     }
 
     .mini-room-item.status-occupied {
-        background-color: var(--color-alert);
+        background-color: var(--status-occupied-bg);
     }
 
     .mini-room-item.status-booked {
-        background-color: var(--color-warning);
+        background-color: var(--status-booked-bg);
         color: #000;
     }
 
     .mini-room-item.status-advance_booking {
-        background-color: var(--color-info);
+        background-color: var(--status-advance_booking-bg);
     }
 
     .mini-room-item.status-f_short_occupied {
-        background-color: var(--color-purple);
+        background-color: var(--status-zone_f-bg);
     }
 
     .mini-room-item.status-overdue_occupied {
-        background-color: var(--color-alert-dark);
-        border: 2px solid #ff0000;
+        background-color: var(--status-overdue-bg);
+        border: 2px solid white;
     }
 
     body.dark-theme .mini-room-item.status-free {
-        background-color: var(--dt-color-secondary-dark);
+        background-color: var(--status-free-bg);
     }
 
     body.dark-theme .mini-room-item.status-occupied {
-        background-color: var(--dt-color-alert-dark);
+        background-color: var(--status-occupied-bg);
     }
 
     body.dark-theme .mini-room-item.status-booked {
-        background-color: var(--dt-color-warning-dark);
+        background-color: var(--status-booked-bg);
         color: #000;
     }
 
     body.dark-theme .mini-room-item.status-advance_booking {
-        background-color: var(--dt-color-info-dark);
+        background-color: var(--status-advance_booking-bg);
     }
 
     body.dark-theme .mini-room-item.status-f_short_occupied {
-        background-color: var(--dt-color-purple-dark);
+        background-color: var(--status-zone_f-bg);
     }
 
     body.dark-theme .mini-room-item.status-overdue_occupied {
         background-color: #7f1d1d;
-        border: 2px solid #ef4444;
+        border: 2px solid var(--status-overdue-bg);
     }
 
 
@@ -634,11 +635,12 @@ ob_start();
             <?php endforeach; ?>
 
             <div class="status-legend" style="margin-top: 2rem; display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center; font-size: 0.85rem;">
-                <span style="display:flex; align-items:center; gap:0.3rem;"><span style="width:12px; height:12px; background:var(--color-secondary); border-radius:3px;"></span> ว่าง</span>
-                <span style="display:flex; align-items:center; gap:0.3rem;"><span style="width:12px; height:12px; background:var(--color-alert); border-radius:3px;"></span> ไม่ว่าง</span>
-                <span style="display:flex; align-items:center; gap:0.3rem;"><span style="width:12px; height:12px; background:var(--color-warning); border-radius:3px;"></span> รอเช็คอิน</span>
-                <span style="display:flex; align-items:center; gap:0.3rem;"><span style="width:12px; height:12px; background:var(--color-info); border-radius:3px;"></span> จองล่วงหน้า</span>
-                <span style="display:flex; align-items:center; gap:0.3rem;"><span style="width:12px; height:12px; background:var(--color-purple); border-radius:3px;"></span> โซน F ชั่วคราว</span>
+                <span style="display:flex; align-items:center; gap:0.3rem;"><span style="width:12px; height:12px; background:var(--status-free-bg); border-radius:3px;"></span> ว่าง</span>
+                <span style="display:flex; align-items:center; gap:0.3rem;"><span style="width:12px; height:12px; background:var(--status-occupied-bg); border-radius:3px;"></span> ไม่ว่าง</span>
+                <span style="display:flex; align-items:center; gap:0.3rem;"><span style="width:12px; height:12px; background:var(--status-booked-bg); border-radius:3px;"></span> รอเช็คอิน</span>
+                <span style="display:flex; align-items:center; gap:0.3rem;"><span style="width:12px; height:12px; background:var(--status-advance_booking-bg); border-radius:3px;"></span> จองล่วงหน้า</span>
+                <span style="display:flex; align-items:center; gap:0.3rem;"><span style="width:12px; height:12px; background:var(--status-zone_f-bg); border-radius:3px;"></span> โซน F ชั่วคราว</span>
+                <span style="display:flex; align-items:center; gap:0.3rem;"><span style="width:12px; height:12px; background:var(--status-overdue-bg); border-radius:3px;"></span> เกินกำหนด</span>
             </div>
         </div>
 

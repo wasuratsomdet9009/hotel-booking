@@ -59,13 +59,14 @@ ob_start();
         align-items: center;
         min-height: 100vh;
         background-color: var(--color-bg);
+        margin: 0;
     }
 
     .login-container {
         background-color: var(--color-surface);
-        padding: 2rem;
+        padding: 2.5rem;
         border-radius: var(--border-radius-lg);
-        box-shadow: var(--shadow-lg);
+        border: 2px solid var(--color-border);
         width: 100%;
         max-width: 400px;
     }
@@ -73,35 +74,48 @@ ob_start();
     .login-container h2 {
         text-align: center;
         color: var(--color-primary-dark);
-        margin-bottom: 1.5rem;
+        margin-bottom: 2rem;
+        font-weight: 700;
+        letter-spacing: -0.5px;
     }
 
     .form-group {
-        margin-bottom: 1.25rem;
+        margin-bottom: 1.5rem;
     }
 
     .form-group label {
         display: block;
-        margin-bottom: 0.4rem;
-        font-weight: 500;
+        margin-bottom: 0.5rem;
+        font-weight: 600;
+        color: var(--color-text-base);
     }
 
     .form-group select,
     .form-group input[type="password"] {
         width: 100%;
-        padding: 0.7rem;
-        border: 1px solid var(--color-border);
+        padding: 0.75rem;
+        border: 2px solid var(--color-border);
         border-radius: var(--border-radius-md);
+        background-color: #fff;
+        font-size: 1rem;
+        transition: border-color 0.2s;
+    }
+
+    .form-group select:focus,
+    .form-group input[type="password"]:focus {
+        border-color: var(--color-primary);
+        outline: none;
     }
 
     .error-message {
-        color: var(--color-error-text);
-        background-color: var(--color-error-bg);
-        border: 1px solid var(--color-error-border);
+        color: var(--color-alert-dark);
+        background-color: #fef2f2;
+        border: 2px solid var(--color-alert);
         padding: 0.75rem;
         border-radius: var(--border-radius-md);
-        margin-bottom: 1rem;
+        margin-bottom: 1.5rem;
         text-align: center;
+        font-weight: 500;
     }
 </style>
 

@@ -88,7 +88,10 @@ window.openBookingGroupSummaryModal = async function(bookingGroupId, bookingIds)
  */
 function showModal(modalElement) {
     if (modalElement) {
-        modalElement.classList.add('show');
+        modalElement.style.display = 'flex'; // Ensure it's rendered for animation
+        setTimeout(() => {
+            modalElement.classList.add('show');
+        }, 10);
     }
 }
 
@@ -99,6 +102,12 @@ function showModal(modalElement) {
 function hideModal(modalElement) {
     if (modalElement) {
         modalElement.classList.remove('show');
+        // Wait for CSS transition to finish before hiding display
+        setTimeout(() => {
+            if (!modalElement.classList.contains('show')) {
+                modalElement.style.display = 'none';
+            }
+        }, 400); // Matches --transition-speed if applicable, or safe buffer
     }
 }
 
@@ -829,12 +838,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     checkinNowCheckbox_BookingForm.checked = false;
                 }
             } else if (currentSelectedRoomDetails) {
+                const z_check = currentSelectedRoomDetails.zone.toLowerCase();
+                const n_check = parseInt(currentSelectedRoomDetails.room_number, 10);
+                const isABC1to5 = ['a', 'b', 'c'].includes(z_check) && n_check >= 1 && n_check <= 5;
+
                 if (currentBookingType === 'short_stay' && currentSelectedRoomDetails.allow_short_stay == '1') {
                     currentRoomCostOnly = parseFloat(currentSelectedRoomDetails.price_short_stay) || 0;
-                    depositAmount = 0;
                     const duration = currentSelectedRoomDetails.short_stay_duration_hours || DEFAULT_SHORT_STAY_HOURS_GLOBAL_JS || 3;
                     if (baseAmountNote_BookingForm) baseAmountNote_BookingForm.textContent = `ยอดสำหรับค่าห้องพัก (${duration} ชม.) ไม่รวมบริการเสริม`;
-                    if (depositNoteText_BookingForm) depositNoteText_BookingForm.textContent = `(พักชั่วคราว ไม่มีค่ามัดจำ)`;
+                    
+                    if (isABC1to5) {
+                        depositAmount = FIXED_DEPOSIT_AMOUNT_GLOBAL_JS || 0;
+                        if (depositNoteText_BookingForm) depositNoteText_BookingForm.textContent = `(บังคับมัดจำ ${String(Math.round(depositAmount))} บาท สำหรับโซน ${z_check.toUpperCase()}${n_check})`;
+                    } else {
+                        depositAmount = 0;
+                        if (depositNoteText_BookingForm) depositNoteText_BookingForm.textContent = `(พักชั่วคราว ไม่มีค่ามัดจำ)`;
+                    }
                 } else {
                     currentRoomCostOnly = (parseFloat(currentSelectedRoomDetails.price_per_day) || 0) * nights;
                     if (isCurrentRoomZoneF && currentSelectedRoomDetails.ask_deposit_on_overnight == '1') {
@@ -845,6 +864,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             depositAmount = 0;
                             if (depositNoteText_BookingForm) depositNoteText_BookingForm.textContent = `(โซน F - ไม่เก็บค่ามัดจำ)`;
                         }
+                    } else if (isABC1to5) {
+                        depositAmount = FIXED_DEPOSIT_AMOUNT_GLOBAL_JS || 0;
+                        if (depositNoteText_BookingForm) depositNoteText_BookingForm.textContent = `(บังคับมัดจำ ${String(Math.round(depositAmount))} บาท สำหรับโซน ${z_check.toUpperCase()}${n_check})`;
                     } else if (!isCurrentRoomZoneF) {
                         depositAmount = FIXED_DEPOSIT_AMOUNT_GLOBAL_JS || 0;
                         if (depositNoteText_BookingForm) depositNoteText_BookingForm.textContent = `(มาตรฐาน ${String(Math.round(FIXED_DEPOSIT_AMOUNT_GLOBAL_JS || 0))} บาท สำหรับค้างคืน)`;
@@ -1121,6 +1143,38 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (editDetailsFormContainer) editDetailsFormContainer.style.display = 'none';
             });
         }
+
+        const payDepositLaterBtns = modalBodyElement.querySelectorAll('.pay-deposit-later-btn');
+        payDepositLaterBtns.forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const bookingId = btn.dataset.bookingId;
+                const depositAmount = btn.dataset.depositAmount;
+
+                if (confirm(`ยืนยันการชำระค่ามัดจำย้อนหลังสำหรับรายการนี้ (${depositAmount} บาท) หรือไม่?`)) {
+                    setButtonLoading(btn, true);
+                    const formData = new FormData();
+                    formData.append('action', 'pay_deposit_later');
+                    formData.append('booking_id', bookingId);
+                    formData.append('deposit_amount', depositAmount);
+
+                    try {
+                        const response = await fetch('/hotel_booking/pages/api.php', { method: 'POST', body: formData });
+                        const data = await response.json();
+                        if (data.success) {
+                            alert('ชำระค่ามัดจำเรียบร้อยแล้ว');
+                            window.location.reload();
+                        } else {
+                            alert('เกิดข้อผิดพลาด: ' + (data.message || 'ไม่ทราบสาเหตุ'));
+                        }
+                    } catch (err) {
+                        console.error('Pay deposit later error:', err);
+                        alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+                    } finally {
+                        setButtonLoading(btn, false);
+                    }
+                }
+            });
+        });
 
         const submitCompleteBookingBtn = modalBodyElement.querySelector('#submit-deposit.complete-booking-btn');
         if (submitCompleteBookingBtn) {
@@ -2526,25 +2580,105 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- START: Multi-Select Mode & Bulk Actions ---
+    const toggleSelectModeBtn = document.getElementById('toggle-select-mode-btn');
     const bulkCheckoutBtn = document.getElementById('bulk-checkout-btn');
+    const bulkCancelBtn = document.getElementById('bulk-cancel-btn');
     const bulkCountSpan = document.getElementById('bulk-selected-count');
-    const roomCheckboxes = document.querySelectorAll('.room-select-checkbox');
+    const bulkCancelCountSpan = document.getElementById('bulk-cancel-count');
+    let isSelectMode = false;
+
+    function getRoomCheckboxes() {
+        return document.querySelectorAll('.room-select-checkbox');
+    }
 
     function updateBulkButton() {
         const selected = document.querySelectorAll('.room-select-checkbox:checked');
         const count = selected.length;
         if (bulkCountSpan) bulkCountSpan.textContent = count;
-        
+        if (bulkCancelCountSpan) bulkCancelCountSpan.textContent = count;
+
         if (bulkCheckoutBtn) {
-            bulkCheckoutBtn.style.display = count > 0 ? 'inline-block' : 'none';
+            bulkCheckoutBtn.style.display = (isSelectMode && count > 0) ? 'inline-flex' : 'none';
+        }
+        if (bulkCancelBtn) {
+            bulkCancelBtn.style.display = (isSelectMode && count > 0) ? 'inline-flex' : 'none';
         }
     }
 
-    roomCheckboxes.forEach(cb => {
+    function enterSelectMode() {
+        isSelectMode = true;
+        document.body.classList.add('select-mode');
+        if (toggleSelectModeBtn) {
+            toggleSelectModeBtn.innerHTML = '<i class="fa-solid fa-xmark"></i> ออกจากโหมดเลือก';
+            toggleSelectModeBtn.classList.remove('outline-secondary');
+            toggleSelectModeBtn.classList.add('warning');
+        }
+        updateBulkButton();
+    }
+
+    function exitSelectMode() {
+        isSelectMode = false;
+        document.body.classList.remove('select-mode');
+        // Uncheck all
+        getRoomCheckboxes().forEach(cb => { cb.checked = false; });
+        if (toggleSelectModeBtn) {
+            toggleSelectModeBtn.innerHTML = '<i class="fa-solid fa-check-square"></i> เลือกหลายห้อง';
+            toggleSelectModeBtn.classList.add('outline-secondary');
+            toggleSelectModeBtn.classList.remove('warning');
+        }
+        updateBulkButton();
+    }
+
+    if (toggleSelectModeBtn) {
+        toggleSelectModeBtn.addEventListener('click', () => {
+            if (isSelectMode) exitSelectMode();
+            else enterSelectMode();
+        });
+    }
+
+    // Register change events on all room checkboxes (once)
+    getRoomCheckboxes().forEach(cb => {
         cb.addEventListener('change', updateBulkButton);
-        // ป้องกันไม่ให้คลิก Checkbox แล้วไปเปิด Modal ห้องพัก
         cb.addEventListener('click', (e) => e.stopPropagation());
     });
+
+    if (bulkCancelBtn) {
+        bulkCancelBtn.addEventListener('click', async function() {
+            const selected = document.querySelectorAll('.room-select-checkbox:checked');
+            if (selected.length === 0) return;
+
+            const bookingIds = Array.from(selected).map(cb => cb.dataset.bookingId);
+            const roomNames = Array.from(selected).map(cb => cb.dataset.roomName).join(', ');
+
+            if (confirm(`คุณต้องการยกเลิกการจองสำหรับห้อง: ${roomNames} หรือไม่?`)) {
+                setButtonLoading(bulkCancelBtn, true);
+
+                const formData = new FormData();
+                formData.append('action', 'bulk_cancel_booking');
+                bookingIds.forEach(id => formData.append('booking_ids[]', id));
+
+                try {
+                    const response = await fetch('/hotel_booking/pages/api.php', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const result = await response.json();
+                    if (result.success) {
+                        alert('ยกเลิกการจองเรียบร้อยแล้ว');
+                        window.location.reload();
+                    } else {
+                        alert('เกิดข้อผิดพลาด: ' + (result.message || 'ไม่สามารถทำรายการได้'));
+                    }
+                } catch (err) {
+                    console.error(err);
+                    alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+                } finally {
+                    setButtonLoading(bulkCancelBtn, false);
+                }
+            }
+        });
+    }
 
     if (bulkCheckoutBtn) {
         bulkCheckoutBtn.addEventListener('click', async function() {

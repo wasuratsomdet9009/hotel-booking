@@ -32,10 +32,38 @@ $stmtBookings = $pdo->prepare("
 $stmtBookings->execute([$bookingGroupId]);
 $associatedBookings = $stmtBookings->fetchAll(PDO::FETCH_ASSOC);
 
-// 3. Fetch Receipts for this Group
-$stmtReceipts = $pdo->prepare("SELECT * FROM booking_group_receipts WHERE booking_group_id = ? ORDER BY uploaded_at DESC");
-$stmtReceipts->execute([$bookingGroupId]);
-$groupReceipts = $stmtReceipts->fetchAll(PDO::FETCH_ASSOC);
+// 3. Fetch Receipts for this Group AND Related Groups (Shared Evidence)
+$customer_name_for_sharing = $groupData['customer_name'];
+$checkin_time_for_sharing = $groupData['main_checkin_datetime'];
+
+// ดึง Group IDs ที่มีความเกี่ยวข้อง (ชื่อเดียวกัน และเช็คอินห่างกันไม่เกิน 12 ชั่วโมง)
+$stmtRelatedGroups = $pdo->prepare("
+    SELECT DISTINCT booking_group_id 
+    FROM bookings 
+    WHERE customer_name = ? 
+      AND ABS(TIMESTAMPDIFF(HOUR, checkin_datetime, ?)) <= 12
+      AND booking_group_id IS NOT NULL
+");
+$stmtRelatedGroups->execute([$customer_name_for_sharing, $checkin_time_for_sharing]);
+$relatedGroupIds = $stmtRelatedGroups->fetchAll(PDO::FETCH_COLUMN);
+
+// ตรวจสอบให้แน่ใจว่า Group ID ปัจจุบันอยู่ในลิสต์ด้วย
+if ($bookingGroupId && !in_array($bookingGroupId, $relatedGroupIds)) {
+    $relatedGroupIds[] = $bookingGroupId;
+}
+
+$groupReceipts = [];
+if (!empty($relatedGroupIds)) {
+    $placeholders = implode(',', array_fill(0, count($relatedGroupIds), '?'));
+    $stmtReceipts = $pdo->prepare("
+        SELECT *, (booking_group_id != ?) as is_shared 
+        FROM booking_group_receipts 
+        WHERE booking_group_id IN ($placeholders) 
+        ORDER BY uploaded_at DESC
+    ");
+    $stmtReceipts->execute(array_merge([$bookingGroupId], $relatedGroupIds));
+    $groupReceipts = $stmtReceipts->fetchAll(PDO::FETCH_ASSOC);
+}
 
 $pageTitle = 'แก้ไขการจองกลุ่ม: ' . h($groupData['customer_name']);
 
@@ -74,7 +102,9 @@ ob_start();
         <div class="form-group">
             <label for="new_receipt_files" class="stylish-upload-label">
                 <div class="upload-icon-area">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="currentColor" class="upload-icon"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="currentColor" class="upload-icon">
+                        <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z" />
+                    </svg>
                 </div>
                 <span class="upload-main-text">เพิ่มไฟล์สลิปใหม่ให้กลุ่มนี้</span>
                 <span class="upload-sub-text">(เลือกได้หลายไฟล์, รองรับรูปภาพและ PDF)</span>
@@ -86,21 +116,40 @@ ob_start();
         <h4>สลิปที่มีอยู่แล้วในกลุ่มนี้:</h4>
         <div id="existing-receipts-list" class="table-responsive">
             <table class="report-table">
-                <thead><tr><th>ไฟล์</th><th>คำอธิบาย</th><th>การดำเนินการ</th></tr></thead>
+                <thead>
+                    <tr>
+                        <th>ไฟล์</th>
+                        <th>คำอธิบาย</th>
+                        <th>การดำเนินการ</th>
+                    </tr>
+                </thead>
                 <tbody>
-                <?php if (empty($groupReceipts)): ?>
-                    <tr><td colspan="3" class="text-center text-muted"><em>ไม่มีสลิปในกลุ่มนี้</em></td></tr>
-                <?php else: ?>
-                    <?php foreach ($groupReceipts as $receipt): ?>
-                        <tr id="receipt-row-<?= h($receipt['id']) ?>">
-                            <td><a href="/hotel_booking/uploads/receipts/<?= h($receipt['receipt_path']) ?>" target="_blank" class="link-like"><?= h($receipt['receipt_path']) ?></a></td>
-                            <td><?= h($receipt['description'] ?: '-') ?></td>
-                            <td class="text-center">
-                                <button type="button" class="button-small alert delete-receipt-btn" data-receipt-id="<?= h($receipt['id']) ?>">ลบ</button>
-                            </td>
+                    <?php if (empty($groupReceipts)): ?>
+                        <tr>
+                            <td colspan="3" class="text-center text-muted"><em>ไม่มีสลิปในกลุ่มนี้</em></td>
                         </tr>
-                    <?php endforeach; ?>
-                <?php endif; ?>
+                    <?php else: ?>
+                        <?php foreach ($groupReceipts as $receipt): ?>
+                            <tr id="receipt-row-<?= h($receipt['id']) ?>" <?= !empty($receipt['is_shared']) ? 'style="background-color: #f0f7ff;"' : '' ?>>
+                                <td>
+                                    <a href="/hotel_booking/uploads/receipts/<?= h($receipt['receipt_path']) ?>" target="_blank" class="link-like">
+                                        <?= h($receipt['receipt_path']) ?>
+                                    </a>
+                                    <?php if (!empty($receipt['is_shared'])): ?>
+                                        <span class="badge badge-info" style="font-size: 0.7rem; margin-left: 5px;">หลักฐานร่วม (Shared)</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td><?= h($receipt['description'] ?: '-') ?></td>
+                                <td class="text-center">
+                                    <?php if (empty($receipt['is_shared'])): ?>
+                                        <button type="button" class="button-small alert delete-receipt-btn" data-receipt-id="<?= h($receipt['id']) ?>">ลบ</button>
+                                    <?php else: ?>
+                                        <span class="text-muted" title="สลิปนี้แชร์มาจากกลุ่มอื่น ไม่สามารถลบจากที่นี่ได้"><em>(Shared)</em></span>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
                 </tbody>
             </table>
         </div>
@@ -116,135 +165,103 @@ ob_start();
 
 <!-- START: V3 - Room Management Section -->
 <section class="settings-section" style="margin-top: 2rem;">
-    <h3><i class="fas fa-bed"></i> จัดการห้องพักในกลุ่มนี้</h3>
-    <p class="text-muted">คลิกที่ปุ่ม "จัดการห้องนี้" เพื่อแก้ไขรายละเอียด, เพิ่มบริการเสริม, ต่อเวลา, หรือปรับยอดชำระสำหรับห้องนั้นๆ</p>
-    <div class="table-responsive">
-        <table class="report-table modern-table" id="group-rooms-table">
-            <thead>
-                <tr>
-                    <th>ห้อง</th>
-                    <th>เช็คอิน</th>
-                    <th>เช็คเอาท์</th>
-                    <th class="right-aligned">ยอดรวม (บาท)</th>
-                    <th class="right-aligned">ยอดชำระ (บาท)</th>
-                    <th class="centered">ดำเนินการ</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php if (empty($associatedBookings)): ?>
-                    <tr><td colspan="6" class="text-center text-muted"><em>ไม่พบห้องพักที่ผูกกับกลุ่มนี้ (อาจถูกลบไปแล้ว)</em></td></tr>
-                <?php else: ?>
-                    <?php 
-                    $group_total_price = 0;
-                    $group_total_paid = 0;
-                    foreach($associatedBookings as $booking): 
-                        $group_total_price += (float)$booking['total_price'];
-                        $group_total_paid += (float)$booking['amount_paid'];
-                    ?>
-                        <tr>
-                            <td><strong><?= h($booking['zone'] . $booking['room_number']) ?></strong> <small>(ID: <?= h($booking['id']) ?>)</small></td>
-                            <td><?= h(date('d/m/Y H:i', strtotime($booking['checkin_datetime']))) ?></td>
-                            <td><?= h(date('d/m/Y H:i', strtotime($booking['checkout_datetime_calculated']))) ?></td>
-                            <td class="right-aligned"><?= h(number_format((float)$booking['total_price'], 0)) ?></td>
-                            <td class="right-aligned"><?= h(number_format((float)$booking['amount_paid'], 0)) ?></td>
-                            <td class="centered actions-cell">
-                                 <button type="button" class="button-small room info" 
-                                         data-id="<?= h($booking['room_id']) ?>" 
-                                         data-booking-id="<?= h($booking['id']) ?>">
-                                     <i class="fas fa-tasks" style="margin-right: 4px;"></i>จัดการห้องนี้
-                                 </button>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                <?php endif; ?>
-            </tbody>
-            <tfoot>
-                 <tr style="background-color: var(--color-table-head-bg); font-weight: bold;">
-                    <td colspan="3" style="text-align: right;">ยอดรวมของกลุ่ม:</td>
-                    <td class="right-aligned"><?= h(number_format($group_total_price, 0)) ?></td>
-                    <td class="right-aligned"><?= h(number_format($group_total_paid, 0)) ?></td>
-                    <td class="centered">-</td>
-                 </tr>
-            </tfoot>
-        </table>
-    </div>
+    <h3><i class="fas fa-bed"></i> จัดการห้องพักในกลุ่มนี้</h3>
+    <p class="text-muted">คลิกที่ปุ่ม "จัดการห้องนี้" เพื่อแก้ไขรายละเอียด, เพิ่มบริการเสริม, ต่อเวลา, หรือปรับยอดชำระสำหรับห้องนั้นๆ</p>
+    <div class="table-responsive">
+        <table class="report-table modern-table" id="group-rooms-table">
+            <thead>
+                <tr>
+                    <th>ห้อง</th>
+                    <th>เช็คอิน</th>
+                    <th>เช็คเอาท์</th>
+                    <th class="right-aligned">ยอดรวม (บาท)</th>
+                    <th class="right-aligned">ยอดชำระ (บาท)</th>
+                    <th class="centered">ดำเนินการ</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if (empty($associatedBookings)): ?>
+                    <tr>
+                        <td colspan="6" class="text-center text-muted"><em>ไม่พบห้องพักที่ผูกกับกลุ่มนี้ (อาจถูกลบไปแล้ว)</em></td>
+                    </tr>
+                <?php else: ?>
+                    <?php
+                    $group_total_price = 0;
+                    $group_total_paid = 0;
+                    foreach ($associatedBookings as $booking):
+                        $group_total_price += (float)$booking['total_price'];
+                        $group_total_paid += (float)$booking['amount_paid'];
+                    ?>
+                        <tr>
+                            <td><strong><?= h($booking['zone'] . $booking['room_number']) ?></strong> <small>(ID: <?= h($booking['id']) ?>)</small></td>
+                            <td><?= h(date('d/m/Y H:i', strtotime($booking['checkin_datetime']))) ?></td>
+                            <td><?= h(date('d/m/Y H:i', strtotime($booking['checkout_datetime_calculated']))) ?></td>
+                            <td class="right-aligned"><?= h(number_format((float)$booking['total_price'], 0)) ?></td>
+                            <td class="right-aligned"><?= h(number_format((float)$booking['amount_paid'], 0)) ?></td>
+                            <td class="centered actions-cell">
+                                <button type="button" class="button-small room info"
+                                    data-id="<?= h($booking['room_id']) ?>"
+                                    data-booking-id="<?= h($booking['id']) ?>">
+                                    <i class="fas fa-tasks" style="margin-right: 4px;"></i>จัดการห้องนี้
+                                </button>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </tbody>
+            <tfoot>
+                <tr style="background-color: var(--color-table-head-bg); font-weight: bold;">
+                    <td colspan="3" style="text-align: right;">ยอดรวมของกลุ่ม:</td>
+                    <td class="right-aligned"><?= h(number_format($group_total_price, 0)) ?></td>
+                    <td class="right-aligned"><?= h(number_format($group_total_paid, 0)) ?></td>
+                    <td class="centered">-</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
 </section>
 <!-- END: V3 - Room Management Section -->
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    const form = document.getElementById('edit-group-form');
-    const saveBtn = document.getElementById('save-group-changes-btn');
-    const groupRoomsTable = document.getElementById('group-rooms-table'); // New table reference
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('edit-group-form');
+        const saveBtn = document.getElementById('save-group-changes-btn');
+        const groupRoomsTable = document.getElementById('group-rooms-table'); // New table reference
 
-    // Helper function for loading state on buttons
-    const originalButtonContents = {};
-    function setButtonLoading(buttonElement, isLoading, buttonIdForTextStore) {
-        if (!buttonElement) return;
-        const key = buttonIdForTextStore || buttonElement.id || `btn-${Date.now()}-${Math.random()}`;
-        if (isLoading) {
-            if (!buttonElement.classList.contains('loading')) {
-                if (originalButtonContents[key] === undefined) {
-                    originalButtonContents[key] = buttonElement.innerHTML;
+        // Helper function for loading state on buttons
+        const originalButtonContents = {};
+
+        function setButtonLoading(buttonElement, isLoading, buttonIdForTextStore) {
+            if (!buttonElement) return;
+            const key = buttonIdForTextStore || buttonElement.id || `btn-${Date.now()}-${Math.random()}`;
+            if (isLoading) {
+                if (!buttonElement.classList.contains('loading')) {
+                    if (originalButtonContents[key] === undefined) {
+                        originalButtonContents[key] = buttonElement.innerHTML;
+                    }
+                    buttonElement.innerHTML = '<span class="spinner-sm"></span>';
+                    buttonElement.classList.add('loading');
+                    buttonElement.disabled = true;
                 }
-                buttonElement.innerHTML = '<span class="spinner-sm"></span>';
-                buttonElement.classList.add('loading');
-                buttonElement.disabled = true;
-            }
-        } else {
-            if (buttonElement.classList.contains('loading')) {
-                if (originalButtonContents[key] !== undefined) {
-                    buttonElement.innerHTML = originalButtonContents[key];
+            } else {
+                if (buttonElement.classList.contains('loading')) {
+                    if (originalButtonContents[key] !== undefined) {
+                        buttonElement.innerHTML = originalButtonContents[key];
+                    }
+                    buttonElement.classList.remove('loading');
+                    buttonElement.disabled = false;
                 }
-                buttonElement.classList.remove('loading');
-                buttonElement.disabled = false;
             }
         }
-    }
 
 
-    form.addEventListener('submit', async function(e) {
-        e.preventDefault();
-        setButtonLoading(saveBtn, true, 'save-group-changes-btn');
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            setButtonLoading(saveBtn, true, 'save-group-changes-btn');
 
-        const formData = new FormData(form);
-
-        try {
-            const response = await fetch('/hotel_booking/pages/api.php', {
-                method: 'POST',
-                body: formData
-            });
-            const result = await response.json();
-            // Using a simple alert, replace with a custom modal in a real application
-            alert(result.message || 'เกิดข้อผิดพลาด');
-            if (result.success) {
-                location.reload();
-            }
-        } catch (error) {
-            console.error('Error updating group:', error);
-            // Using a simple alert, replace with a custom modal in a real application
-            alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
-        } finally {
-            setButtonLoading(saveBtn, false, 'save-group-changes-btn');
-        }
-    });
-
-    document.getElementById('existing-receipts-list').addEventListener('click', async function(e) {
-        if (e.target.classList.contains('delete-receipt-btn')) {
-            const button = e.target;
-            const receiptId = button.dataset.receiptId;
-            
-            // NOTE: Replaced confirm() with a visual notice/modal in a real app
-            if (!receiptId || !confirm('คุณแน่ใจหรือไม่ว่าต้องการลบสลิปนี้?')) return;
-
-            setButtonLoading(button, true, `delete-receipt-${receiptId}`);
+            const formData = new FormData(form);
 
             try {
-                const formData = new FormData();
-                formData.append('action', 'update_booking_group');
-                formData.append('sub_action', 'delete_receipt');
-                formData.append('receipt_id', receiptId);
-
                 const response = await fetch('/hotel_booking/pages/api.php', {
                     method: 'POST',
                     body: formData
@@ -253,43 +270,78 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Using a simple alert, replace with a custom modal in a real application
                 alert(result.message || 'เกิดข้อผิดพลาด');
                 if (result.success) {
-                    const row = document.getElementById(`receipt-row-${receiptId}`);
-                    if(row) row.remove();
+                    location.reload();
                 }
             } catch (error) {
-                 console.error('Error deleting receipt:', error);
-                 // Using a simple alert, replace with a custom modal in a real application
-                 alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+                console.error('Error updating group:', error);
+                // Using a simple alert, replace with a custom modal in a real application
+                alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
             } finally {
-                 setButtonLoading(button, false, `delete-receipt-${receiptId}`);
+                setButtonLoading(saveBtn, false, 'save-group-changes-btn');
             }
-        }
-    });
+        });
 
-    document.getElementById('new_receipt_files').addEventListener('change', function(e){
-        const displayArea = document.getElementById('new-filenames-display');
-        displayArea.innerHTML = '';
-        if(e.target.files.length > 0) {
-            let fileNames = Array.from(e.target.files).map(f => f.name).join(', ');
-            displayArea.textContent = 'ไฟล์ที่เลือก: ' + fileNames;
-        }
-    });
+        document.getElementById('existing-receipts-list').addEventListener('click', async function(e) {
+            if (e.target.classList.contains('delete-receipt-btn')) {
+                const button = e.target;
+                const receiptId = button.dataset.receiptId;
 
-    // V3: Implement click handler for the new 'จัดการห้องนี้' buttons
-    if (groupRoomsTable) {
-        groupRoomsTable.addEventListener('click', function(e) {
-            const button = e.target.closest('.button-small.room.info');
-            if (button) {
-                const bookingId = button.dataset.bookingId;
-                // Redirects to the single booking edit page using the booking ID
-                if (bookingId) {
-                    window.location.href = `booking.php?edit_booking_id=${bookingId}`;
+                // NOTE: Replaced confirm() with a visual notice/modal in a real app
+                if (!receiptId || !confirm('คุณแน่ใจหรือไม่ว่าต้องการลบสลิปนี้?')) return;
+
+                setButtonLoading(button, true, `delete-receipt-${receiptId}`);
+
+                try {
+                    const formData = new FormData();
+                    formData.append('action', 'update_booking_group');
+                    formData.append('sub_action', 'delete_receipt');
+                    formData.append('receipt_id', receiptId);
+
+                    const response = await fetch('/hotel_booking/pages/api.php', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const result = await response.json();
+                    // Using a simple alert, replace with a custom modal in a real application
+                    alert(result.message || 'เกิดข้อผิดพลาด');
+                    if (result.success) {
+                        const row = document.getElementById(`receipt-row-${receiptId}`);
+                        if (row) row.remove();
+                    }
+                } catch (error) {
+                    console.error('Error deleting receipt:', error);
+                    // Using a simple alert, replace with a custom modal in a real application
+                    alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+                } finally {
+                    setButtonLoading(button, false, `delete-receipt-${receiptId}`);
                 }
             }
         });
-    }
 
-});
+        document.getElementById('new_receipt_files').addEventListener('change', function(e) {
+            const displayArea = document.getElementById('new-filenames-display');
+            displayArea.innerHTML = '';
+            if (e.target.files.length > 0) {
+                let fileNames = Array.from(e.target.files).map(f => f.name).join(', ');
+                displayArea.textContent = 'ไฟล์ที่เลือก: ' + fileNames;
+            }
+        });
+
+        // V3: Implement click handler for the new 'จัดการห้องนี้' buttons
+        if (groupRoomsTable) {
+            groupRoomsTable.addEventListener('click', function(e) {
+                const button = e.target.closest('.button-small.room.info');
+                if (button) {
+                    const bookingId = button.dataset.bookingId;
+                    // Redirects to the single booking edit page using the booking ID
+                    if (bookingId) {
+                        window.location.href = `booking.php?edit_booking_id=${bookingId}`;
+                    }
+                }
+            });
+        }
+
+    });
 </script>
 
 <?php

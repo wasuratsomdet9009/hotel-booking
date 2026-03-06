@@ -36,7 +36,7 @@ error_log("[API] Action: '{$action}'. Request Method: {$_SERVER['REQUEST_METHOD'
 $logTimestampField = "last_modified_at";
 try {
     $checkColumnStmt = $pdo->query("SHOW COLUMNS FROM bookings LIKE 'last_modified_at'");
-    if(!$checkColumnStmt->fetch()){
+    if (!$checkColumnStmt->fetch()) {
         $logTimestampField = "last_extended_at"; // Fallback
     }
 } catch (PDOException $e) {
@@ -64,16 +64,16 @@ switch ($action) {
             $checkin_datetime_str = $_POST['checkin_datetime'] ?? '';
             $notes = isset($_POST['notes']) ? trim($_POST['notes']) : null;
             // Original $selected_addons_raw for group-level addons (kept for compatibility if needed)
-            $selected_addons_raw = $_POST['selected_addons'] ?? []; 
+            $selected_addons_raw = $_POST['selected_addons'] ?? [];
             // NEW: Room-specific addons
             $posted_room_addons = $_POST['room_addons'] ?? [];
 
             $booking_type = $_POST['booking_type'] ?? 'overnight';
             $nights = ($booking_type === 'overnight') ? max(1, (int)($_POST['nights'] ?? 1)) : 0;
             $is_flexible_overnight_mode_active = isset($_POST['flexible_overnight_mode']) && $_POST['flexible_overnight_mode'] === '1';
-            
+
             $short_stay_duration_hours = ($booking_type === 'short_stay') ? (int)($_POST['short_stay_duration_hours'] ?? DEFAULT_SHORT_STAY_DURATION_HOURS) : 0;
-            
+
             $collect_deposit_zone_f = isset($_POST['collect_deposit_zone_f']) && $_POST['collect_deposit_zone_f'] === '1';
             $amount_paid_by_customer_for_group = isset($_POST['amount_paid']) ? (int)round((float)$_POST['amount_paid']) : 0;
 
@@ -88,10 +88,10 @@ switch ($action) {
             // ** MODIFICATION END **
 
 
-            $customer_name = $customer_name_raw; 
+            $customer_name = $customer_name_raw;
             if (empty($customer_name_raw)) {
                 // Logic for setting default customer name (kept as original)
-                 if ($booking_mode === 'single') {
+                if ($booking_mode === 'single') {
                     $roomId_single_for_name_check = (int) ($_POST['room_id'] ?? 0);
                     if ($roomId_single_for_name_check > 0) {
                         $stmt_room_zone_for_name = $pdo->prepare("SELECT zone FROM rooms WHERE id = ?");
@@ -99,29 +99,31 @@ switch ($action) {
                         $room_zone_for_name_check = $stmt_room_zone_for_name->fetchColumn();
                         if ($room_zone_for_name_check === 'F') {
                             $customer_name = "ผู้เข้าพักโซน F (ไม่ระบุชื่อ)"; // Guest Zone F (unspecified name)
-                        } else { 
+                        } else {
                             $customer_name = "ผู้เข้าพัก (ไม่ระบุชื่อ)"; // Guest (unspecified name)
                         }
-                    } else { 
-                         $customer_name = "ผู้เข้าพัก (ไม่ระบุชื่อ)"; // Guest (unspecified name)
+                    } else {
+                        $customer_name = "ผู้เข้าพัก (ไม่ระบุชื่อ)"; // Guest (unspecified name)
                     }
-                } else { 
+                } else {
                     $customer_name = "กลุ่มผู้เข้าพัก (ไม่ระบุชื่อ)"; // Group of Guests (unspecified name)
                 }
             }
 
-            if (empty($checkin_datetime_str) || empty($payment_method) ||
+            if (
+                empty($checkin_datetime_str) || empty($payment_method) ||
                 ($booking_type === 'overnight' && $nights < 1) ||
-                ($booking_type === 'short_stay' && $short_stay_duration_hours <= 0)) {
+                ($booking_type === 'short_stay' && $short_stay_duration_hours <= 0)
+            ) {
                 throw new Exception('ข้อมูลการจองหลักไม่ครบถ้วน (เช็คอิน, วิธีชำระเงิน, ระยะเวลา)', 400); // Main booking information is incomplete (check-in, payment method, duration)
             }
-            
-            $room_zone_for_logic = null; 
-            $room_details_for_validation = null; 
+
+            $room_zone_for_logic = null;
+            $room_details_for_validation = null;
 
             if ($booking_mode === 'single') {
                 // Logic for fetching room details for single booking (kept as original)
-                $roomId_single = (int) ($_POST['room_id'] ?? 0); 
+                $roomId_single = (int) ($_POST['room_id'] ?? 0);
                 if (!$roomId_single) throw new Exception('ไม่ได้เลือกห้องพักสำหรับโหมดห้องเดียว', 400); // No room selected for single room mode
                 $stmt_room_zone = $pdo->prepare("SELECT zone, allow_short_stay, short_stay_duration_hours, price_per_day, price_short_stay, ask_deposit_on_overnight FROM rooms WHERE id = ?");
                 $stmt_room_zone->execute([$roomId_single]);
@@ -131,45 +133,45 @@ switch ($action) {
             }
 
             $checkin_datetime_obj = null;
-            $now_dt_api = new \DateTime('now', new \DateTimeZone('Asia/Bangkok')); 
+            $now_dt_api = new \DateTime('now', new \DateTimeZone('Asia/Bangkok'));
 
             // ** MODIFICATION START: Use $set_checkin_to_now_for_api_logic **
-            if ($set_checkin_to_now_for_api_logic) { 
-                $checkin_datetime_obj = clone $now_dt_api; 
+            if ($set_checkin_to_now_for_api_logic) {
+                $checkin_datetime_obj = clone $now_dt_api;
                 error_log("[API Create] 'Check-in Now' logic triggered. Check-in time set to current: " . $checkin_datetime_obj->format('Y-m-d H:i:s') . " for booking type: " . $booking_type);
             } else {
-            // ** MODIFICATION END **
-                $d = \DateTime::createFromFormat('Y-m-d\TH:i', $checkin_datetime_str); 
-                if (!$d || $d->format('Y-m-d\TH:i') !== $checkin_datetime_str) { 
-                    $d_alt = \DateTime::createFromFormat('Y-m-d H:i:s', $checkin_datetime_str); 
-                    if (!$d_alt || $d_alt->format('Y-m-d H:i:s') !== $checkin_datetime_str) { 
+                // ** MODIFICATION END **
+                $d = \DateTime::createFromFormat('Y-m-d\TH:i', $checkin_datetime_str);
+                if (!$d || $d->format('Y-m-d\TH:i') !== $checkin_datetime_str) {
+                    $d_alt = \DateTime::createFromFormat('Y-m-d H:i:s', $checkin_datetime_str);
+                    if (!$d_alt || $d_alt->format('Y-m-d H:i:s') !== $checkin_datetime_str) {
                         throw new Exception('รูปแบบวันเวลาเช็คอินไม่ถูกต้อง: ' . htmlspecialchars($checkin_datetime_str), 400); // Incorrect check-in date/time format
                     }
-                    $checkin_datetime_obj = $d_alt; 
+                    $checkin_datetime_obj = $d_alt;
                 } else {
-                    $checkin_datetime_obj = $d; 
+                    $checkin_datetime_obj = $d;
                 }
-                error_log("[API Create] Parsed Form Check-in time '{$checkin_datetime_str}' to DateTime: " . $checkin_datetime_obj->format('Y-m-d H:i:s')); 
+                error_log("[API Create] Parsed Form Check-in time '{$checkin_datetime_str}' to DateTime: " . $checkin_datetime_obj->format('Y-m-d H:i:s'));
             }
-            $checkin_sql_format = $checkin_datetime_obj->format('Y-m-d H:i:s'); 
+            $checkin_sql_format = $checkin_datetime_obj->format('Y-m-d H:i:s');
 
             // **** START: DELETED VALIDATION FOR PAST CHECK-IN ON NEW BOOKINGS ****
             // The block that previously prevented booking in the past has been removed.
             // **** END: DELETED VALIDATION FOR PAST CHECK-IN ON NEW BOOKINGS ****
 
-            $checkout_datetime_calculated_obj = clone $checkin_datetime_obj; 
+            $checkout_datetime_calculated_obj = clone $checkin_datetime_obj;
             // Logic for calculating checkout_datetime_calculated (kept as original)
             if ($booking_type === 'overnight') {
-                list($h, $m, $s) = explode(':', CHECKOUT_TIME_STR); 
+                list($h, $m, $s) = explode(':', CHECKOUT_TIME_STR);
                 if ($is_flexible_overnight_mode_active) {
                     // Flexible overnight logic (kept as original)
                     $checkin_hour = (int)$checkin_datetime_obj->format('H');
                     $checkin_date_Y_m_d = $checkin_datetime_obj->format('Y-m-d');
                     $noon_on_checkin_day_obj = new \DateTime($checkin_date_Y_m_d . ' ' . CHECKOUT_TIME_STR, new \DateTimeZone('Asia/Bangkok'));
-                    if ($checkin_hour >= 1 && $checkin_hour < 11) { 
+                    if ($checkin_hour >= 1 && $checkin_hour < 11) {
                         $checkout_datetime_calculated_obj = clone $noon_on_checkin_day_obj;
                         error_log("[API Create Flexible Overnight EARLY CHECK-IN] Check-in at {$checkin_hour}:00. Checkout forced to: " . $checkout_datetime_calculated_obj->format('Y-m-d H:i:s'));
-                    } elseif ($checkin_datetime_obj < $noon_on_checkin_day_obj) { 
+                    } elseif ($checkin_datetime_obj < $noon_on_checkin_day_obj) {
                         $checkout_datetime_calculated_obj = $noon_on_checkin_day_obj;
                         error_log("[API Create Flexible Overnight REGULAR BEFORE NOON] Check-in before noon. Checkout set to: " . $checkout_datetime_calculated_obj->format('Y-m-d H:i:s'));
                     } else {
@@ -177,23 +179,23 @@ switch ($action) {
                         $checkout_datetime_calculated_obj->setTime((int)$h, (int)$m, (int)$s);
                         error_log("[API Create Flexible Overnight STANDARD] Check-in at or after noon. Checkout based on nights: " . $checkout_datetime_calculated_obj->format('Y-m-d H:i:s'));
                     }
-                } else { 
+                } else {
                     $checkout_datetime_calculated_obj->add(new DateInterval("P{$nights}D"));
                     $checkout_datetime_calculated_obj->setTime((int)$h, (int)$m, (int)$s);
                     error_log("[API Create Standard Overnight] Checkout set to: " . $checkout_datetime_calculated_obj->format('Y-m-d H:i:s'));
                 }
-            } elseif ($booking_type === 'short_stay') { 
+            } elseif ($booking_type === 'short_stay') {
                 // Short stay checkout logic (kept as original)
-                $effective_short_stay_hours = $short_stay_duration_hours; 
+                $effective_short_stay_hours = $short_stay_duration_hours;
                 if ($booking_mode === 'single' && $room_details_for_validation && isset($room_details_for_validation['short_stay_duration_hours']) && (int)$room_details_for_validation['short_stay_duration_hours'] > 0) {
                     $effective_short_stay_hours = (int)$room_details_for_validation['short_stay_duration_hours'];
-                } elseif ($booking_mode === 'single' && $room_details_for_validation && $room_details_for_validation['allow_short_stay'] == '1' && (!isset($room_details_for_validation['short_stay_duration_hours']) || (int)$room_details_for_validation['short_stay_duration_hours'] <= 0) ){
+                } elseif ($booking_mode === 'single' && $room_details_for_validation && $room_details_for_validation['allow_short_stay'] == '1' && (!isset($room_details_for_validation['short_stay_duration_hours']) || (int)$room_details_for_validation['short_stay_duration_hours'] <= 0)) {
                 }
-                $checkout_datetime_calculated_obj->add(new DateInterval("PT{$effective_short_stay_hours}H")); 
+                $checkout_datetime_calculated_obj->add(new DateInterval("PT{$effective_short_stay_hours}H"));
                 error_log("[API Create Short Stay] Checkout set to: " . $checkout_datetime_calculated_obj->format('Y-m-d H:i:s'));
             }
-            $checkout_datetime_calculated_sql_format = $checkout_datetime_calculated_obj->format('Y-m-d H:i:s'); 
-            $nights_for_db = $nights; 
+            $checkout_datetime_calculated_sql_format = $checkout_datetime_calculated_obj->format('Y-m-d H:i:s');
+            $nights_for_db = $nights;
 
             // --- START: Create Booking Group for ALL booking modes ---
             $stmtCreateGroup = $pdo->prepare(
@@ -213,7 +215,7 @@ switch ($action) {
             }
             error_log("[API Create] Created booking_group ID: {$bookingGroupId} for booking_mode: {$booking_mode}");
             // --- END: Create Booking Group ---
-            
+
             $receiptDir = __DIR__ . '/../uploads/receipts/';
             if (!is_dir($receiptDir)) @mkdir($receiptDir, 0777, true);
             if (!is_writable($receiptDir)) throw new Exception('โฟลเดอร์หลักฐานไม่มีสิทธิ์เขียน', 500); // Receipt folder is not writable
@@ -252,7 +254,7 @@ switch ($action) {
                                 }
                             }
 
-                            if($moved_successfully) {
+                            if ($moved_successfully) {
                                 $receipt_description = isset($_POST['receipt_descriptions'][$key]) ? trim($_POST['receipt_descriptions'][$key]) : null;
                                 $uploadedReceipts[] = [
                                     'path' => $unique_rcpt_filename,
@@ -263,7 +265,7 @@ switch ($action) {
                                 continue; // Skip this file
                             }
                         } else {
-                             error_log("[API Create MultiReceipt] Skipped unsupported file type: {$ext_multi} for file {$original_filename_multi}");
+                            error_log("[API Create MultiReceipt] Skipped unsupported file type: {$ext_multi} for file {$original_filename_multi}");
                         }
                     }
                 }
@@ -288,21 +290,21 @@ switch ($action) {
                     error_log("[API Create] Inserted " . count($uploadedReceipts) . " receipts for booking group ID: {$bookingGroupId}");
                 }
             }
-            
+
             // Check if receipt is required but not uploaded
             if ($amount_paid_by_customer_for_group > 0 && !$is_receipt_uploaded && $payment_method !== 'เงินสด') { // Added condition for cash payment
                 if ($booking_mode === 'single') {
                     if ($room_zone_for_logic !== 'F' || ($room_zone_for_logic === 'F' && $booking_type === 'overnight' && $collect_deposit_zone_f)) {
-                         throw new Exception('กรุณาแนบหลักฐานการชำระเงิน (ยกเว้นโซน F หรือกรณีไม่เก็บมัดจำโซน F หรือชำระด้วยเงินสด)', 400); // Please attach proof of payment (except Zone F or if no deposit is collected for Zone F or cash payment)
+                        throw new Exception('กรุณาแนบหลักฐานการชำระเงิน (ยกเว้นโซน F หรือกรณีไม่เก็บมัดจำโซน F หรือชำระด้วยเงินสด)', 400); // Please attach proof of payment (except Zone F or if no deposit is collected for Zone F or cash payment)
                     }
                 } else { // multi-mode always requires receipt if payment is made and not cash
-                     throw new Exception('กรุณาแนบหลักฐานการชำระเงินสำหรับโหมดหลายห้อง (ยกเว้นกรณีชำระด้วยเงินสด)', 400); // Please attach proof of payment for multi-room mode (except for cash payments)
+                    throw new Exception('กรุณาแนบหลักฐานการชำระเงินสำหรับโหมดหลายห้อง (ยกเว้นกรณีชำระด้วยเงินสด)', 400); // Please attach proof of payment for multi-room mode (except for cash payments)
                 }
             }
 
 
             // Logic for calculating Addons at group level (kept as original for now, but will be ignored for room-specific addons)
-            $total_addon_cost_for_group_calculated = 0; 
+            $total_addon_cost_for_group_calculated = 0;
             $valid_addons_for_booking_group = []; // These are for the *group*, not room-specific.
             if (!empty($selected_addons_raw)) {
                 $addon_ids = array_keys($selected_addons_raw);
@@ -315,7 +317,7 @@ switch ($action) {
                         $addon_id = (int)$addon_id_str;
                         if (isset($db_addons[$addon_id]) && isset($addon_data['id']) && (int)$addon_data['id'] === $addon_id) {
                             $quantity = isset($addon_data['quantity']) ? max(1, (int)$addon_data['quantity']) : 1;
-                            $price_at_booking_val = (int)round((float)$db_addons[$addon_id]); 
+                            $price_at_booking_val = (int)round((float)$db_addons[$addon_id]);
                             $total_addon_cost_for_group_calculated += $price_at_booking_val * $quantity;
                             $valid_addons_for_booking_group[] = ['addon_service_id' => $addon_id, 'quantity' => $quantity, 'price_at_booking' => $price_at_booking_val];
                         }
@@ -336,9 +338,9 @@ switch ($action) {
                 if ($booking_type !== 'overnight') {
                     error_log("[API Create Multi] Forcing booking_type to 'overnight' for multi-room mode implicitly. Original type was {$booking_type}");
                     if ($nights_for_db == 0) throw new Exception('Multi-room bookings must be overnight and have at least 1 night.', 400);
-                     $booking_type = 'overnight'; // Ensure booking type is overnight for multi-room logic
+                    $booking_type = 'overnight'; // Ensure booking type is overnight for multi-room logic
                 }
-                
+
                 // ***** START: โค้ดที่แก้ไข (ปรับปรุงการคำนวณยอดรวมของกลุ่ม) *****
                 // STEP 1: วนรอบแรกเพื่อคำนวณ "ยอดรวมที่แท้จริงทั้งหมด" ของกลุ่ม
                 // โดยคำนวณค่าห้อง + ค่ามัดจำ + ค่าบริการเสริมเฉพาะของแต่ละห้อง
@@ -363,7 +365,7 @@ switch ($action) {
                         'room_number' => $r_detail['room_number'],
                         'ask_deposit_on_overnight' => $r_detail['ask_deposit_on_overnight']
                     ];
-                    
+
                     $base_cost_this_room = $room_price_per_day_this_room * $nights_for_db;
 
                     // คำนวณ Addon เฉพาะห้องนี้
@@ -378,6 +380,10 @@ switch ($action) {
                     }
 
                     // คำนวณมัดจำเฉพาะห้องนี้
+                    $z_check = strtolower($r_detail['zone'] ?? '');
+                    $n_check = (int)($r_detail['room_number'] ?? 0);
+                    $isABC1to5 = in_array($z_check, ['a', 'b', 'c']) && $n_check >= 1 && $n_check <= 5;
+
                     $deposit_this_room = 0;
                     if ($booking_type === 'overnight') {
                         if ($r_detail['zone'] === 'F' && $r_detail['ask_deposit_on_overnight'] == '1') {
@@ -387,15 +393,17 @@ switch ($action) {
                         } else {
                             $deposit_this_room = FIXED_DEPOSIT_AMOUNT;
                         }
+                    } elseif ($booking_type === 'short_stay' && $isABC1to5) {
+                        $deposit_this_room = FIXED_DEPOSIT_AMOUNT;
                     }
-                    
+
                     // เก็บ total price ของแต่ละห้องไว้ใน map ด้วย
                     $room_details_map_multi[$r_id]['final_total_price'] = $base_cost_this_room + $addon_cost_for_this_specific_room + $deposit_this_room;
-                    
+
                     // เพิ่มยอดรวมของห้องนี้เข้าไปในยอดรวมของกลุ่ม
                     $actual_grand_total_for_group += $room_details_map_multi[$r_id]['final_total_price'];
                 }
-                
+
                 error_log("[API Create Multi] Actual Grand Total for Group Calculated: {$actual_grand_total_for_group}");
 
                 // STEP 2: วนรอบที่สองเพื่อสร้าง Booking แต่ละรายการ
@@ -413,9 +421,9 @@ switch ($action) {
                     $stmtCheckOverlap->execute([':room_id' => $current_processing_room_id, ':new_checkin' => $checkin_sql_format, ':new_checkout' => $checkout_datetime_calculated_sql_format]);
                     if ($stmtCheckOverlap->fetchColumn() > 0) {
                         $room_display_name_multi = $current_room_details_multi['zone'] . $current_room_details_multi['room_number'];
-                        throw new Exception("ห้องพัก ".htmlspecialchars($room_display_name_multi)." ไม่ว่างในช่วงเวลาที่คุณเลือก", 409); // Room is unavailable during the selected period
+                        throw new Exception("ห้องพัก " . htmlspecialchars($room_display_name_multi) . " ไม่ว่างในช่วงเวลาที่คุณเลือก", 409); // Room is unavailable during the selected period
                     }
-                    
+
                     // ปันส่วน amount_paid โดยใช้ ยอดรวมที่แท้จริง
                     $amount_paid_for_this_room_record = 0;
                     if ($actual_grand_total_for_group > 0) {
@@ -423,9 +431,13 @@ switch ($action) {
                     } elseif (count($roomIds) > 0 && $amount_paid_by_customer_for_group > 0) {
                         $amount_paid_for_this_room_record = (int)round($amount_paid_by_customer_for_group / count($roomIds));
                     }
-                    
+
                     // คำนวณค่าห้อง, มัดจำ และราคาต่อคืนอีกครั้ง (เพื่อความชัดเจน)
                     $current_room_price_per_night = $current_room_details_multi['price_per_day'];
+                    $z_check2 = strtolower($current_room_details_multi['zone'] ?? '');
+                    $n_check2 = (int)($current_room_details_multi['room_number'] ?? 0);
+                    $isABC1to5_2 = in_array($z_check2, ['a', 'b', 'c']) && $n_check2 >= 1 && $n_check2 <= 5;
+
                     $deposit_this_room = 0;
                     if ($booking_type === 'overnight') {
                         if ($current_room_details_multi['zone'] === 'F' && $current_room_details_multi['ask_deposit_on_overnight'] == '1') {
@@ -433,6 +445,8 @@ switch ($action) {
                         } else {
                             $deposit_this_room = FIXED_DEPOSIT_AMOUNT;
                         }
+                    } elseif ($booking_type === 'short_stay' && $isABC1to5_2) {
+                        $deposit_this_room = FIXED_DEPOSIT_AMOUNT;
                     }
 
                     // สร้างการจอง (Insert into bookings table) - (โค้ดส่วนนี้เหมือนเดิม แต่ใช้ค่าที่คำนวณใหม่)
@@ -444,16 +458,20 @@ switch ($action) {
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, NOW(), ?, ?, ?, ?)";
                     $stmt = $pdo->prepare($sql);
                     $stmt->execute([
-                        $current_processing_room_id, $customer_name, empty($customer_phone) ? null : $customer_phone,
-                        'overnight', 
-                        $checkin_sql_format, $checkout_datetime_calculated_sql_format, 
-                        $nights_for_db, 
-                        $current_room_price_per_night, 
+                        $current_processing_room_id,
+                        $customer_name,
+                        empty($customer_phone) ? null : $customer_phone,
+                        'overnight',
+                        $checkin_sql_format,
+                        $checkout_datetime_calculated_sql_format,
+                        $nights_for_db,
+                        $current_room_price_per_night,
                         $total_price_this_room_for_db, // <--- ใช้ยอดรวมของห้องนี้ที่คำนวณไว้
                         $amount_paid_for_this_room_record, // <--- ใช้ยอดปันส่วนที่ถูกต้อง
-                        $payment_method, $notes,
+                        $payment_method,
+                        $notes,
                         $deposit_this_room, // <--- ใช้ค่ามัดจำของห้องนี้
-                        $current_user_id, 
+                        $current_user_id,
                         $current_user_id,
                         $bookingGroupId
                     ]);
@@ -463,7 +481,7 @@ switch ($action) {
                     // บันทึก Addon เฉพาะของห้องนี้ (เหมือนเดิม)
                     if (isset($posted_room_addons[$current_processing_room_id]) && is_array($posted_room_addons[$current_processing_room_id])) {
                         error_log("[API Create Multi] Processing room-specific addons for Room ID: {$current_processing_room_id}, Booking ID: {$bookingId}");
-                        
+
                         $stmt_addon_prices_for_room = $pdo->prepare("SELECT id, price FROM addon_services WHERE id = ? AND is_active = 1");
                         $stmt_insert_addon_room_specific = $pdo->prepare(
                             "INSERT INTO booking_addons (booking_id, addon_service_id, quantity, price_at_booking) VALUES (?, ?, ?, ?)"
@@ -472,7 +490,7 @@ switch ($action) {
                         foreach ($posted_room_addons[$current_processing_room_id] as $addon_id => $quantity) {
                             $addon_id = (int)$addon_id;
                             $quantity = (int)$quantity;
-                            
+
                             if ($addon_id > 0 && $quantity > 0) {
                                 // ดึงราคาล่าสุดจาก DB เพื่อความปลอดภัย
                                 $stmt_addon_prices_for_room->execute([$addon_id]);
@@ -493,7 +511,7 @@ switch ($action) {
                     $stmt_get_current_room_status_multi = $pdo->prepare("SELECT status FROM rooms WHERE id = ?");
                     $stmt_get_current_room_status_multi->execute([$current_processing_room_id]);
                     $db_current_room_status_multi = $stmt_get_current_room_status_multi->fetchColumn();
-                    
+
                     // <<<< START: MODIFICATION FOR AUTO CHECK-IN AND STATUS LOGIC (MULTI ROOM) >>>>
                     $current_new_room_status_for_multi = $db_current_room_status_multi; // Default to current DB status
 
@@ -506,8 +524,8 @@ switch ($action) {
                         $current_new_room_status_for_multi = 'occupied';
                         error_log("[API Create Multi] AUTO CHECK-IN: Check-in time ({$checkin_sql_format}) is past/current. Room ID: {$current_processing_room_id}, Booking ID: {$bookingId}. Setting status to 'occupied'.");
                     } else { // Check-in time is in the future (Multi-room is always 'overnight')
-                        $today_date_obj_api_multi = (clone $now_dt_api)->setTime(0,0,0);
-                        $checkin_date_part_obj_api_multi = (clone $checkin_datetime_obj)->setTime(0,0,0);
+                        $today_date_obj_api_multi = (clone $now_dt_api)->setTime(0, 0, 0);
+                        $checkin_date_part_obj_api_multi = (clone $checkin_datetime_obj)->setTime(0, 0, 0);
 
                         if ($checkin_date_part_obj_api_multi == $today_date_obj_api_multi) { // Booking for later today
                             $current_new_room_status_for_multi = 'booked';
@@ -535,8 +553,8 @@ switch ($action) {
                 // ***** END: โค้ดที่แก้ไข *****
 
             } else { // Single booking mode
-                $roomId = (int) ($_POST['room_id'] ?? 0); 
-                if (!$roomId && isset($roomId_single)) $roomId = $roomId_single; 
+                $roomId = (int) ($_POST['room_id'] ?? 0);
+                if (!$roomId && isset($roomId_single)) $roomId = $roomId_single;
 
                 // Check for overlap (kept as original)
                 $stmtCheckOverlap = $pdo->prepare("
@@ -554,38 +572,46 @@ switch ($action) {
                     $room_display_name_stmt_single = $pdo->prepare("SELECT CONCAT(zone, room_number) FROM rooms WHERE id = ?");
                     $room_display_name_stmt_single->execute([$roomId]);
                     $room_display_name_single = $room_display_name_stmt_single->fetchColumn() ?: "ID {$roomId}";
-                    throw new Exception("ห้องพัก ".htmlspecialchars($room_display_name_single)." ไม่ว่างในช่วงเวลาที่คุณเลือก ({$checkin_sql_format} - {$checkout_datetime_calculated_sql_format}) กรุณาเลือกห้องหรือช่วงเวลาอื่น", 409); // Room is unavailable during the selected period. Please choose another room or period.
+                    throw new Exception("ห้องพัก " . htmlspecialchars($room_display_name_single) . " ไม่ว่างในช่วงเวลาที่คุณเลือก ({$checkin_sql_format} - {$checkout_datetime_calculated_sql_format}) กรุณาเลือกห้องหรือช่วงเวลาอื่น", 409); // Room is unavailable during the selected period. Please choose another room or period.
                 }
 
 
-                $base_room_cost_single = 0; 
-                $price_per_night_db_single = null; 
-                $deposit_amount_single = 0; 
+                $z_check_s = strtolower($room_zone_for_logic);
+                $n_check_s = (int)($room_details_for_validation['room_number'] ?? 0);
+                $isABC1to5_s = in_array($z_check_s, ['a', 'b', 'c']) && $n_check_s >= 1 && $n_check_s <= 5;
+
+                $base_room_cost_single = 0;
+                $price_per_night_db_single = null;
+                $deposit_amount_single = 0;
 
                 if ($booking_type === 'overnight') {
                     if (!$room_details_for_validation) throw new Exception("ไม่พบรายละเอียดห้องพักสำหรับคำนวณราคา (Overnight)", 500); // Room details not found for price calculation (Overnight)
-                    $price_per_night_db_single = (int)round((float)$room_details_for_validation['price_per_day']); 
-                    $base_room_cost_single = $price_per_night_db_single * $nights_for_db; 
-                    
-                    if ($room_zone_for_logic === 'F') { 
+                    $price_per_night_db_single = (int)round((float)$room_details_for_validation['price_per_day']);
+                    $base_room_cost_single = $price_per_night_db_single * $nights_for_db;
+
+                    if ($room_zone_for_logic === 'F') {
                         if ($room_details_for_validation['ask_deposit_on_overnight'] == '1' && $collect_deposit_zone_f) {
-                            $deposit_amount_single = FIXED_DEPOSIT_AMOUNT; 
+                            $deposit_amount_single = FIXED_DEPOSIT_AMOUNT;
                         } else {
                             $deposit_amount_single = 0;
                         }
-                    } else { 
-                        $deposit_amount_single = FIXED_DEPOSIT_AMOUNT; 
+                    } else {
+                        $deposit_amount_single = FIXED_DEPOSIT_AMOUNT;
                     }
                 } elseif ($booking_type === 'short_stay') {
                     if (!$room_details_for_validation) throw new Exception("ไม่พบรายละเอียดห้องพักสำหรับคำนวณราคา (Short Stay)", 500); // Room details not found for price calculation (Short Stay)
                     if (!$room_details_for_validation['allow_short_stay']) throw new Exception("ห้องนี้ ID:{$roomId} ไม่รองรับการจองแบบชั่วคราว", 400); // This room ID:{$roomId} does not support short-stay bookings
-                    $base_room_cost_single = (int)round((float)$room_details_for_validation['price_short_stay']); 
-                    $deposit_amount_single = 0; 
+                    $base_room_cost_single = (int)round((float)$room_details_for_validation['price_short_stay']);
+                    if ($isABC1to5_s) {
+                        $deposit_amount_single = FIXED_DEPOSIT_AMOUNT;
+                    } else {
+                        $deposit_amount_single = 0;
+                    }
                 }
-                $total_price_for_db_single = $base_room_cost_single + $total_addon_cost_for_group_calculated + $deposit_amount_single; 
-                
-                if ($amount_paid_by_customer_for_group != $total_price_for_db_single) { 
-                     error_log("[API Create Single] Amount paid by customer ({$amount_paid_by_customer_for_group}) differs from server calculated total price ({$total_price_for_db_single}). Using customer provided amount for 'amount_paid' field.");
+                $total_price_for_db_single = $base_room_cost_single + $total_addon_cost_for_group_calculated + $deposit_amount_single;
+
+                if ($amount_paid_by_customer_for_group != $total_price_for_db_single) {
+                    error_log("[API Create Single] Amount paid by customer ({$amount_paid_by_customer_for_group}) differs from server calculated total price ({$total_price_for_db_single}). Using customer provided amount for 'amount_paid' field.");
                 }
 
                 // --- START: MODIFIED SQL INSERT for booking_group_id ---
@@ -597,15 +623,20 @@ switch ($action) {
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, NOW(), ?, ?, ?, ?)";
                 $stmt = $pdo->prepare($sql);
                 $stmt->execute([
-                    $roomId, $customer_name, empty($customer_phone) ? null : $customer_phone, $booking_type,
-                    $checkin_sql_format, $checkout_datetime_calculated_sql_format, 
-                    $nights_for_db, 
-                    $price_per_night_db_single, 
-                    $total_price_for_db_single, 
-                    $amount_paid_by_customer_for_group, 
-                    $payment_method, empty($notes) ? null : $notes,
-                    $deposit_amount_single, 
-                    $current_user_id, 
+                    $roomId,
+                    $customer_name,
+                    empty($customer_phone) ? null : $customer_phone,
+                    $booking_type,
+                    $checkin_sql_format,
+                    $checkout_datetime_calculated_sql_format,
+                    $nights_for_db,
+                    $price_per_night_db_single,
+                    $total_price_for_db_single,
+                    $amount_paid_by_customer_for_group,
+                    $payment_method,
+                    empty($notes) ? null : $notes,
+                    $deposit_amount_single,
+                    $current_user_id,
                     $current_user_id,
                     $bookingGroupId // Added booking_group_id
                 ]);
@@ -619,7 +650,7 @@ switch ($action) {
                     $stmt_insert_addon = $pdo->prepare(
                         "INSERT INTO booking_addons (booking_id, addon_service_id, quantity, price_at_booking) VALUES (?, ?, ?, ?)"
                     );
-                    foreach ($valid_addons_for_booking_group as $addon_to_save) { 
+                    foreach ($valid_addons_for_booking_group as $addon_to_save) {
                         $stmt_insert_addon->execute([$bookingId, $addon_to_save['addon_service_id'], $addon_to_save['quantity'], $addon_to_save['price_at_booking']]);
                     }
                 }
@@ -688,7 +719,7 @@ switch ($action) {
                 // error_log("[API Create Single] Final newRoomStatus_single for Room ID {$roomId}: {$newRoomStatus_single}. Based on Processed Check-in time: {$checkin_sql_format}");
                 // if ($newRoomStatus_single !== null && ($newRoomStatus_single !== $currentRoomDBStatus)) { ... }
                 // <<<< END: MODIFICATION FOR AUTO CHECK-IN AND STATUS LOGIC (SINGLE ROOM) >>>>
-                
+
                 error_log("[API Create Single] Final newRoomStatus_single for Room ID {$roomId}: {$newRoomStatus_single}. Based on Processed Check-in time: {$checkin_sql_format}");
 
                 if ($newRoomStatus_single !== null && ($newRoomStatus_single !== $currentRoomDBStatus)) {
@@ -710,12 +741,12 @@ switch ($action) {
                         }
                     }
                 } else {
-                     error_log("[API Create Single] Room ID: {$roomId}. No status change needed for this booking operation (new status '{$newRoomStatus_single}', current DB status '{$currentRoomDBStatus}').");
+                    error_log("[API Create Single] Room ID: {$roomId}. No status change needed for this booking operation (new status '{$newRoomStatus_single}', current DB status '{$currentRoomDBStatus}').");
                 }
             }
 
             $pdo->commit();
-            
+
             // --- START: Telegram Notification Trigger ---
             try {
                 if (function_exists('sendTelegramRoomStatusUpdate')) {
@@ -731,7 +762,6 @@ switch ($action) {
             echo json_encode(['success' => true, 'message' => $successMessage, 'booking_ids' => $createdBookingIds, 'booking_group_id' => $bookingGroupId, 'redirect_url' => '/hotel_booking/pages/index.php']);
             // ** MODIFICATION END **
             exit;
-
         } catch (PDOException $e) {
             // ... (catch PDOException เหมือนเดิม) ...
             if ($pdo->inTransaction()) $pdo->rollBack();
@@ -742,17 +772,135 @@ switch ($action) {
         } catch (Exception $e) {
             // ... (catch Exception เหมือนเดิม) ...
             if ($pdo->inTransaction()) $pdo->rollBack();
-            $errorCode = ($e->getCode() >= 400 && $e->getCode() < 600) ? $e->getCode() : 500; 
+            $errorCode = ($e->getCode() >= 400 && $e->getCode() < 600) ? $e->getCode() : 500;
             http_response_code($errorCode);
             error_log("[API Create] App Error: " . $e->getMessage() . " Trace: " . $e->getTraceAsString());
-            echo json_encode(['success' => false, 'message' => $e->getMessage(), 'detail' => $e->getMessage()]); 
+            echo json_encode(['success' => false, 'message' => $e->getMessage(), 'detail' => $e->getMessage()]);
             exit;
         }
+
+    case 'pay_deposit_later':
+        try {
+            $bookingId = $_POST['booking_id'] ?? 0;
+            $depositAmountToPay = isset($_POST['deposit_amount']) ? (float)$_POST['deposit_amount'] : FIXED_DEPOSIT_AMOUNT;
+
+            if (!$bookingId) throw new Exception("ไม่พบรหัสการจอง");
+
+            $pdo->beginTransaction();
+
+            // Check current booking info
+            $stmtCheck = $pdo->prepare("SELECT deposit_amount, amount_paid FROM bookings WHERE id = ?");
+            $stmtCheck->execute([$bookingId]);
+            $booking = $stmtCheck->fetch(PDO::FETCH_ASSOC);
+            if (!$booking) {
+                throw new Exception("ไม่พบข้อมูลการจอง");
+            }
+
+            // Update booking: increase amount_paid. In this setup, deposit_amount in DB is the "required deposit".
+            // If we are paying it now, that means amount_paid just increments, and maybe we don't increase deposit_amount if it already reflects the requirement.
+            // But wait, if they "pay later", deposit_amount in DB is the *required* deposit. If they pay it now, amount_paid should increase by the deposit amount.
+            // Let's just increase `amount_paid` and `additional_paid_amount`.
+            $stmtUpdate = $pdo->prepare("UPDATE bookings SET amount_paid = amount_paid + ?, additional_paid_amount = COALESCE(additional_paid_amount, 0) + ? WHERE id = ?");
+            if ($stmtUpdate->execute([$depositAmountToPay, $depositAmountToPay, $bookingId])) {
+                $pdo->commit();
+                echo json_encode(['success' => true, 'message' => 'ชำระค่ามัดจำเรียบร้อยแล้ว']);
+            } else {
+                $pdo->rollBack();
+                throw new Exception("ไม่สามารถบันทึกข้อมูลได้");
+            }
+            exit;
+        } catch (Exception $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            $errorCode = ($e->getCode() >= 400 && $e->getCode() < 600) ? $e->getCode() : 500;
+            http_response_code($errorCode);
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+            exit;
+        }
+
+    case 'bulk_cancel_booking':
+        try {
+            $pdo->beginTransaction();
+            $bookingIds = $_POST['booking_ids'] ?? [];
+            if (empty($bookingIds) || !is_array($bookingIds)) {
+                throw new Exception("ไม่พบรายการห้องพักที่เลือก");
+            }
+
+            foreach ($bookingIds as $bookingId) {
+                $bookingId = (int)$bookingId;
+
+                $stmtRoom = $pdo->prepare("SELECT room_id FROM bookings WHERE id = ?");
+                $stmtRoom->execute([$bookingId]);
+                $roomRes = $stmtRoom->fetch(PDO::FETCH_ASSOC);
+                if (!$roomRes) continue;
+                $roomId = $roomRes['room_id'];
+
+                $stmtFilePaths = $pdo->prepare("SELECT receipt_path, extended_receipt_path FROM bookings WHERE id = ?");
+                $stmtFilePaths->execute([$bookingId]);
+                $pathsToDelete = $stmtFilePaths->fetch(PDO::FETCH_ASSOC);
+
+                $pdo->prepare("DELETE FROM booking_addons WHERE booking_id = ?")->execute([$bookingId]);
+
+                $stmtDel = $pdo->prepare("DELETE FROM bookings WHERE id = ?");
+                $stmtDel->execute([$bookingId]);
+
+                if ($stmtDel->rowCount() > 0) {
+                    $receiptDir = __DIR__ . '/../uploads/receipts/';
+                    if ($pathsToDelete) {
+                        if (!empty($pathsToDelete['receipt_path'])) {
+                            @unlink($receiptDir . $pathsToDelete['receipt_path']);
+                        }
+                        if (!empty($pathsToDelete['extended_receipt_path'])) {
+                            @unlink($receiptDir . $pathsToDelete['extended_receipt_path']);
+                        }
+                    }
+
+                    // Update room status
+                    $activeOrFutureBookingsStmt = $pdo->prepare("
+                        SELECT id, checkin_datetime, checkout_datetime_calculated 
+                        FROM bookings WHERE room_id = :room_id AND checkout_datetime_calculated > NOW() 
+                        ORDER BY checkin_datetime ASC LIMIT 1
+                    ");
+                    $activeOrFutureBookingsStmt->execute([':room_id' => $roomId]);
+                    $nextRel = $activeOrFutureBookingsStmt->fetch(PDO::FETCH_ASSOC);
+
+                    $newRoomStatus = 'free';
+                    if ($nextRel) {
+                        $nCD = new DateTime($nextRel['checkin_datetime'], new DateTimeZone('Asia/Bangkok'));
+                        $nowD = new DateTime('now', new DateTimeZone('Asia/Bangkok'));
+                        if ($nCD <= $nowD) {
+                            $newRoomStatus = 'occupied';
+                        } elseif ($nCD->format('Y-m-d') === $nowD->format('Y-m-d')) {
+                            $newRoomStatus = 'booked';
+                        }
+                    }
+                    $pdo->prepare("UPDATE rooms SET status = ? WHERE id = ?")->execute([$newRoomStatus, $roomId]);
+                }
+            }
+            $pdo->commit();
+
+            try {
+                if (function_exists('sendTelegramRoomStatusUpdate')) {
+                    sendTelegramRoomStatusUpdate($pdo);
+                }
+            } catch (Exception $tg_e) {
+                error_log("Telegram error: " . $tg_e->getMessage());
+            }
+
+            echo json_encode(['success' => true, 'message' => 'ยกเลิกการจองเรียบร้อยแล้ว']);
+            exit;
+        } catch (Exception $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            $errorCode = ($e->getCode() >= 400 && $e->getCode() < 600) ? $e->getCode() : 500;
+            http_response_code($errorCode);
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+            exit;
+        }
+
     case 'bulk_return_and_complete':
         try {
             $pdo->beginTransaction();
             $current_user_id = get_current_user_id();
-            
+
             $bookingIds = $_POST['booking_ids'] ?? [];
             if (empty($bookingIds) || !is_array($bookingIds)) {
                 throw new Exception("ไม่พบรายการห้องพักที่เลือก");
@@ -766,10 +914,10 @@ switch ($action) {
                 // ... (Logic อัปโหลดไฟล์เหมือนเดิมใน case return_and_complete) ...
                 $depositDir = __DIR__ . '/../uploads/deposit/';
                 if (!is_dir($depositDir)) @mkdir($depositDir, 0777, true);
-                
+
                 $ext = strtolower(pathinfo($_FILES['deposit_proof']['name'], PATHINFO_EXTENSION));
                 $depositProofFile = 'deposit_bulk_' . uniqid() . '.' . $ext;
-                
+
                 if (move_uploaded_file($_FILES['deposit_proof']['tmp_name'], $depositDir . $depositProofFile)) {
                     $actuallyReturnDepositFlag = 1;
                 } else {
@@ -780,12 +928,12 @@ switch ($action) {
             // 2. วนลูปดำเนินการกับแต่ละ Booking
             foreach ($bookingIds as $bookingId) {
                 $bookingId = (int)$bookingId;
-                
+
                 // ดึงข้อมูล Booking เดิม
                 $stmtBooking = $pdo->prepare("SELECT * FROM bookings WHERE id = ?");
                 $stmtBooking->execute([$bookingId]);
                 $booking = $stmtBooking->fetch(PDO::FETCH_ASSOC);
-                
+
                 if (!$booking) continue; // ข้ามถ้าไม่เจอ
 
                 // เตรียมข้อมูล Archive (ใช้ logic เดียวกับ return_and_complete)
@@ -837,7 +985,7 @@ switch ($action) {
                     ':last_modified_by' => $current_user_id,
                     ':booking_group_id' => $booking['booking_group_id']
                 ]);
-                
+
                 $archiveId = $pdo->lastInsertId();
 
                 // ย้าย Addons
@@ -847,7 +995,7 @@ switch ($action) {
                 // ลบข้อมูลเก่า
                 $pdo->prepare("DELETE FROM booking_addons WHERE booking_id = ?")->execute([$bookingId]);
                 $pdo->prepare("DELETE FROM bookings WHERE id = ?")->execute([$bookingId]);
-                
+
                 // อัปเดตห้องเป็นว่าง
                 $pdo->prepare("UPDATE rooms SET status = 'free' WHERE id = ?")->execute([$booking['room_id']]);
             }
@@ -859,14 +1007,13 @@ switch ($action) {
             }
 
             echo json_encode(['success' => true, 'message' => 'ทำรายการคืนมัดจำ/เช็คเอาท์เรียบร้อยแล้ว']);
-
         } catch (Exception $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
             http_response_code(500);
             echo json_encode(['success' => false, 'message' => $e->getMessage()]);
         }
         exit;
-    
+
     case 'update_booking_group':
         try {
             $pdo->beginTransaction();
@@ -919,7 +1066,7 @@ switch ($action) {
             if (empty($customer_name)) {
                 throw new Exception("ชื่อผู้จองหลักต้องไม่เป็นค่าว่าง", 400); // Main booker name cannot be empty
             }
-            
+
             $stmtUpdate = $pdo->prepare("UPDATE booking_groups SET customer_name = ?, customer_phone = ?, notes = ? WHERE id = ?");
             $stmtUpdate->execute([$customer_name, $customer_phone, $notes, $booking_group_id]);
 
@@ -948,16 +1095,16 @@ switch ($action) {
                             }
                         }
 
-                        if($moved_successfully) {
+                        if ($moved_successfully) {
                             $stmtAddReceipt = $pdo->prepare("INSERT INTO booking_group_receipts (booking_group_id, receipt_path, uploaded_by_user_id) VALUES (?, ?, ?)");
                             $stmtAddReceipt->execute([$booking_group_id, $unique_filename, $current_user_id]);
                         } else {
-                             error_log("[API UpdateGroup] Failed to move uploaded receipt: {$filename}");
+                            error_log("[API UpdateGroup] Failed to move uploaded receipt: {$filename}");
                         }
                     }
                 }
             }
-            
+
             $pdo->commit();
             echo json_encode(['success' => true, 'message' => 'บันทึกข้อมูลกลุ่มเรียบร้อยแล้ว']); // Group data saved successfully
 
@@ -969,7 +1116,7 @@ switch ($action) {
         }
         exit;
 
-        case 'get_group_details_for_bill':
+    case 'get_group_details_for_bill':
         try {
             $groupId = (int)($_GET['booking_group_id'] ?? 0);
             if (!$groupId) {
@@ -992,16 +1139,15 @@ switch ($action) {
             ");
             $stmtBookings->execute([$groupId]);
             $bookings = $stmtBookings->fetchAll(PDO::FETCH_ASSOC);
-            
-            echo json_encode(['success' => true, 'group_info' => $groupInfo, 'bookings' => $bookings]);
 
+            echo json_encode(['success' => true, 'group_info' => $groupInfo, 'bookings' => $bookings]);
         } catch (Exception $e) {
             http_response_code($e->getCode() >= 400 ? $e->getCode() : 500);
             echo json_encode(['success' => false, 'message' => $e->getMessage()]);
         }
         exit;
 
-    case 'update_booking_with_addons': 
+    case 'update_booking_with_addons':
         $pdo->beginTransaction();
         try {
             $current_user_id = get_current_user_id();
@@ -1031,7 +1177,7 @@ switch ($action) {
                        r.price_short_stay as room_short_price,
                        r.allow_short_stay as room_allows_short,
                        r.ask_deposit_on_overnight as room_ask_deposit_f,
-                       COALESCE(r.short_stay_duration_hours, ".DEFAULT_SHORT_STAY_DURATION_HOURS.") as room_default_short_duration
+                       COALESCE(r.short_stay_duration_hours, " . DEFAULT_SHORT_STAY_DURATION_HOURS . ") as room_default_short_duration
                 FROM bookings b
                 JOIN rooms r ON b.room_id = r.id
                 WHERE b.id = ?
@@ -1042,7 +1188,7 @@ switch ($action) {
 
             $stmtOldAddonsSum = $pdo->prepare("SELECT SUM(quantity * price_at_booking) FROM booking_addons WHERE booking_id = ?");
             $stmtOldAddonsSum->execute([$bookingId]);
-            $original_total_addon_cost_from_db_for_calc = (int)round((float)$stmtOldAddonsSum->fetchColumn()); 
+            $original_total_addon_cost_from_db_for_calc = (int)round((float)$stmtOldAddonsSum->fetchColumn());
 
             $customer_name_raw = trim($_POST['customer_name'] ?? $oldBookingData['customer_name']);
             $current_room_zone = $oldBookingData['room_current_zone'];
@@ -1053,7 +1199,7 @@ switch ($action) {
                     $customer_name = "ผู้เข้าพักโซน F (แก้ไข ไม่ระบุชื่อ)"; // Guest Zone F (edited, unspecified name)
                 }
             } else if (!array_key_exists('customer_name', $_POST) && empty($oldBookingData['customer_name'])) {
-                 if (empty($customer_name_raw)) { 
+                if (empty($customer_name_raw)) {
                     $customer_name = "ผู้เข้าพัก (แก้ไข ไม่ระบุชื่อ)"; // Guest (edited, unspecified name)
                     if ($current_room_zone === 'F') {
                         $customer_name = "ผู้เข้าพักโซน F (แก้ไข ไม่ระบุชื่อ)"; // Guest Zone F (edited, unspecified name)
@@ -1066,47 +1212,47 @@ switch ($action) {
             $notes = isset($_POST['notes']) ? trim($_POST['notes']) : $oldBookingData['notes'];
             $selected_addons_raw = $_POST['selected_addons'] ?? [];
 
-            $new_amount_paid_from_form = isset($_POST['amount_paid']) ? (int)round((float)$_POST['amount_paid']) : (int)round((float)$oldBookingData['amount_paid']); 
-            $new_checkout_datetime_from_form_str = isset($_POST['checkout_datetime_edit']) ? trim($_POST['checkout_datetime_edit']) : null; 
-            $new_nights_from_form = isset($_POST['nights']) ? (int)$_POST['nights'] : (int)$oldBookingData['nights']; 
+            $new_amount_paid_from_form = isset($_POST['amount_paid']) ? (int)round((float)$_POST['amount_paid']) : (int)round((float)$oldBookingData['amount_paid']);
+            $new_checkout_datetime_from_form_str = isset($_POST['checkout_datetime_edit']) ? trim($_POST['checkout_datetime_edit']) : null;
+            $new_nights_from_form = isset($_POST['nights']) ? (int)$_POST['nights'] : (int)$oldBookingData['nights'];
 
             $fieldsToUpdate = [];
             $bindings = [];
-            $dataChanged = false; 
+            $dataChanged = false;
 
             $fieldsToUpdate['customer_name'] = $customer_name;
             $fieldsToUpdate['customer_phone'] = empty($customer_phone) ? null : $customer_phone;
             $fieldsToUpdate['payment_method'] = $payment_method;
             $fieldsToUpdate['notes'] = empty($notes) ? null : $notes;
-            
+
             $old_booking_amount_paid_int = (int)round((float)$oldBookingData['amount_paid']);
-            if ($new_amount_paid_from_form != $old_booking_amount_paid_int) { 
-                $fieldsToUpdate['amount_paid'] = $new_amount_paid_from_form; 
-                $additional_increment = $new_amount_paid_from_form - $old_booking_amount_paid_int; 
-                
-                $current_additional_paid = (int)round((float)($oldBookingData['additional_paid_amount'] ?? 0)); 
-                $fieldsToUpdate['additional_paid_amount'] = $current_additional_paid + $additional_increment; 
-                
+            if ($new_amount_paid_from_form != $old_booking_amount_paid_int) {
+                $fieldsToUpdate['amount_paid'] = $new_amount_paid_from_form;
+                $additional_increment = $new_amount_paid_from_form - $old_booking_amount_paid_int;
+
+                $current_additional_paid = (int)round((float)($oldBookingData['additional_paid_amount'] ?? 0));
+                $fieldsToUpdate['additional_paid_amount'] = $current_additional_paid + $additional_increment;
+
                 if ($fieldsToUpdate['additional_paid_amount'] < 0) {
-                     error_log("[API UpdateBooking] Warning: additional_paid_amount would become negative. Clamping to 0. Booking ID: {$bookingId}");
-                    $fieldsToUpdate['additional_paid_amount'] = 0; 
+                    error_log("[API UpdateBooking] Warning: additional_paid_amount would become negative. Clamping to 0. Booking ID: {$bookingId}");
+                    $fieldsToUpdate['additional_paid_amount'] = 0;
                 }
                 $dataChanged = true;
             } else {
-                $fieldsToUpdate['amount_paid'] = $old_booking_amount_paid_int; 
+                $fieldsToUpdate['amount_paid'] = $old_booking_amount_paid_int;
             }
 
 
             $db_nights_to_update = (int)$oldBookingData['nights'];
             $new_checkout_datetime_calculated_sql = $oldBookingData['checkout_datetime_calculated'];
-            $price_per_night_for_calc = (int)round((float)($oldBookingData['price_per_night'] ?? $oldBookingData['room_daily_price'] ?? 0)); 
+            $price_per_night_for_calc = (int)round((float)($oldBookingData['price_per_night'] ?? $oldBookingData['room_daily_price'] ?? 0));
 
 
             if ($oldBookingData['booking_type'] === 'overnight') {
                 $checkout_changed_by_datetime = false;
                 if ($new_checkout_datetime_from_form_str !== null) {
                     $new_checkout_dt_obj = DateTime::createFromFormat('Y-m-d\TH:i', $new_checkout_datetime_from_form_str);
-                    if ($new_checkout_dt_obj) { 
+                    if ($new_checkout_dt_obj) {
                         $formatted_new_checkout_from_form = $new_checkout_dt_obj->format('Y-m-d H:i:s');
                         if ($formatted_new_checkout_from_form !== $oldBookingData['checkout_datetime_calculated']) {
                             $new_checkout_datetime_calculated_sql = $formatted_new_checkout_from_form;
@@ -1115,16 +1261,16 @@ switch ($action) {
                             $checkout_changed_by_datetime = true;
 
                             $checkin_dt_obj = new DateTime($oldBookingData['checkin_datetime']);
-                            
+
                             $checkout_date_part = $new_checkout_dt_obj->format('Y-m-d');
-                            list($h_co, $m_co, $s_co) = explode(':', CHECKOUT_TIME_STR); 
+                            list($h_co, $m_co, $s_co) = explode(':', CHECKOUT_TIME_STR);
                             $standardized_checkout_for_nights_calc = (new DateTime($checkout_date_part))->setTime((int)$h_co, (int)$m_co, (int)$s_co);
-                            
+
                             $interval = $checkin_dt_obj->diff($standardized_checkout_for_nights_calc);
                             $calculated_nights = (int)$interval->days;
-                            
-                            $db_nights_to_update = max(1, $calculated_nights); 
-                            if ($new_checkout_dt_obj <= $checkin_dt_obj) { 
+
+                            $db_nights_to_update = max(1, $calculated_nights);
+                            if ($new_checkout_dt_obj <= $checkin_dt_obj) {
                                 $db_nights_to_update = 1;
                                 $correctedCheckout = clone $checkin_dt_obj;
                                 $correctedCheckout->add(new DateInterval("P1D"));
@@ -1132,15 +1278,15 @@ switch ($action) {
                                 $fieldsToUpdate['checkout_datetime_calculated'] = $correctedCheckout->format('Y-m-d H:i:s');
                                 error_log("[API UpdateBooking] Corrected checkout for Booking {$bookingId} due to invalid edit. New checkout: {$fieldsToUpdate['checkout_datetime_calculated']}");
                             }
-                            
+
                             $fieldsToUpdate['nights'] = $db_nights_to_update;
                             error_log("[API UpdateBooking] Checkout datetime edited for Booking {$bookingId} to {$new_checkout_datetime_calculated_sql}. New nights: {$db_nights_to_update}");
                         }
                     } else {
-                         error_log("[API UpdateBooking] Invalid checkout_datetime_edit format: {$new_checkout_datetime_from_form_str} for Booking ID {$bookingId}");
+                        error_log("[API UpdateBooking] Invalid checkout_datetime_edit format: {$new_checkout_datetime_from_form_str} for Booking ID {$bookingId}");
                     }
                 }
-                
+
                 if (!$checkout_changed_by_datetime && $new_nights_from_form !== (int)$oldBookingData['nights']) {
                     if ($new_nights_from_form < 1) throw new Exception("จำนวนคืนต้องอย่างน้อย 1 คืน", 400); // Nights must be at least 1
                     $db_nights_to_update = $new_nights_from_form;
@@ -1156,7 +1302,7 @@ switch ($action) {
                     $fieldsToUpdate['checkout_datetime_calculated'] = $new_checkout_datetime_calculated_sql;
                     error_log("[API UpdateBooking] Nights input changed for booking {$bookingId} to {$db_nights_to_update}. New checkout: {$new_checkout_datetime_calculated_sql}");
                 }
-                
+
                 if (isset($fieldsToUpdate['checkout_datetime_calculated']) && $new_checkout_datetime_calculated_sql > $oldBookingData['checkout_datetime_calculated']) {
                     $stmtCheckOverlap = $pdo->prepare("
                         SELECT COUNT(*) FROM bookings b
@@ -1168,32 +1314,32 @@ switch ($action) {
                     $stmtCheckOverlap->execute([
                         ':room_id' => $oldBookingData['room_id'],
                         ':current_booking_id' => $bookingId,
-                        ':new_checkin_boundary' => $oldBookingData['checkin_datetime'], 
-                        ':new_checkout_boundary' => $new_checkout_datetime_calculated_sql 
+                        ':new_checkin_boundary' => $oldBookingData['checkin_datetime'],
+                        ':new_checkout_boundary' => $new_checkout_datetime_calculated_sql
                     ]);
                     if ($stmtCheckOverlap->fetchColumn() > 0) {
                         $room_display_info = htmlspecialchars($oldBookingData['room_current_zone'] . ($oldBookingData['room_number'] ?? $oldBookingData['room_id']));
-                        throw new Exception("ห้องพัก ".$room_display_info." ไม่ว่างสำหรับช่วงเวลาที่แก้ไข กรุณาตรวจสอบปฏิทิน", 409); // Room is unavailable for the modified period. Please check the calendar.
+                        throw new Exception("ห้องพัก " . $room_display_info . " ไม่ว่างสำหรับช่วงเวลาที่แก้ไข กรุณาตรวจสอบปฏิทิน", 409); // Room is unavailable for the modified period. Please check the calendar.
                     }
                 }
             }
 
-            $total_addon_cost_new = 0; 
+            $total_addon_cost_new = 0;
             $valid_addons_for_update = [];
-            $addons_structure_changed = false; 
+            $addons_structure_changed = false;
 
             if (isset($_POST['selected_addons'])) {
                 $current_db_addons_map = [];
                 $stmt_current_db_addons = $pdo->prepare("SELECT addon_service_id, quantity FROM booking_addons WHERE booking_id = ?");
                 $stmt_current_db_addons->execute([$bookingId]);
-                foreach($stmt_current_db_addons->fetchAll(PDO::FETCH_ASSOC) as $db_addon){
+                foreach ($stmt_current_db_addons->fetchAll(PDO::FETCH_ASSOC) as $db_addon) {
                     $current_db_addons_map[(int)$db_addon['addon_service_id']] = (int)$db_addon['quantity'];
                 }
 
                 $form_addons_map = [];
-                 if (!empty($selected_addons_raw)) {
+                if (!empty($selected_addons_raw)) {
                     $addon_ids = array_keys($selected_addons_raw);
-                    if(!empty($addon_ids)){
+                    if (!empty($addon_ids)) {
                         $placeholders = implode(',', array_fill(0, count($addon_ids), '?'));
                         $stmt_addon_prices = $pdo->prepare("SELECT id, price FROM addon_services WHERE id IN ($placeholders) AND is_active = 1");
                         $stmt_addon_prices->execute($addon_ids);
@@ -1203,11 +1349,11 @@ switch ($action) {
                             $addon_id = (int)$addon_id_str;
                             if (isset($db_addons_info[$addon_id]) && isset($addon_data['id']) && (int)$addon_data['id'] === $addon_id) {
                                 $quantity = isset($addon_data['quantity']) ? max(1, (int)$addon_data['quantity']) : 1;
-                                $price_at_booking_val = (int)round((float)$db_addons_info[$addon_id]); 
-                                $total_addon_cost_new += $price_at_booking_val * $quantity; 
+                                $price_at_booking_val = (int)round((float)$db_addons_info[$addon_id]);
+                                $total_addon_cost_new += $price_at_booking_val * $quantity;
                                 $valid_addons_for_update[] = ['addon_service_id' => $addon_id, 'quantity' => $quantity, 'price_at_booking' => $price_at_booking_val];
                                 // Use this for comparison against DB, ensures integer keys
-                                $form_addons_map[$addon_id] = $quantity; 
+                                $form_addons_map[$addon_id] = $quantity;
                             }
                         }
                     }
@@ -1217,13 +1363,13 @@ switch ($action) {
                 if (count($current_db_addons_map) !== count($form_addons_map)) {
                     $addons_structure_changed = true;
                 } else {
-                    foreach($form_addons_map as $addon_id => $quantity) {
+                    foreach ($form_addons_map as $addon_id => $quantity) {
                         if (!isset($current_db_addons_map[$addon_id]) || $current_db_addons_map[$addon_id] !== $quantity) {
                             $addons_structure_changed = true;
                             break;
                         }
                     }
-                    if (!$addons_structure_changed) { 
+                    if (!$addons_structure_changed) {
                         foreach ($oldAddonsMap as $old_addon_id => $old_addon_details) { // Assuming $oldAddonsMap is defined, if not, it should be
                             if (!isset($newly_selected_addons_for_db_map[$old_addon_id])) { // Assuming $newly_selected_addons_for_db_map is defined, if not, it should be
                                 $addons_structure_changed = true;
@@ -1232,9 +1378,9 @@ switch ($action) {
                         }
                     }
                 }
-                
+
                 if ($addons_structure_changed) {
-                    $dataChanged = true; 
+                    $dataChanged = true;
                     $deleteOldAddons = $pdo->prepare("DELETE FROM booking_addons WHERE booking_id = ?");
                     $deleteOldAddons->execute([$bookingId]);
 
@@ -1242,38 +1388,40 @@ switch ($action) {
                         $stmtInsertAddon = $pdo->prepare(
                             "INSERT INTO booking_addons (booking_id, addon_service_id, quantity, price_at_booking) VALUES (?, ?, ?, ?)"
                         );
-                        foreach ($valid_addons_for_update as $addon_to_save) { 
+                        foreach ($valid_addons_for_update as $addon_to_save) {
                             $stmtInsertAddon->execute([
-                                $bookingId, $addon_to_save['addon_service_id'],
-                                $addon_to_save['quantity'], $addon_to_save['price_at_booking']
+                                $bookingId,
+                                $addon_to_save['addon_service_id'],
+                                $addon_to_save['quantity'],
+                                $addon_to_save['price_at_booking']
                             ]);
                         }
                     }
                     error_log("[API UpdateBookingAddons] Addons updated for booking {$bookingId}. New total addon cost: {$total_addon_cost_new}");
                 } else {
-                    $total_addon_cost_new = $original_total_addon_cost_from_db_for_calc; 
-                     error_log("[API UpdateBookingAddons] Addons structure unchanged for booking {$bookingId}. Using original addon cost: {$total_addon_cost_new}");
+                    $total_addon_cost_new = $original_total_addon_cost_from_db_for_calc;
+                    error_log("[API UpdateBookingAddons] Addons structure unchanged for booking {$bookingId}. Using original addon cost: {$total_addon_cost_new}");
                 }
             } else {
-                $total_addon_cost_new = $original_total_addon_cost_from_db_for_calc; 
+                $total_addon_cost_new = $original_total_addon_cost_from_db_for_calc;
                 error_log("[API UpdateBookingAddons] 'selected_addons' not in POST for booking {$bookingId}. Using original addon cost: {$total_addon_cost_new}");
             }
 
-            $new_total_price_for_db; 
-            $old_booking_deposit_amount_int = (int)round((float)$oldBookingData['deposit_amount']); 
+            $new_total_price_for_db;
+            $old_booking_deposit_amount_int = (int)round((float)$oldBookingData['deposit_amount']);
             if ($oldBookingData['booking_type'] === 'overnight') {
-                $new_total_price_for_db = ($db_nights_to_update * $price_per_night_for_calc) + $total_addon_cost_new + $old_booking_deposit_amount_int; 
-            } else { 
-                $original_room_cost_component = (int)round((float)$oldBookingData['total_price']) - $original_total_addon_cost_from_db_for_calc - $old_booking_deposit_amount_int; 
-                $new_total_price_for_db = $original_room_cost_component + $total_addon_cost_new + $old_booking_deposit_amount_int; 
+                $new_total_price_for_db = ($db_nights_to_update * $price_per_night_for_calc) + $total_addon_cost_new + $old_booking_deposit_amount_int;
+            } else {
+                $original_room_cost_component = (int)round((float)$oldBookingData['total_price']) - $original_total_addon_cost_from_db_for_calc - $old_booking_deposit_amount_int;
+                $new_total_price_for_db = $original_room_cost_component + $total_addon_cost_new + $old_booking_deposit_amount_int;
             }
-            
+
             $old_booking_total_price_int = (int)round((float)$oldBookingData['total_price']);
-            if ($new_total_price_for_db != $old_booking_total_price_int) { 
-                $fieldsToUpdate['total_price'] = $new_total_price_for_db; 
+            if ($new_total_price_for_db != $old_booking_total_price_int) {
+                $fieldsToUpdate['total_price'] = $new_total_price_for_db;
                 $dataChanged = true;
             } else {
-                 $fieldsToUpdate['total_price'] = $old_booking_total_price_int; 
+                $fieldsToUpdate['total_price'] = $old_booking_total_price_int;
             }
 
             // --- START: MODIFIED RECEIPT HANDLING ---
@@ -1302,7 +1450,7 @@ switch ($action) {
                     if (function_exists('process_uploaded_image_with_compression') && process_uploaded_image_with_compression($temp_file_path, $new_rcpt_destination_path, $original_filename)) {
                         $moved_successfully = true;
                     } else { // Fallback if compression fails
-                         if (move_uploaded_file($temp_file_path, $new_rcpt_destination_path)) {
+                        if (move_uploaded_file($temp_file_path, $new_rcpt_destination_path)) {
                             $moved_successfully = true;
                         }
                     }
@@ -1312,10 +1460,10 @@ switch ($action) {
                     }
                 }
 
-                if(!$moved_successfully){
+                if (!$moved_successfully) {
                     throw new Exception('การบันทึกหรือประมวลผลไฟล์หลักฐานใหม่ล้มเหลว', 500); // Saving or processing new receipt file failed
                 }
-                
+
                 // Insert new receipt into the group receipts table
                 $stmtInsertGroupReceipt = $pdo->prepare(
                     "INSERT INTO booking_group_receipts (booking_group_id, receipt_path, description, uploaded_by_user_id)
@@ -1332,21 +1480,23 @@ switch ($action) {
             }
             // The `receipt_path` field in the `bookings` table is no longer updated here.
             // --- END: MODIFIED RECEIPT HANDLING ---
-            
-            if ($fieldsToUpdate['customer_name'] !== $oldBookingData['customer_name'] ||
-                ($fieldsToUpdate['customer_phone'] ?? null) !== ($oldBookingData['customer_phone'] ?? null) || 
+
+            if (
+                $fieldsToUpdate['customer_name'] !== $oldBookingData['customer_name'] ||
+                ($fieldsToUpdate['customer_phone'] ?? null) !== ($oldBookingData['customer_phone'] ?? null) ||
                 $fieldsToUpdate['payment_method'] !== $oldBookingData['payment_method'] ||
-                ($fieldsToUpdate['notes'] ?? null) !== ($oldBookingData['notes'] ?? null) ) { 
+                ($fieldsToUpdate['notes'] ?? null) !== ($oldBookingData['notes'] ?? null)
+            ) {
                 $dataChanged = true;
             }
-            
-            if (!$dataChanged && !$addons_structure_changed) { 
+
+            if (!$dataChanged && !$addons_structure_changed) {
                 $pdo->rollBack();
                 echo json_encode(['success' => true, 'message' => 'ไม่มีข้อมูลที่ต้องอัปเดต', 'booking_id' => $bookingId]); // No data to update
                 exit;
             }
 
-            $fieldsToUpdate[$logTimestampField] = 'NOW()'; 
+            $fieldsToUpdate[$logTimestampField] = 'NOW()';
             $fieldsToUpdate['last_modified_by_user_id'] = $current_user_id;
 
 
@@ -1355,14 +1505,14 @@ switch ($action) {
                 // Do not update receipt_path in bookings table anymore
                 if ($field === 'receipt_path') continue;
 
-                if ($field === $logTimestampField && $value === 'NOW()') { 
+                if ($field === $logTimestampField && $value === 'NOW()') {
                     $sqlSetParts[] = "{$field} = NOW()";
                 } else {
                     $sqlSetParts[] = "{$field} = :{$field}";
                     $bindings[":{$field}"] = $value;
                 }
             }
-            
+
             $updateBookingSql = "UPDATE bookings SET " . implode(", ", $sqlSetParts) . " WHERE id = :booking_id_main";
             $bindings[':booking_id_main'] = $bookingId;
 
@@ -1384,7 +1534,6 @@ switch ($action) {
             // --- END: Telegram Notification Trigger ---
             echo json_encode(['success' => true, 'message' => 'แก้ไขการจองเรียบร้อยแล้ว', 'booking_id' => $bookingId, 'redirect_url' => '/hotel_booking/pages/index.php']); // Booking edited successfully
             exit;
-
         } catch (PDOException $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
             http_response_code(500);
@@ -1399,23 +1548,23 @@ switch ($action) {
             echo json_encode(['success' => false, 'message' => 'เกิดข้อผิดพลาดขณะแก้ไขการจอง: ' . $e->getMessage(), 'detail' => $e->getMessage()]); // Error while editing booking
             exit;
         }
-       
-    case 'update': 
+
+    case 'update':
         error_log("[API Update] Starting 'update' action. POST data: " . print_r($_POST, true));
         try {
             $pdo->beginTransaction();
 
             $bookingId = (int)($_POST['booking_id'] ?? 0);
-            $updateAction = isset($_POST['update_action']) ? trim((string)$_POST['update_action']) : ''; 
+            $updateAction = isset($_POST['update_action']) ? trim((string)$_POST['update_action']) : '';
 
             if (!$bookingId || empty($updateAction)) {
                 error_log("[API Update] Missing bookingId or updateAction. BookingID: {$bookingId}, UpdateAction: {$updateAction}");
                 throw new Exception('ข้อมูลไม่ครบถ้วนสำหรับการอัปเดต (ID หรือ update_action)', 400); // Incomplete data for update (ID or update_action)
             }
-            
+
             $stmtBooking = $pdo->prepare("
                 SELECT b.*, r.id as room_actual_id, r.zone as room_zone, 
-                       COALESCE(r.short_stay_duration_hours, ".DEFAULT_SHORT_STAY_DURATION_HOURS.") as room_short_stay_duration_config
+                       COALESCE(r.short_stay_duration_hours, " . DEFAULT_SHORT_STAY_DURATION_HOURS . ") as room_short_stay_duration_config
                 FROM bookings b 
                 JOIN rooms r ON b.room_id = r.id 
                 WHERE b.id = ?
@@ -1426,8 +1575,8 @@ switch ($action) {
             if (!$booking) {
                 throw new Exception("ไม่พบข้อมูลการจอง ID: {$bookingId}", 404); // Booking data not found
             }
-            $roomId = $booking['room_actual_id']; 
-            $current_user_id = get_current_user_id(); 
+            $roomId = $booking['room_actual_id'];
+            $current_user_id = get_current_user_id();
 
             if ($updateAction === 'occupy') {
                 if ($current_user_id === null) {
@@ -1436,32 +1585,32 @@ switch ($action) {
 
                 $nowDateTime = new DateTime('now', new DateTimeZone('Asia/Bangkok'));
                 $originalCheckinTime = new DateTime($booking['checkin_datetime'], new DateTimeZone('Asia/Bangkok'));
-                
+
                 $updateBookingFields = [];
                 $updateBookingBindings = [];
-                $actualCheckinTimeForCalc = $originalCheckinTime; 
+                $actualCheckinTimeForCalc = $originalCheckinTime;
 
                 if ($nowDateTime < $originalCheckinTime && $nowDateTime->format('Y-m-d') === $originalCheckinTime->format('Y-m-d')) {
                     error_log("[API Update Occupy] Early check-in detected for Booking ID: {$bookingId}. Original: {$originalCheckinTime->format('Y-m-d H:i:s')}, Now: {$nowDateTime->format('Y-m-d H:i:s')}");
                     $actualCheckinTimeSql = $nowDateTime->format('Y-m-d H:i:s');
                     $updateBookingFields[] = "checkin_datetime = :new_checkin_datetime";
                     $updateBookingBindings[':new_checkin_datetime'] = $actualCheckinTimeSql;
-                    $actualCheckinTimeForCalc = $nowDateTime; 
+                    $actualCheckinTimeForCalc = $nowDateTime;
 
                     if ($booking['booking_type'] === 'short_stay') {
                         $durationHours = (int)($booking['room_short_stay_duration_config'] ?? DEFAULT_SHORT_STAY_DURATION_HOURS);
-                        if ($durationHours <= 0) { 
+                        if ($durationHours <= 0) {
                             $durationHours = DEFAULT_SHORT_STAY_DURATION_HOURS;
                         }
-                        $newCheckoutDateTime = clone $actualCheckinTimeForCalc; 
+                        $newCheckoutDateTime = clone $actualCheckinTimeForCalc;
                         $newCheckoutDateTime->add(new DateInterval("PT{$durationHours}H"));
-                        
+
                         $updateBookingFields[] = "checkout_datetime_calculated = :new_checkout_datetime_calculated";
                         $updateBookingBindings[':new_checkout_datetime_calculated'] = $newCheckoutDateTime->format('Y-m-d H:i:s');
                         error_log("[API Update Occupy] Short stay Booking ID: {$bookingId}. New checkout calculated: {$newCheckoutDateTime->format('Y-m-d H:i:s')}");
                     }
                 }
-                
+
                 $updateBookingFields[] = "{$logTimestampField} = NOW()";
                 $updateBookingFields[] = "last_modified_by_user_id = :current_user_id_booking";
                 $updateBookingBindings[':current_user_id_booking'] = $current_user_id;
@@ -1474,7 +1623,7 @@ switch ($action) {
                     if ($stmtUpdateBooking->rowCount() > 0) {
                         error_log("[API Update Occupy] Booking ID: {$bookingId} times updated for occupy (Early check-in or timestamp).");
                     } else {
-                         error_log("[API Update Occupy] Booking ID: {$bookingId} times update query executed but no rows affected (could be same timestamps or issue).");
+                        error_log("[API Update Occupy] Booking ID: {$bookingId} times update query executed but no rows affected (could be same timestamps or issue).");
                     }
                 }
 
@@ -1498,31 +1647,30 @@ switch ($action) {
                     $currentRoomStatusStmt->execute([$roomId]);
                     $currentStatus = $currentRoomStatusStmt->fetchColumn();
                     if ($currentStatus === 'occupied') {
-                        $pdo->commit(); 
+                        $pdo->commit();
                         echo json_encode(['success' => true, 'message' => 'ห้องพักนี้ได้เช็คอินไปแล้วก่อนหน้า']); // This room has already been checked in
                     } else {
-                        $pdo->rollBack(); 
-                        throw new Exception('ไม่สามารถเช็คอินห้องได้ อาจเนื่องจากสถานะห้องไม่ถูกต้อง (ปัจจุบันคือ: '.htmlspecialchars($currentStatus).') หรือห้องไม่ตรงกัน', 409); // Cannot check in room. Room status may be incorrect or room does not match.
+                        $pdo->rollBack();
+                        throw new Exception('ไม่สามารถเช็คอินห้องได้ อาจเนื่องจากสถานะห้องไม่ถูกต้อง (ปัจจุบันคือ: ' . htmlspecialchars($currentStatus) . ') หรือห้องไม่ตรงกัน', 409); // Cannot check in room. Room status may be incorrect or room does not match.
                     }
                 }
                 exit;
-
             } elseif ($updateAction === 'return_and_complete') {
                 // --- Start of user-requested modifications (enhanced error handling) ---
-                if (empty($booking['room_id']) || empty($booking['room_zone'])) { 
+                if (empty($booking['room_id']) || empty($booking['room_zone'])) {
                     throw new Exception('ข้อมูลการจองไม่สมบูรณ์ ไม่สามารถดำเนินการต่อได้ (ขาด room_id หรือ room_zone)', 500); // Incomplete booking data. Cannot proceed (missing room_id or room_zone)
-                } 
+                }
 
                 $depositProofFile = null;
-                $original_deposit_amount_for_this_booking = (int)round((float)($booking['deposit_amount'] ?? 0)); 
-                $bookingCompletionType = $_POST['booking_completion_type'] ?? 'overnight_with_deposit_return'; 
-                $proofNeeded = false; 
-                $actuallyReturnDepositFlag = 0; 
+                $original_deposit_amount_for_this_booking = (int)round((float)($booking['deposit_amount'] ?? 0));
+                $bookingCompletionType = $_POST['booking_completion_type'] ?? 'overnight_with_deposit_return';
+                $proofNeeded = false;
+                $actuallyReturnDepositFlag = 0;
 
                 if ($bookingCompletionType === 'overnight_with_deposit_return') {
                     if ($booking['booking_type'] === 'overnight' && $original_deposit_amount_for_this_booking > 0) {
-                        $proofNeeded = true; 
-                        $actuallyReturnDepositFlag = 1; 
+                        $proofNeeded = true;
+                        $actuallyReturnDepositFlag = 1;
                     }
                 } elseif ($bookingCompletionType === 'overnight_no_deposit_return') {
                     $proofNeeded = false;
@@ -1532,7 +1680,7 @@ switch ($action) {
                     $actuallyReturnDepositFlag = 0;
                 }
 
-                if ($proofNeeded) { 
+                if ($proofNeeded) {
                     if (isset($_FILES['deposit_proof']) && $_FILES['deposit_proof']['error'] === UPLOAD_ERR_OK) {
                         $depositDir = __DIR__ . '/../uploads/deposit/';
                         if (!is_dir($depositDir)) @mkdir($depositDir, 0777, true);
@@ -1545,42 +1693,41 @@ switch ($action) {
                         $allowed_pdf_exts = ['pdf'];
 
                         if (!in_array($ext, $allowed_image_exts) && !in_array($ext, $allowed_pdf_exts)) {
-                             throw new Exception('ไฟล์หลักฐานคืนมัดจำต้องเป็นรูปภาพหรือ PDF', 400); // Deposit refund proof file must be an image or PDF
+                            throw new Exception('ไฟล์หลักฐานคืนมัดจำต้องเป็นรูปภาพหรือ PDF', 400); // Deposit refund proof file must be an image or PDF
                         }
 
                         $depositProofFile = 'deposit_' . uniqid() . '.' . $ext;
                         $destination_path = $depositDir . $depositProofFile;
-                        
+
                         $moved_successfully = false;
                         if (in_array($ext, $allowed_image_exts)) {
-                           if (function_exists('process_uploaded_image_with_compression') && process_uploaded_image_with_compression($temp_file_path, $destination_path, $original_filename)) {
+                            if (function_exists('process_uploaded_image_with_compression') && process_uploaded_image_with_compression($temp_file_path, $destination_path, $original_filename)) {
                                 $moved_successfully = true;
-                           } else { // Fallback if compression fails
+                            } else { // Fallback if compression fails
                                 if (move_uploaded_file($temp_file_path, $destination_path)) {
                                     $moved_successfully = true;
                                 }
-                           }
+                            }
                         } elseif (in_array($ext, $allowed_pdf_exts)) {
                             if (move_uploaded_file($temp_file_path, $destination_path)) {
                                 $moved_successfully = true;
                             }
                         }
 
-                        if($moved_successfully){
-                             error_log("[API ReturnComplete] ไฟล์หลักฐานคืนมัดจำถูกประมวลผลและบันทึกแล้ว: {$depositProofFile}"); // Deposit refund proof file processed and saved
+                        if ($moved_successfully) {
+                            error_log("[API ReturnComplete] ไฟล์หลักฐานคืนมัดจำถูกประมวลผลและบันทึกแล้ว: {$depositProofFile}"); // Deposit refund proof file processed and saved
                         } else {
                             error_log("[API ReturnComplete] ไม่สามารถประมวลผลและบันทึกไฟล์หลักฐานคืนมัดจำ: {$original_filename}"); // Could not process and save deposit refund proof file
                             throw new Exception('การประมวลผลและบันทึกไฟล์หลักฐานคืนมัดจำล้มเหลว', 500); // Processing and saving deposit refund proof file failed
                         }
-
                     } else {
                         throw new Exception('ต้องอัปโหลดหลักฐานการคืนมัดจำสำหรับห้องที่คืนมัดจำ', 400); // Must upload proof of deposit refund for rooms with deposit refund
                     }
                 }
-                
+
                 $is_temporary_archive_flag = false;
-                if ($booking['room_zone'] === 'F' && $booking['booking_type'] === 'short_stay') { 
-                    $is_temporary_archive_flag = true; 
+                if ($booking['room_zone'] === 'F' && $booking['booking_type'] === 'short_stay') {
+                    $is_temporary_archive_flag = true;
                 }
 
                 $actualCheckoutDatetimeForArchive = $booking['checkout_datetime_calculated'];
@@ -1618,7 +1765,7 @@ switch ($action) {
                     ':booking_type' => $booking['booking_type'] ?? 'overnight',
                     ':checkin_datetime' => $booking['checkin_datetime'],
                     ':checkout_datetime_calculated' => $actualCheckoutDatetimeForArchive,
-                    ':checkout_datetime_legacy' => $actualCheckoutDatetimeForArchive, 
+                    ':checkout_datetime_legacy' => $actualCheckoutDatetimeForArchive,
                     ':nights' => $booking['nights'],
                     ':extended_hours' => $booking['extended_hours'] ?? 0,
                     ':price_per_night' => (int)round((float)($booking['price_per_night'] ?? 0)),
@@ -1641,7 +1788,7 @@ switch ($action) {
                     ':last_modified_by_user_id' => $current_user_id_for_archive,
                     ':booking_group_id' => $booking['booking_group_id'] ?? null // Carry over the group ID
                 ];
-                
+
                 $archivedBookingId = null;
                 try {
                     if (!$stmtArchive->execute($executeParamsArchive)) {
@@ -1689,17 +1836,17 @@ switch ($action) {
                 $stmtDeleteAddons = $pdo->prepare("DELETE FROM booking_addons WHERE booking_id = ?");
                 try {
                     if (!$stmtDeleteAddons->execute([$bookingId])) {
-                         $pdo->rollBack(); // If execute fails, it's a definite error.
-                         error_log("[API ReturnComplete] Failed to execute delete from booking_addons for Booking ID: {$bookingId}.");
-                         throw new Exception('เกิดข้อผิดพลาดในการลบข้อมูลส่วนเสริมเดิม (booking_addons delete execution failed)', 500); // Error deleting old add-on data (booking_addons delete execution failed)
+                        $pdo->rollBack(); // If execute fails, it's a definite error.
+                        error_log("[API ReturnComplete] Failed to execute delete from booking_addons for Booking ID: {$bookingId}.");
+                        throw new Exception('เกิดข้อผิดพลาดในการลบข้อมูลส่วนเสริมเดิม (booking_addons delete execution failed)', 500); // Error deleting old add-on data (booking_addons delete execution failed)
                     }
                     // Log if addons were expected but not deleted, or successful deletion count.
                     if ($stmtDeleteAddons->rowCount() === 0 && !empty($addonsToArchive)) {
                         error_log("[API ReturnComplete] No rows deleted from booking_addons for Booking ID: {$bookingId}, but addons were archived and expected to be present for deletion.");
                     } elseif ($stmtDeleteAddons->rowCount() > 0) {
-                         error_log("[API ReturnComplete] Addons deleted from booking_addons for Booking ID: {$bookingId}. Count: " . $stmtDeleteAddons->rowCount());
+                        error_log("[API ReturnComplete] Addons deleted from booking_addons for Booking ID: {$bookingId}. Count: " . $stmtDeleteAddons->rowCount());
                     } else {
-                         error_log("[API ReturnComplete] No addons to delete or no rows affected in booking_addons for Booking ID: {$bookingId}.");
+                        error_log("[API ReturnComplete] No addons to delete or no rows affected in booking_addons for Booking ID: {$bookingId}.");
                     }
                 } catch (PDOException $e) {
                     $pdo->rollBack();
@@ -1711,9 +1858,9 @@ switch ($action) {
                 $stmtDelete = $pdo->prepare("DELETE FROM bookings WHERE id = ?");
                 try {
                     if (!$stmtDelete->execute([$bookingId])) {
-                         $pdo->rollBack();
-                         error_log("[API ReturnComplete] Failed to execute delete from bookings for Booking ID: {$bookingId}.");
-                         throw new Exception('เกิดข้อผิดพลาดในการลบการจองเดิม (booking delete execution failed)', 500); // Error deleting old booking (booking delete execution failed)
+                        $pdo->rollBack();
+                        error_log("[API ReturnComplete] Failed to execute delete from bookings for Booking ID: {$bookingId}.");
+                        throw new Exception('เกิดข้อผิดพลาดในการลบการจองเดิม (booking delete execution failed)', 500); // Error deleting old booking (booking delete execution failed)
                     }
                     if ($stmtDelete->rowCount() === 0) {
                         // This booking was fetched successfully earlier, so it should exist unless deleted by a concurrent process.
@@ -1748,7 +1895,7 @@ switch ($action) {
                 }
                 // --- End of user-requested modifications ---
 
-                $pdo->commit(); 
+                $pdo->commit();
                 // --- START: Telegram Notification Trigger ---
                 try {
                     if (function_exists('sendTelegramRoomStatusUpdate')) {
@@ -1761,7 +1908,6 @@ switch ($action) {
                 // Use the simplified success message as requested
                 echo json_encode(['success' => true, 'message' => 'ดำเนินการเช็คเอาท์และย้ายข้อมูลไปประวัติเรียบร้อยแล้ว', 'archived_id' => $archivedBookingId]); // Checkout completed and data moved to history
                 exit;
-
             } elseif ($updateAction === 'delete') {
                 // ... (delete logic as previously, ensuring $current_user_id is used for logs if any)
                 $stmtFilePaths = $pdo->prepare("SELECT receipt_path, extended_receipt_path FROM bookings WHERE id = ?");
@@ -1804,25 +1950,23 @@ switch ($action) {
                     $activeOrFutureBookingsStmt->execute([':room_id' => $roomId]);
                     $nextRelevantBooking = $activeOrFutureBookingsStmt->fetch(PDO::FETCH_ASSOC);
 
-                    $newRoomStatus = 'free'; 
+                    $newRoomStatus = 'free';
 
                     if ($nextRelevantBooking) {
                         $nextCheckinDateTime = new DateTime($nextRelevantBooking['checkin_datetime'], new DateTimeZone('Asia/Bangkok'));
                         $nowDateTime = new DateTime('now', new DateTimeZone('Asia/Bangkok'));
 
-                        if ($nextCheckinDateTime <= $nowDateTime) { 
-                            $newRoomStatus = 'occupied'; 
-                            error_log("[API Delete] Room {$roomId} next relevant booking (ID: ".$nextRelevantBooking['id'].") is currently active or check-in time passed. Setting status to 'occupied'.");
-                        }
-                        elseif ($nextCheckinDateTime->format('Y-m-d') === $nowDateTime->format('Y-m-d')) { 
-                             $newRoomStatus = 'booked';
-                             error_log("[API Delete] Room {$roomId} next relevant booking (ID: ".$nextRelevantBooking['id'].") is for later today. Setting status to 'booked'.");
-                        }
-                        else {
-                             error_log("[API Delete] Room {$roomId} next relevant booking (ID: ".$nextRelevantBooking['id'].") is in the future. Setting status to 'free'.");
+                        if ($nextCheckinDateTime <= $nowDateTime) {
+                            $newRoomStatus = 'occupied';
+                            error_log("[API Delete] Room {$roomId} next relevant booking (ID: " . $nextRelevantBooking['id'] . ") is currently active or check-in time passed. Setting status to 'occupied'.");
+                        } elseif ($nextCheckinDateTime->format('Y-m-d') === $nowDateTime->format('Y-m-d')) {
+                            $newRoomStatus = 'booked';
+                            error_log("[API Delete] Room {$roomId} next relevant booking (ID: " . $nextRelevantBooking['id'] . ") is for later today. Setting status to 'booked'.");
+                        } else {
+                            error_log("[API Delete] Room {$roomId} next relevant booking (ID: " . $nextRelevantBooking['id'] . ") is in the future. Setting status to 'free'.");
                         }
                     } else {
-                         error_log("[API Delete] Room {$roomId} has no other active or future bookings. Setting status to 'free'.");
+                        error_log("[API Delete] Room {$roomId} has no other active or future bookings. Setting status to 'free'.");
                     }
 
                     $pdo->prepare("UPDATE rooms SET status = ? WHERE id = ?")->execute([$newRoomStatus, $roomId]);
@@ -1862,8 +2006,8 @@ switch ($action) {
             echo json_encode(['success' => false, 'message' => $e->getMessage()]);
             exit;
         }
-    
-    // ***** START: โค้ดที่เพิ่มเข้ามา (NEW ACTION: group_bookings) *****
+
+        // ***** START: โค้ดที่เพิ่มเข้ามา (NEW ACTION: group_bookings) *****
     case 'group_bookings':
         $pdo->beginTransaction();
         try {
@@ -1876,8 +2020,10 @@ switch ($action) {
             $stmtCheckGroups = $pdo->prepare("SELECT DISTINCT booking_group_id FROM bookings WHERE id IN (" . implode(',', array_fill(0, count($bookingIds), '?')) . ")");
             $stmtCheckGroups->execute($bookingIds);
             $existingGroupIds = $stmtCheckGroups->fetchAll(PDO::FETCH_COLUMN);
-            
-            $nonNullGroupIds = array_filter($existingGroupIds, function($id) { return $id !== null; });
+
+            $nonNullGroupIds = array_filter($existingGroupIds, function ($id) {
+                return $id !== null;
+            });
 
             if (count($nonNullGroupIds) > 1) {
                 throw new Exception("ไม่สามารถรวมกลุ่มได้ เนื่องจากการจองที่เลือกอยู่คนละกลุ่มกันอยู่แล้ว กรุณาตรวจสอบ", 409); // Cannot group bookings because selected bookings are already in different groups. Please check.
@@ -1905,7 +2051,7 @@ switch ($action) {
             $stmtUpdateBookings = $pdo->prepare("UPDATE bookings SET booking_group_id = ? WHERE id IN (" . implode(',', array_fill(0, count($bookingIds), '?')) . ")");
             $updateParams = array_merge([$newBookingGroupId], $bookingIds);
             $stmtUpdateBookings->execute($updateParams);
-            
+
             $pdo->commit();
             // --- START: Telegram Notification Trigger ---
             try {
@@ -1924,8 +2070,8 @@ switch ($action) {
             echo json_encode(['success' => false, 'message' => $e->getMessage()]);
         }
         exit;
-    // ***** END: โค้ดที่เพิ่มเข้ามา *****
-        
+        // ***** END: โค้ดที่เพิ่มเข้ามา *****
+
     case 'extend_stay':
         error_log("[API ExtendStay] Starting 'extend_stay' action. POST data: " . print_r($_POST, true) . " FILES: " . print_r($_FILES, true));
         try {
@@ -1937,7 +2083,7 @@ switch ($action) {
 
             $bookingIdExtend = (int)($_POST['booking_id_extend'] ?? 0);
             if (!$bookingIdExtend) throw new Exception('ข้อมูลการขยาย/อัปเกรดไม่ครบถ้วน (ID การจอง)', 400); // Extension/upgrade data incomplete (booking ID)
-            
+
             // --- START: Fetch booking_group_id ---
             $stmtGetGroup = $pdo->prepare("SELECT booking_group_id FROM bookings WHERE id = ?");
             $stmtGetGroup->execute([$bookingIdExtend]);
@@ -1947,23 +2093,23 @@ switch ($action) {
             }
             // --- END: Fetch booking_group_id ---
 
-            $extendType = $_POST['extend_type'] ?? 'hours'; 
+            $extendType = $_POST['extend_type'] ?? 'hours';
             $extendHours = ($extendType === 'hours') ? (int)($_POST['extend_hours'] ?? 0) : 0;
             $extendNights = ($extendType === 'nights') ? (int)($_POST['extend_nights'] ?? 0) : 0;
             $extendPaymentMethod = trim($_POST['extend_payment_method'] ?? '');
-            $paymentForThisExtension = isset($_POST['payment_for_extension']) ? (int)round((float)$_POST['payment_for_extension']) : 0; 
+            $paymentForThisExtension = isset($_POST['payment_for_extension']) ? (int)round((float)$_POST['payment_for_extension']) : 0;
 
             if (empty($extendPaymentMethod) && $paymentForThisExtension > 0) {
-                 throw new Exception('ข้อมูลการขยาย/อัปเกรดไม่ครบถ้วน (วิธีชำระเงิน)', 400); // Extension/upgrade data incomplete (payment method)
+                throw new Exception('ข้อมูลการขยาย/อัปเกรดไม่ครบถ้วน (วิธีชำระเงิน)', 400); // Extension/upgrade data incomplete (payment method)
             }
             if ($extendType === 'hours' && $extendHours <= 0) {
-                 throw new Exception('จำนวนชั่วโมงที่เพิ่มต้องมากกว่า 0', 400); // Number of hours to add must be greater than 0
+                throw new Exception('จำนวนชั่วโมงที่เพิ่มต้องมากกว่า 0', 400); // Number of hours to add must be greater than 0
             }
-            if ($extendType === 'nights' && $extendNights <= 0) { 
-                 throw new Exception('จำนวนคืนที่เพิ่มต้องมากกว่า 0', 400); // Number of nights to add must be greater than 0
+            if ($extendType === 'nights' && $extendNights <= 0) {
+                throw new Exception('จำนวนคืนที่เพิ่มต้องมากกว่า 0', 400); // Number of nights to add must be greater than 0
             }
-            if ($paymentForThisExtension < 0) { 
-                 throw new Exception('ยอดชำระสำหรับการขยายเวลาต้องไม่ติดลบ', 400); // Payment for extension cannot be negative
+            if ($paymentForThisExtension < 0) {
+                throw new Exception('ยอดชำระสำหรับการขยายเวลาต้องไม่ติดลบ', 400); // Payment for extension cannot be negative
             }
 
             $stmtBooking = $pdo->prepare("
@@ -1972,7 +2118,7 @@ switch ($action) {
                        r.allow_short_stay as room_allow_short_stay,
                        r.ask_deposit_on_overnight as room_ask_deposit_f,
                        r.price_per_hour_extension, 
-                       COALESCE(r.short_stay_duration_hours, ".DEFAULT_SHORT_STAY_DURATION_HOURS.") as room_base_short_stay_duration
+                       COALESCE(r.short_stay_duration_hours, " . DEFAULT_SHORT_STAY_DURATION_HOURS . ") as room_base_short_stay_duration
                 FROM bookings b
                 JOIN rooms r ON b.room_id = r.id
                 WHERE b.id = ?
@@ -1985,9 +2131,9 @@ switch ($action) {
             }
 
             // ***** START: โค้ดที่แก้ไข (ปรับปรุงการคำนวณราคาและตรรกะ) *****
-            $calculatedExtensionCost = 0; 
-            $newExtendedHoursTotal = (int)($booking['extended_hours'] ?? 0); 
-            $newNightsTotal = (int)($booking['nights'] ?? 0); 
+            $calculatedExtensionCost = 0;
+            $newExtendedHoursTotal = (int)($booking['extended_hours'] ?? 0);
+            $newNightsTotal = (int)($booking['nights'] ?? 0);
             $newPricePerNight = (int)round((float)($booking['price_per_night'] ?? 0));
             $newBookingType = $booking['booking_type'];
             $newDepositAmount = (int)round((float)($booking['deposit_amount'] ?? 0));
@@ -1998,43 +2144,41 @@ switch ($action) {
 
             if ($extendType === 'hours') {
                 $_room_specific_rate_val = isset($booking['price_per_hour_extension']) ? (int)round((float)$booking['price_per_hour_extension']) : null;
-                $hourlyRateForThisRoomExtension = $_room_specific_rate_val ?? HOURLY_EXTENSION_RATE; 
-                if ($hourlyRateForThisRoomExtension <=0) $hourlyRateForThisRoomExtension = HOURLY_EXTENSION_RATE; 
+                $hourlyRateForThisRoomExtension = $_room_specific_rate_val ?? HOURLY_EXTENSION_RATE;
+                if ($hourlyRateForThisRoomExtension <= 0) $hourlyRateForThisRoomExtension = HOURLY_EXTENSION_RATE;
 
-                $calculatedExtensionCost = $extendHours * $hourlyRateForThisRoomExtension; 
-                
+                $calculatedExtensionCost = $extendHours * $hourlyRateForThisRoomExtension;
+
                 $newExtendedHoursTotal += $extendHours;
                 $currentCheckoutCalc->add(new DateInterval("PT{$extendHours}H"));
                 $newCheckoutDatetimeCalculatedSql = $currentCheckoutCalc->format('Y-m-d H:i:s');
-                
+
+                // << เพิ่มค่าใช้จ่ายเข้าไปใน total_price เดิม >>
+                $new_total_price_for_booking_record += $calculatedExtensionCost;
+            } elseif ($extendType === 'nights') {
+                if ($booking['booking_type'] === 'short_stay') {
+                    throw new Exception('ไม่สามารถขยายเป็น "คืน" สำหรับการจองแบบชั่วคราวได้ กรุณาใช้ "เปลี่ยนเป็นค้างคืน" หรือขยายเป็น "ชั่วโมง"', 400); // Cannot extend to "nights" for short-stay bookings. Please use "change to overnight" or extend by "hours".
+                }
+                $pricePerNightForExtension = (int)round((float)($booking['price_per_night'] ?? $booking['room_price_per_day']));
+                if ($pricePerNightForExtension <= 0) {
+                    throw new Exception("ไม่สามารถคำนวณค่าขยายเวลาได้: ราคาต่อคืนของห้องไม่ถูกต้อง", 500); // Cannot calculate extension cost: room's price per night is incorrect
+                }
+                $calculatedExtensionCost = $extendNights * $pricePerNightForExtension;
+
                 // << เพิ่มค่าใช้จ่ายเข้าไปใน total_price เดิม >>
                 $new_total_price_for_booking_record += $calculatedExtensionCost;
 
-            } elseif ($extendType === 'nights') {
-                 if ($booking['booking_type'] === 'short_stay') {
-                     throw new Exception('ไม่สามารถขยายเป็น "คืน" สำหรับการจองแบบชั่วคราวได้ กรุณาใช้ "เปลี่ยนเป็นค้างคืน" หรือขยายเป็น "ชั่วโมง"', 400); // Cannot extend to "nights" for short-stay bookings. Please use "change to overnight" or extend by "hours".
-                 }
-                $pricePerNightForExtension = (int)round((float)($booking['price_per_night'] ?? $booking['room_price_per_day'])); 
-                if ($pricePerNightForExtension <=0) {
-                    throw new Exception("ไม่สามารถคำนวณค่าขยายเวลาได้: ราคาต่อคืนของห้องไม่ถูกต้อง", 500); // Cannot calculate extension cost: room's price per night is incorrect
-                }
-                $calculatedExtensionCost = $extendNights * $pricePerNightForExtension; 
-                
-                // << เพิ่มค่าใช้จ่ายเข้าไปใน total_price เดิม >>
-                $new_total_price_for_booking_record += $calculatedExtensionCost;
-                
-                $newNightsTotal += $extendNights; 
+                $newNightsTotal += $extendNights;
 
                 list($h, $m, $s) = explode(':', CHECKOUT_TIME_STR);
                 $currentCheckoutCalc->add(new DateInterval("P{$extendNights}D"));
                 $currentCheckoutCalc->setTime((int)$h, (int)$m, (int)$s);
                 $newCheckoutDatetimeCalculatedSql = $currentCheckoutCalc->format('Y-m-d H:i:s');
-
             } elseif ($extendType === 'upgrade_to_overnight') {
                 if ($booking['booking_type'] !== 'short_stay' || $booking['room_current_zone'] !== 'F') {
                     throw new Exception('การอัปเกรดเป็นค้างคืนใช้ได้เฉพาะการจองชั่วคราวในโซน F เท่านั้น', 400); // Upgrade to overnight is only available for short-stay bookings in Zone F
                 }
-                
+
                 $stmtExistingAddons = $pdo->prepare("SELECT SUM(price_at_booking * quantity) FROM booking_addons WHERE booking_id = ?");
                 $stmtExistingAddons->execute([$bookingIdExtend]);
                 $currentTotalAddonCostForBooking = (int)round((float)$stmtExistingAddons->fetchColumn());
@@ -2049,30 +2193,30 @@ switch ($action) {
                 list($h_co, $m_co, $s_co) = explode(':', CHECKOUT_TIME_STR);
                 $newCheckoutDateTimeObj->setTime((int)$h_co, (int)$m_co, (int)$s_co);
                 $newCheckoutDatetimeCalculatedSql = $newCheckoutDateTimeObj->format('Y-m-d H:i:s');
-                
-                $original_short_stay_total_price = (int)round((float)$booking['total_price']); 
-                $original_short_stay_deposit = (int)round((float)$booking['deposit_amount']); 
-                $original_short_stay_room_component_cost = $original_short_stay_total_price - $currentTotalAddonCostForBooking - $original_short_stay_deposit; 
 
-                $target_overnight_room_price = (int)round((float)($booking['room_price_per_day'] ?? 600)); 
+                $original_short_stay_total_price = (int)round((float)$booking['total_price']);
+                $original_short_stay_deposit = (int)round((float)$booking['deposit_amount']);
+                $original_short_stay_room_component_cost = $original_short_stay_total_price - $currentTotalAddonCostForBooking - $original_short_stay_deposit;
+
+                $target_overnight_room_price = (int)round((float)($booking['room_price_per_day'] ?? 600));
                 $newPricePerNight = $target_overnight_room_price;
 
-                $additional_payment_for_room_upgrade = max(0, $target_overnight_room_price - $original_short_stay_room_component_cost); 
-                
-                if ($booking['room_ask_deposit_f'] == '1' || $booking['room_current_zone'] !== 'F') { 
-                     $newDepositAmount = FIXED_DEPOSIT_AMOUNT; 
+                $additional_payment_for_room_upgrade = max(0, $target_overnight_room_price - $original_short_stay_room_component_cost);
+
+                if ($booking['room_ask_deposit_f'] == '1' || $booking['room_current_zone'] !== 'F') {
+                    $newDepositAmount = FIXED_DEPOSIT_AMOUNT;
                 } else {
-                     $newDepositAmount = 0; 
+                    $newDepositAmount = 0;
                 }
                 $deposit_increase = max(0, $newDepositAmount - $original_short_stay_deposit);
                 $calculatedExtensionCost = $additional_payment_for_room_upgrade + $deposit_increase;
-                
+
                 // << คำนวณ total_price ใหม่ทั้งหมดสำหรับการอัปเกรด >>
                 $new_total_price_for_booking_record = $target_overnight_room_price + $currentTotalAddonCostForBooking + $newDepositAmount;
             }
 
-            if ($calculatedExtensionCost != $paymentForThisExtension && $paymentForThisExtension >= 0) { 
-                 error_log("[API ExtendStay] Mismatch: Calculated cost ({$calculatedExtensionCost}) vs. payment made ({$paymentForThisExtension}) for Booking ID {$bookingIdExtend}. Using payment made for financial records.");
+            if ($calculatedExtensionCost != $paymentForThisExtension && $paymentForThisExtension >= 0) {
+                error_log("[API ExtendStay] Mismatch: Calculated cost ({$calculatedExtensionCost}) vs. payment made ({$paymentForThisExtension}) for Booking ID {$bookingIdExtend}. Using payment made for financial records.");
             }
             // ***** END: โค้ดที่แก้ไข *****
 
@@ -2095,11 +2239,11 @@ switch ($action) {
                     ':new_proposed_checkout' => $newCheckoutDatetimeCalculatedSql
                 ]);
                 if ($stmtCheckOverlap->fetchColumn() > 0) {
-                    throw new Exception("ห้องพัก ".htmlspecialchars($booking['room_current_zone'] . $booking['room_number_for_log'])." ไม่ว่างสำหรับช่วงเวลาที่ขยาย/อัปเกรดเพิ่ม (มีการจองอื่นนอกกลุ่มนี้ขวางอยู่)", 409); // Room is unavailable for the extended/upgraded period (another booking outside this group is blocking)
+                    throw new Exception("ห้องพัก " . htmlspecialchars($booking['room_current_zone'] . $booking['room_number_for_log']) . " ไม่ว่างสำหรับช่วงเวลาที่ขยาย/อัปเกรดเพิ่ม (มีการจองอื่นนอกกลุ่มนี้ขวางอยู่)", 409); // Room is unavailable for the extended/upgraded period (another booking outside this group is blocking)
                 }
             }
             // ***** END: โค้ดที่แก้ไข *****
-            
+
             // --- START: MODIFIED RECEIPT HANDLING ---
             $is_new_extend_receipt_uploaded = isset($_FILES['extend_receipt']) && $_FILES['extend_receipt']['error'] === UPLOAD_ERR_OK;
             if ($is_new_extend_receipt_uploaded) {
@@ -2120,26 +2264,26 @@ switch ($action) {
                 }
                 $new_extend_receipt_filename_only = 'grp_rcpt_' . $currentBookingGroupId . '_' . uniqid('ext_') . '.' . $ext;
                 $new_extend_receipt_destination_path = $receiptDir . $new_extend_receipt_filename_only;
-                
+
                 $moved_successfully = false;
                 if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif'])) {
-                    if (function_exists('process_uploaded_image_with_compression') && process_uploaded_image_with_compression($temp_file_path, $new_extend_receipt_destination_path, $original_filename)) { 
+                    if (function_exists('process_uploaded_image_with_compression') && process_uploaded_image_with_compression($temp_file_path, $new_extend_receipt_destination_path, $original_filename)) {
                         $moved_successfully = true;
                     } else { // Fallback if compression fails
-                        if (move_uploaded_file($temp_file_path, $new_extend_receipt_destination_path)) { 
+                        if (move_uploaded_file($temp_file_path, $new_extend_receipt_destination_path)) {
                             $moved_successfully = true;
                         }
                     }
                 } elseif ($ext === 'pdf') {
-                    if (move_uploaded_file($temp_file_path, $new_extend_receipt_destination_path)) { 
+                    if (move_uploaded_file($temp_file_path, $new_extend_receipt_destination_path)) {
                         $moved_successfully = true;
                     }
                 }
 
-                if(!$moved_successfully){
+                if (!$moved_successfully) {
                     throw new Exception('การประมวลผลและบันทึกรูปภาพหลักฐาน (ส่วนขยาย/อัปเกรด) ล้มเหลว', 500); // Processing and saving receipt image (extension/upgrade) failed
                 }
-                
+
                 // Insert into group receipts table
                 $stmtInsertGroupReceipt = $pdo->prepare(
                     "INSERT INTO booking_group_receipts (booking_group_id, receipt_path, description, uploaded_by_user_id, amount, payment_method)
@@ -2161,20 +2305,20 @@ switch ($action) {
 
             // `extended_receipt_path` is removed from this update query
             $updateSql = "UPDATE bookings
-                          SET booking_type = :new_booking_type,
-                              nights = :new_nights,
-                              price_per_night = :new_price_per_night, 
-                              extended_hours = :new_extended_hours,
-                              checkout_datetime_calculated = :new_checkout_datetime,
-                              total_price = :new_total_price, 
-                              amount_paid = amount_paid + :payment_for_extension, 
-                              additional_paid_amount = COALESCE(additional_paid_amount, 0) + :payment_for_extension_additional, 
-                              deposit_amount = :new_deposit_amount, 
-                              extended_payment_method = :extend_payment_method,
-                              last_extended_at = NOW(),
-                              {$logTimestampField} = NOW(),
-                              last_modified_by_user_id = :user_id
-                          WHERE id = :booking_id";
+                        SET booking_type = :new_booking_type,
+                            nights = :new_nights,
+                            price_per_night = :new_price_per_night, 
+                            extended_hours = :new_extended_hours,
+                            checkout_datetime_calculated = :new_checkout_datetime,
+                            total_price = :new_total_price, 
+                            amount_paid = amount_paid + :payment_for_extension, 
+                            additional_paid_amount = COALESCE(additional_paid_amount, 0) + :payment_for_extension_additional, 
+                            deposit_amount = :new_deposit_amount, 
+                            extended_payment_method = :extend_payment_method,
+                            last_extended_at = NOW(),
+                            {$logTimestampField} = NOW(),
+                            last_modified_by_user_id = :user_id
+                        WHERE id = :booking_id";
             $stmtUpdate = $pdo->prepare($updateSql);
             $stmtUpdate->execute([
                 ':new_booking_type' => $newBookingType,
@@ -2183,8 +2327,8 @@ switch ($action) {
                 ':new_extended_hours' => $newExtendedHoursTotal,
                 ':new_checkout_datetime' => $newCheckoutDatetimeCalculatedSql,
                 ':new_total_price' => $new_total_price_for_booking_record,
-                ':payment_for_extension' => $paymentForThisExtension, 
-                ':payment_for_extension_additional' => $paymentForThisExtension, 
+                ':payment_for_extension' => $paymentForThisExtension,
+                ':payment_for_extension_additional' => $paymentForThisExtension,
                 ':new_deposit_amount' => $newDepositAmount,
                 ':extend_payment_method' => $extendPaymentMethod,
                 ':user_id' => $current_user_id,
@@ -2203,7 +2347,7 @@ switch ($action) {
             // --- END: Telegram Notification Trigger ---
             $successMessage = 'ดำเนินการเรียบร้อยแล้ว'; // Operation completed
             if ($extendType === 'upgrade_to_overnight') {
-                $successMessage = 'อัปเกรดเป็นค้างคืนเรียบร้อย (ยอดรวมค่าห้อง '.$new_total_price_for_booking_record.' บ. รวมมัดจำ)'; // Upgraded to overnight successfully (total room cost {new_total_price_for_booking_record} Baht including deposit)
+                $successMessage = 'อัปเกรดเป็นค้างคืนเรียบร้อย (ยอดรวมค่าห้อง ' . $new_total_price_for_booking_record . ' บ. รวมมัดจำ)'; // Upgraded to overnight successfully (total room cost {new_total_price_for_booking_record} Baht including deposit)
             } elseif ($extendType === 'hours') {
                 $successMessage = 'ขยายเวลาการเข้าพัก (ชั่วโมง) เรียบร้อยแล้ว'; // Extended stay (hours) successfully
             } elseif ($extendType === 'nights') {
@@ -2211,7 +2355,6 @@ switch ($action) {
             }
             echo json_encode(['success' => true, 'message' => $successMessage]);
             exit;
-
         } catch (PDOException $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
             http_response_code(500);
@@ -2226,8 +2369,8 @@ switch ($action) {
             echo json_encode(['success' => false, 'message' => $e->getMessage()]);
             exit;
         }
-        
-    case 'edit_booking_details': 
+
+    case 'edit_booking_details':
         error_log("[API EditDetails] Starting. POST: " . print_r($_POST, true) . " FILES: " . print_r($_FILES, true));
         try {
             $pdo->beginTransaction();
@@ -2252,13 +2395,13 @@ switch ($action) {
             $selected_addons_modal_raw = $_POST['selected_addons_modal'] ?? [];
 
             $adjustmentType = $_POST['adjustment_type'] ?? 'none';
-            $adjustmentAmount = isset($_POST['adjustment_amount']) ? (int)round((float)$_POST['adjustment_amount']) : 0; 
+            $adjustmentAmount = isset($_POST['adjustment_amount']) ? (int)round((float)$_POST['adjustment_amount']) : 0;
             $adjustmentPaymentMethod = ($adjustmentType !== 'none' && $adjustmentAmount != 0) ? trim($_POST['adjustment_payment_method'] ?? '') : null;
-            
-            if ($adjustmentType !== 'none' && $adjustmentAmount > 0 && empty($adjustmentPaymentMethod)) { 
-                 throw new Exception('ข้อมูลการปรับยอดไม่ครบถ้วน: กรุณาระบุวิธีการชำระ/คืนเงิน', 400); // Adjustment data incomplete: Please specify payment/refund method
+
+            if ($adjustmentType !== 'none' && $adjustmentAmount > 0 && empty($adjustmentPaymentMethod)) {
+                throw new Exception('ข้อมูลการปรับยอดไม่ครบถ้วน: กรุณาระบุวิธีการชำระ/คืนเงิน', 400); // Adjustment data incomplete: Please specify payment/refund method
             }
-             if ($adjustmentType !== 'none' && $adjustmentAmount < 0) { 
+            if ($adjustmentType !== 'none' && $adjustmentAmount < 0) {
                 throw new Exception('จำนวนเงินที่ปรับต้องไม่ติดลบ (ใช้ประเภทการปรับยอดเพื่อระบุเพิ่ม/ลด)', 400); // Adjustment amount cannot be negative (use adjustment type to specify increase/decrease)
             }
 
@@ -2273,18 +2416,18 @@ switch ($action) {
             $stmtOldAddons->execute([$bookingIdToEdit]);
             $oldAddonsFromDb = $stmtOldAddons->fetchAll(PDO::FETCH_ASSOC);
             $oldAddonsMap = [];
-            $original_total_addon_cost_from_db = 0; 
-            foreach($oldAddonsFromDb as $oa){
-                $current_addon_price = (int)round((float)$oa['price_at_booking']); 
+            $original_total_addon_cost_from_db = 0;
+            foreach ($oldAddonsFromDb as $oa) {
+                $current_addon_price = (int)round((float)$oa['price_at_booking']);
                 $oldAddonsMap[$oa['addon_service_id']] = ['quantity' => (int)$oa['quantity'], 'price_at_booking' => $current_addon_price];
                 $original_total_addon_cost_from_db += $current_addon_price * (int)$oa['quantity'];
             }
 
             $newly_selected_addons_for_db_map = [];
-            $new_total_addon_cost_from_modal_calculated = 0; 
+            $new_total_addon_cost_from_modal_calculated = 0;
             $addons_structure_changed = false;
 
-            if (isset($_POST['selected_addons_modal'])) { 
+            if (isset($_POST['selected_addons_modal'])) {
                 if (!empty($selected_addons_modal_raw)) {
                     $addon_ids_from_modal = array_keys($selected_addons_modal_raw);
                     if (!empty($addon_ids_from_modal)) {
@@ -2297,7 +2440,7 @@ switch ($action) {
                             $addon_id = (int)$addon_id_str;
                             if (isset($db_active_addons_info[$addon_id]) && isset($addon_data_from_modal['id']) && (int)$addon_data_from_modal['id'] === $addon_id) {
                                 $quantity = isset($addon_data_from_modal['quantity']) ? max(1, (int)$addon_data_from_modal['quantity']) : 1;
-                                $current_price_for_this_addon = (int)round((float)$db_active_addons_info[$addon_id]); 
+                                $current_price_for_this_addon = (int)round((float)$db_active_addons_info[$addon_id]);
                                 $new_total_addon_cost_from_modal_calculated += $current_price_for_this_addon * $quantity;
                                 $newly_selected_addons_for_db_map[$addon_id] = ['quantity' => $quantity, 'price_at_booking' => $current_price_for_this_addon];
                             }
@@ -2309,14 +2452,16 @@ switch ($action) {
                     $addons_structure_changed = true;
                 } else {
                     foreach ($newly_selected_addons_for_db_map as $new_addon_id => $new_addon_details) {
-                        if (!isset($oldAddonsMap[$new_addon_id]) ||
+                        if (
+                            !isset($oldAddonsMap[$new_addon_id]) ||
                             (int)$oldAddonsMap[$new_addon_id]['quantity'] !== (int)$new_addon_details['quantity'] ||
-                            (int)$oldAddonsMap[$new_addon_id]['price_at_booking'] != (int)$new_addon_details['price_at_booking'] ) { 
+                            (int)$oldAddonsMap[$new_addon_id]['price_at_booking'] != (int)$new_addon_details['price_at_booking']
+                        ) {
                             $addons_structure_changed = true;
                             break;
                         }
                     }
-                    if (!$addons_structure_changed) { 
+                    if (!$addons_structure_changed) {
                         foreach ($oldAddonsMap as $old_addon_id => $old_addon_details) {
                             if (!isset($newly_selected_addons_for_db_map[$old_addon_id])) {
                                 $addons_structure_changed = true;
@@ -2325,15 +2470,15 @@ switch ($action) {
                         }
                     }
                 }
-            } else { 
+            } else {
                 // If selected_addons_modal is not in POST, assume no change and retain existing addons
                 $addons_structure_changed = false;
-                $newly_selected_addons_for_db_map = $oldAddonsMap; 
-                $new_total_addon_cost_from_modal_calculated = $original_total_addon_cost_from_db; 
+                $newly_selected_addons_for_db_map = $oldAddonsMap;
+                $new_total_addon_cost_from_modal_calculated = $original_total_addon_cost_from_db;
             }
-            
+
             $fieldsToUpdate = [];
-            $bindings = [];    
+            $bindings = [];
             $dataChangedOverall = false;
 
             if ($addons_structure_changed) {
@@ -2347,47 +2492,47 @@ switch ($action) {
                     $stmtInsertAddon = $pdo->prepare(
                         "INSERT INTO booking_addons (booking_id, addon_service_id, quantity, price_at_booking) VALUES (?, ?, ?, ?)"
                     );
-                    foreach ($newly_selected_addons_for_db_map as $addon_id => $details) { 
+                    foreach ($newly_selected_addons_for_db_map as $addon_id => $details) {
                         $stmtInsertAddon->execute([$bookingIdToEdit, $addon_id, $details['quantity'], $details['price_at_booking']]);
                     }
                 }
             }
 
-            $room_cost_component; 
-            $booking_deposit_amount_int = (int)round((float)($bookingDetails['deposit_amount'] ?? 0)); 
+            $room_cost_component;
+            $booking_deposit_amount_int = (int)round((float)($bookingDetails['deposit_amount'] ?? 0));
             if ($bookingDetails['booking_type'] === 'overnight') {
-                $booking_price_per_night_int = (int)round((float)($bookingDetails['price_per_night'] ?? 0)); 
+                $booking_price_per_night_int = (int)round((float)($bookingDetails['price_per_night'] ?? 0));
                 $room_cost_component = (int)($bookingDetails['nights'] ?? 0) * $booking_price_per_night_int;
-            } else { 
-                $booking_total_price_int = (int)round((float)$bookingDetails['total_price']); 
+            } else {
+                $booking_total_price_int = (int)round((float)$bookingDetails['total_price']);
                 $room_cost_component = $booking_total_price_int - $original_total_addon_cost_from_db - $booking_deposit_amount_int;
             }
 
-            $new_calculated_total_price_of_booking = $room_cost_component + $new_total_addon_cost_from_modal_calculated + $booking_deposit_amount_int; 
+            $new_calculated_total_price_of_booking = $room_cost_component + $new_total_addon_cost_from_modal_calculated + $booking_deposit_amount_int;
 
             $current_booking_total_price_int = (int)round((float)$bookingDetails['total_price']);
-            if ($current_booking_total_price_int != $new_calculated_total_price_of_booking ) { 
+            if ($current_booking_total_price_int != $new_calculated_total_price_of_booking) {
                 $fieldsToUpdate[] = "total_price = :new_total_booking_price_val";
-                $bindings[':new_total_booking_price_val'] = $new_calculated_total_price_of_booking; 
+                $bindings[':new_total_booking_price_val'] = $new_calculated_total_price_of_booking;
                 $dataChangedOverall = true;
             }
 
-            if ($adjustmentType !== 'none' && $adjustmentAmount >= 0) { 
+            if ($adjustmentType !== 'none' && $adjustmentAmount >= 0) {
                 $dataChangedOverall = true;
-                if ($adjustmentAmount > 0) { 
+                if ($adjustmentAmount > 0) {
                     if ($adjustmentType === 'add') {
                         $fieldsToUpdate[] = "amount_paid = amount_paid + :adjustment_amount_val";
-                        $fieldsToUpdate[] = "additional_paid_amount = COALESCE(additional_paid_amount, 0) + :adjustment_amount_val_additional"; 
+                        $fieldsToUpdate[] = "additional_paid_amount = COALESCE(additional_paid_amount, 0) + :adjustment_amount_val_additional";
                     } elseif ($adjustmentType === 'reduce') {
-                        $current_total_actually_paid_by_customer = (int)round((float)($bookingDetails['amount_paid'] ?? 0)); 
+                        $current_total_actually_paid_by_customer = (int)round((float)($bookingDetails['amount_paid'] ?? 0));
                         if ($adjustmentAmount > $current_total_actually_paid_by_customer) {
                             throw new Exception('จำนวนเงินที่คืน (' . $adjustmentAmount . ') มากกว่ายอดที่ลูกค้าชำระแล้วทั้งหมด (' . $current_total_actually_paid_by_customer . ')', 400); // Refund amount ({adjustmentAmount}) is greater than total amount paid by customer ({current_total_actually_paid_by_customer})
                         }
                         $fieldsToUpdate[] = "amount_paid = amount_paid - :adjustment_amount_val";
-                        $fieldsToUpdate[] = "additional_paid_amount = GREATEST(0, COALESCE(additional_paid_amount, 0) - :adjustment_amount_val_additional)"; 
+                        $fieldsToUpdate[] = "additional_paid_amount = GREATEST(0, COALESCE(additional_paid_amount, 0) - :adjustment_amount_val_additional)";
                     }
-                    $bindings[':adjustment_amount_val'] = $adjustmentAmount; 
-                    $bindings[':adjustment_amount_val_additional'] = $adjustmentAmount; 
+                    $bindings[':adjustment_amount_val'] = $adjustmentAmount;
+                    $bindings[':adjustment_amount_val_additional'] = $adjustmentAmount;
                 }
 
                 if (!empty($adjustmentPaymentMethod)) {
@@ -2401,8 +2546,12 @@ switch ($action) {
                         throw new Exception('ไม่สามารถอัปโหลดสลิปได้เนื่องจากไม่พบกลุ่มการจอง', 500); // Could not upload receipt because booking group not found
                     }
                     $receiptDir = __DIR__ . '/../uploads/receipts/';
-                    if (!is_dir($receiptDir)) { @mkdir($receiptDir, 0777, true); }
-                    if (!is_writable($receiptDir)) { throw new Exception('โฟลเดอร์หลักฐานไม่มีสิทธิ์ในการเขียน', 500); } // Receipt folder is not writable
+                    if (!is_dir($receiptDir)) {
+                        @mkdir($receiptDir, 0777, true);
+                    }
+                    if (!is_writable($receiptDir)) {
+                        throw new Exception('โฟลเดอร์หลักฐานไม่มีสิทธิ์ในการเขียน', 500);
+                    } // Receipt folder is not writable
 
                     $temp_file_path = $_FILES['adjustment_receipt']['tmp_name'];
                     $original_filename = $_FILES['adjustment_receipt']['name'];
@@ -2415,26 +2564,26 @@ switch ($action) {
 
                     $newAdjustmentReceiptFileName = 'grp_rcpt_' . $currentBookingGroupId . '_' . uniqid('adj_') . '.' . $ext;
                     $receiptDest = $receiptDir . $newAdjustmentReceiptFileName;
-                    
+
                     $moved_successfully = false;
                     if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif'])) {
                         if (function_exists('process_uploaded_image_with_compression') && process_uploaded_image_with_compression($temp_file_path, $receiptDest, $original_filename)) {
                             $moved_successfully = true;
                         } else { // Fallback if compression fails
-                            if (move_uploaded_file($temp_file_path, $receiptDest)) { 
+                            if (move_uploaded_file($temp_file_path, $receiptDest)) {
                                 $moved_successfully = true;
                             }
                         }
                     } elseif ($ext === 'pdf') {
-                        if (move_uploaded_file($temp_file_path, $receiptDest)) { 
+                        if (move_uploaded_file($temp_file_path, $receiptDest)) {
                             $moved_successfully = true;
                         }
                     }
 
-                    if(!$moved_successfully){
+                    if (!$moved_successfully) {
                         throw new Exception('การประมวลผลและบันทึกรูปภาพหลักฐาน (ปรับยอด) ล้มเหลว', 500); // Processing and saving adjustment receipt image failed
                     }
-                    
+
                     // Insert into group receipts table instead of updating bookings table
                     $stmtInsertGroupReceipt = $pdo->prepare(
                         "INSERT INTO booking_group_receipts (booking_group_id, receipt_path, description, uploaded_by_user_id, amount, payment_method)
@@ -2487,7 +2636,7 @@ switch ($action) {
                 }
                 // --- END: Telegram Notification Trigger ---
                 echo json_encode(['success' => true, 'message' => 'แก้ไขรายละเอียดการจองเรียบร้อยแล้ว']); // Booking details edited successfully
-            } elseif ($addons_structure_changed) { 
+            } elseif ($addons_structure_changed) {
                 // If only addons changed, just update timestamps
                 $updateTimestampsSql = "UPDATE bookings SET {$logTimestampField} = NOW(), last_modified_by_user_id = :user_id WHERE id = :booking_id";
                 $stmtTsUpdate = $pdo->prepare($updateTimestampsSql);
@@ -2509,22 +2658,25 @@ switch ($action) {
                 echo json_encode(['success' => true, 'message' => 'ไม่มีข้อมูลที่ต้องอัปเดต']); // No data to update
             }
             exit;
-
         } catch (PDOException $e) {
-            if ($pdo->inTransaction()) { $pdo->rollBack(); }
-                http_response_code(500);
-                error_log("[API EditDetails] PDO Error: " . $e->getMessage() . " | SQL: " . ($updateSql ?? "N/A"));
-                echo json_encode(['success' => false, 'message' => 'เกิดข้อผิดพลาดฐานข้อมูล: ' . $e->getMessage()]); // Database error
-                exit;
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            http_response_code(500);
+            error_log("[API EditDetails] PDO Error: " . $e->getMessage() . " | SQL: " . ($updateSql ?? "N/A"));
+            echo json_encode(['success' => false, 'message' => 'เกิดข้อผิดพลาดฐานข้อมูล: ' . $e->getMessage()]); // Database error
+            exit;
         } catch (Exception $e) {
-            if ($pdo->inTransaction()) { $pdo->rollBack(); }
-                $errorCode = ($e->getCode() >= 400 && $e->getCode() < 600) ? $e->getCode() : 500;
-                http_response_code($errorCode);
-                error_log("[API EditDetails] General Error: " . $e->getMessage());
-                echo json_encode(['success' => false, 'message' => $e->getMessage()]);
-                exit;
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            $errorCode = ($e->getCode() >= 400 && $e->getCode() < 600) ? $e->getCode() : 500;
+            http_response_code($errorCode);
+            error_log("[API EditDetails] General Error: " . $e->getMessage());
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+            exit;
         }
-    
+
     case 'update_room_price':
         try {
             $pdo->beginTransaction();
@@ -2537,55 +2689,55 @@ switch ($action) {
             if (!$roomIdForPriceUpdate) {
                 throw new Exception('ไม่พบรหัสห้องสำหรับอัปเดตราคา', 400); // Room ID not found for price update
             }
-            if ($newPricePerDay !== null && $newPricePerDay < 0) { 
+            if ($newPricePerDay !== null && $newPricePerDay < 0) {
                 throw new Exception('ราคาต่อวันต้องไม่ติดลบ', 400); // Price per day cannot be negative
             }
-            if ($newPriceShortStay !== null && $newPriceShortStay < 0) { 
+            if ($newPriceShortStay !== null && $newPriceShortStay < 0) {
                 throw new Exception('ราคาพักชั่วคราวต้องไม่ติดลบ', 400); // Short stay price cannot be negative
             }
-            if ($newPricePerHourExtension !== null && $newPricePerHourExtension < 0) { 
+            if ($newPricePerHourExtension !== null && $newPricePerHourExtension < 0) {
                 throw new Exception('ราคาเพิ่มต่อชั่วโมงต้องไม่ติดลบ', 400); // Price per hour extension cannot be negative
             }
-            
+
             $stmtFetchRoom = $pdo->prepare("SELECT price_per_day, price_short_stay, price_per_hour_extension FROM rooms WHERE id = ?");
             $stmtFetchRoom->execute([$roomIdForPriceUpdate]);
             $currentRoomPrices = $stmtFetchRoom->fetch(PDO::FETCH_ASSOC);
 
             if (!$currentRoomPrices) {
-                 throw new Exception('ไม่พบห้อง ID: '.htmlspecialchars($roomIdForPriceUpdate).' สำหรับอัปเดตราคา', 404); // Room ID: {$roomIdForPriceUpdate} not found for price update
+                throw new Exception('ไม่พบห้อง ID: ' . htmlspecialchars($roomIdForPriceUpdate) . ' สำหรับอัปเดตราคา', 404); // Room ID: {$roomIdForPriceUpdate} not found for price update
             }
 
-            $updateFieldsPrice = []; 
-            $updateBindingsPrice = []; 
-            $priceChanged = false;    
+            $updateFieldsPrice = [];
+            $updateBindingsPrice = [];
+            $priceChanged = false;
 
             $currentPricePerDayInt = isset($currentRoomPrices['price_per_day']) ? (int)round((float)$currentRoomPrices['price_per_day']) : 0;
             $currentPriceShortStayInt = isset($currentRoomPrices['price_short_stay']) ? (int)round((float)$currentRoomPrices['price_short_stay']) : 0;
             $currentPricePerHourExtensionInt = isset($currentRoomPrices['price_per_hour_extension']) ? (int)round((float)$currentRoomPrices['price_per_hour_extension']) : 0;
 
 
-            if ($newPricePerDay !== null && $currentPricePerDayInt != $newPricePerDay) { 
+            if ($newPricePerDay !== null && $currentPricePerDayInt != $newPricePerDay) {
                 $updateFieldsPrice[] = "price_per_day = :price_day";
-                $updateBindingsPrice[':price_day'] = $newPricePerDay; 
+                $updateBindingsPrice[':price_day'] = $newPricePerDay;
                 $priceChanged = true;
             }
-            if ($newPriceShortStay !== null && $currentPriceShortStayInt != $newPriceShortStay) { 
+            if ($newPriceShortStay !== null && $currentPriceShortStayInt != $newPriceShortStay) {
                 $updateFieldsPrice[] = "price_short_stay = :price_short";
-                $updateBindingsPrice[':price_short'] = $newPriceShortStay; 
+                $updateBindingsPrice[':price_short'] = $newPriceShortStay;
                 $priceChanged = true;
             }
-            if ($newPricePerHourExtension !== null && $currentPricePerHourExtensionInt != $newPricePerHourExtension) { 
+            if ($newPricePerHourExtension !== null && $currentPricePerHourExtensionInt != $newPricePerHourExtension) {
                 $updateFieldsPrice[] = "price_per_hour_extension = :price_hour_ext";
-                $updateBindingsPrice[':price_hour_ext'] = $newPricePerHourExtension; 
+                $updateBindingsPrice[':price_hour_ext'] = $newPricePerHourExtension;
                 $priceChanged = true;
             }
 
             if ($priceChanged && !empty($updateFieldsPrice)) {
-                $updateBindingsPrice[':room_id_price'] = $roomIdForPriceUpdate; 
+                $updateBindingsPrice[':room_id_price'] = $roomIdForPriceUpdate;
                 $sqlPriceUpdate = "UPDATE rooms SET " . implode(", ", $updateFieldsPrice) . " WHERE id = :room_id_price";
                 $stmtPriceUpdate = $pdo->prepare($sqlPriceUpdate);
-                $stmtPriceUpdate->execute($updateBindingsPrice); 
-                $pdo->commit(); 
+                $stmtPriceUpdate->execute($updateBindingsPrice);
+                $pdo->commit();
                 // --- START: Telegram Notification Trigger ---
                 try {
                     if (function_exists('sendTelegramRoomStatusUpdate')) {
@@ -2597,41 +2749,39 @@ switch ($action) {
                 // --- END: Telegram Notification Trigger ---
                 echo json_encode(['success' => true, 'message' => 'อัปเดตราคาห้องพัก ID: ' . htmlspecialchars($roomIdForPriceUpdate) . ' เรียบร้อยแล้ว']); // Room price updated successfully
             } else {
-                $pdo->rollBack(); 
+                $pdo->rollBack();
                 echo json_encode(['success' => true, 'message' => 'ราคาห้องพัก ID: ' . htmlspecialchars($roomIdForPriceUpdate) . ' ไม่มีการเปลี่ยนแปลง']); // Room price has not changed
             }
             exit;
-
-        } catch (Exception $e) { 
-            if ($pdo->inTransaction()) $pdo->rollBack(); 
-            $errorCode = ($e->getCode() >= 400 && $e->getCode() < 600) ? $e->getCode() : 500; 
+        } catch (Exception $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            $errorCode = ($e->getCode() >= 400 && $e->getCode() < 600) ? $e->getCode() : 500;
             http_response_code($errorCode);
             error_log("[API UpdateRoomPrice] Error: " . $e->getMessage());
             echo json_encode(['success' => false, 'message' => $e->getMessage()]);
             exit;
         }
-        
-    case 'get_system_setting': 
+
+    case 'get_system_setting':
         try {
             $key = $_GET['setting_key'] ?? '';
             if (empty($key)) {
                 throw new Exception('ไม่ได้ระบุ setting_key', 400); // setting_key not specified
             }
-            $value = get_system_setting_value($pdo, $key, null); 
+            $value = get_system_setting_value($pdo, $key, null);
 
             if (($key === 'hourly_extension_rate' || $key === 'default_fixed_deposit') && $value !== null) {
                 $value = (int)round((float)$value);
             }
 
-            if ($value === null && $key !== 'hourly_extension_rate' && $key !== 'default_fixed_deposit') { 
+            if ($value === null && $key !== 'hourly_extension_rate' && $key !== 'default_fixed_deposit') {
                 $stmtCheckKey = $pdo->prepare("SELECT COUNT(*) FROM system_settings WHERE setting_key = ?");
                 $stmtCheckKey->execute([$key]);
                 if ($stmtCheckKey->fetchColumn() == 0) {
-                     echo json_encode(['success' => false, 'setting_key' => $key, 'value' => null, 'message' => 'ไม่พบการตั้งค่านี้ในระบบ: ' . htmlspecialchars($key)]); // Setting not found in system
+                    echo json_encode(['success' => false, 'setting_key' => $key, 'value' => null, 'message' => 'ไม่พบการตั้งค่านี้ในระบบ: ' . htmlspecialchars($key)]); // Setting not found in system
                 } else {
-                     echo json_encode(['success' => true, 'setting_key' => $key, 'value' => $value, 'message' => 'การตั้งค่านี้มีค่าเป็น null']); // This setting has a null value
+                    echo json_encode(['success' => true, 'setting_key' => $key, 'value' => $value, 'message' => 'การตั้งค่านี้มีค่าเป็น null']); // This setting has a null value
                 }
-
             } else {
                 echo json_encode(['success' => true, 'setting_key' => $key, 'value' => $value]);
             }
@@ -2643,29 +2793,29 @@ switch ($action) {
             echo json_encode(['success' => false, 'message' => $e->getMessage()]);
             exit;
         }
-        
+
     case 'update_system_setting':
         try {
             $pdo->beginTransaction();
             $key = $_POST['setting_key'] ?? '';
-            $value_raw = $_POST['setting_value'] ?? ''; 
+            $value_raw = $_POST['setting_value'] ?? '';
 
             if (empty($key)) {
                 throw new Exception('ไม่ได้ระบุ setting_key', 400); // setting_key not specified
             }
-            
-            $value_to_store = $value_raw; 
+
+            $value_to_store = $value_raw;
 
             if ($key === 'hourly_extension_rate' || $key === 'default_fixed_deposit') {
-                if ($value_raw === '' || $value_raw === null) { 
-                    $value_to_store = null; 
-                } elseif (!is_numeric($value_raw) || (float)$value_raw < 0) { 
+                if ($value_raw === '' || $value_raw === null) {
+                    $value_to_store = null;
+                } elseif (!is_numeric($value_raw) || (float)$value_raw < 0) {
                     throw new Exception('ค่าที่ตั้งต้องเป็นตัวเลขและไม่ติดลบสำหรับ: ' . htmlspecialchars($key), 400); // Value must be a non-negative number for:
                 } else {
-                    $value_to_store = (int)round((float)$value_raw); 
+                    $value_to_store = (int)round((float)$value_raw);
                 }
             }
-            
+
             $stmt = $pdo->prepare("UPDATE system_settings SET setting_value = ?, updated_at = NOW() WHERE setting_key = ?");
             $stmt->execute([$value_to_store, $key]);
 
@@ -2686,38 +2836,38 @@ switch ($action) {
                 $checkStmt->execute([$key]);
                 $existingValueResult = $checkStmt->fetch(PDO::FETCH_ASSOC);
 
-                if ($existingValueResult !== false) { 
+                if ($existingValueResult !== false) {
                     $existingValue = $existingValueResult['setting_value'];
                     $noChange = false;
                     if ($key === 'hourly_extension_rate' || $key === 'default_fixed_deposit') {
                         $existingValueInt = ($existingValue === null) ? null : (int)round((float)$existingValue);
                         if ($value_to_store === null && $existingValueInt === null) $noChange = true;
-                        elseif ($value_to_store !== null && $existingValueInt !== null && $existingValueInt == $value_to_store) $noChange = true; 
+                        elseif ($value_to_store !== null && $existingValueInt !== null && $existingValueInt == $value_to_store) $noChange = true;
                     } else {
-                         if ($existingValue == $value_to_store) $noChange = true; 
+                        if ($existingValue == $value_to_store) $noChange = true;
                     }
 
                     if ($noChange) {
-                         $pdo->commit(); 
-                         echo json_encode(['success' => true, 'message' => 'ค่าสำหรับ "' . htmlspecialchars($key) . '" เหมือนเดิม ไม่มีการเปลี่ยนแปลง']); // Value for "{key}" is the same, no changes
+                        $pdo->commit();
+                        echo json_encode(['success' => true, 'message' => 'ค่าสำหรับ "' . htmlspecialchars($key) . '" เหมือนเดิม ไม่มีการเปลี่ยนแปลง']); // Value for "{key}" is the same, no changes
                     } else {
-                         $pdo->rollBack(); 
-                         throw new Exception('อัปเดต "' . htmlspecialchars($key) . '" ล้มเหลวโดยไม่ทราบสาเหตุ ทั้งที่ค่าต่างกัน'); // Update failed for unknown reason, even though values differ
+                        $pdo->rollBack();
+                        throw new Exception('อัปเดต "' . htmlspecialchars($key) . '" ล้มเหลวโดยไม่ทราบสาเหตุ ทั้งที่ค่าต่างกัน'); // Update failed for unknown reason, even though values differ
                     }
-                } else { 
+                } else {
                     $pdo->rollBack();
                     throw new Exception('ไม่พบการตั้งค่าที่ต้องการอัปเดต: ' . htmlspecialchars($key), 404); // Setting to update not found
                 }
             }
             exit;
-        } catch (Exception $e) { 
+        } catch (Exception $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
             $errorCode = ($e->getCode() >= 400 && $e->getCode() < 600) ? $e->getCode() : 500;
             http_response_code($errorCode);
             error_log("[API UpdateSetting] Error: " . $e->getMessage());
             echo json_encode(['success' => false, 'message' => $e->getMessage()]);
             exit;
-        }        
+        }
     case 'get_addon_services':
         try {
             $only_active = isset($_GET['active_only']) && $_GET['active_only'] == 'true';
@@ -2728,35 +2878,35 @@ switch ($action) {
             $sql .= " ORDER BY name ASC";
             $stmt = $pdo->query($sql);
             $addons_raw = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            $addons = array_map(function($addon) {
-                $addon['price'] = (int)round((float)$addon['price']); 
+            $addons = array_map(function ($addon) {
+                $addon['price'] = (int)round((float)$addon['price']);
                 return $addon;
             }, $addons_raw);
             echo json_encode(['success' => true, 'addons' => $addons]);
             exit;
-        } catch (Exception $e) { 
+        } catch (Exception $e) {
             http_response_code(500);
             error_log("[API GetAddons] Error: " . $e->getMessage());
             echo json_encode(['success' => false, 'message' => 'เกิดข้อผิดพลาดในการดึงข้อมูลบริการเสริม: ' . $e->getMessage()]); // Error fetching add-on services data
             exit;
         }
-        
+
     case 'add_addon_service':
         try {
             $pdo->beginTransaction();
             $name = trim($_POST['name'] ?? '');
-            $price_str = $_POST['price'] ?? '0'; 
-            
+            $price_str = $_POST['price'] ?? '0';
+
             if (empty($name)) {
                 throw new Exception('ชื่อบริการเสริมต้องไม่เป็นค่าว่าง', 400); // Add-on service name cannot be empty
             }
-            if (!is_numeric($price_str) || (float)$price_str < 0) { 
-                 throw new Exception('ราคาบริการเสริมต้องเป็นตัวเลขและไม่ติดลบ', 400); // Add-on service price must be a non-negative number
+            if (!is_numeric($price_str) || (float)$price_str < 0) {
+                throw new Exception('ราคาบริการเสริมต้องเป็นตัวเลขและไม่ติดลบ', 400); // Add-on service price must be a non-negative number
             }
-            $price = (int)round((float)$price_str); 
+            $price = (int)round((float)$price_str);
 
             $stmt = $pdo->prepare("INSERT INTO addon_services (name, price, is_active, created_at, updated_at) VALUES (?, ?, 1, NOW(), NOW())");
-            $stmt->execute([$name, $price]); 
+            $stmt->execute([$name, $price]);
             $newAddonId = $pdo->lastInsertId();
             $pdo->commit();
             // --- START: Telegram Notification Trigger ---
@@ -2768,15 +2918,16 @@ switch ($action) {
                 error_log("Telegram notification failed after adding addon service: " . $tg_e->getMessage());
             }
             // --- END: Telegram Notification Trigger ---
-            echo json_encode(['success' => true, 'message' => 'เพิ่มบริการเสริม "'.htmlspecialchars($name).'" เรียบร้อยแล้ว', 'new_addon_id' => $newAddonId, 'name' => $name, 'price' => $price, 'is_active' => 1]); // Add-on service added successfully
+            echo json_encode(['success' => true, 'message' => 'เพิ่มบริการเสริม "' . htmlspecialchars($name) . '" เรียบร้อยแล้ว', 'new_addon_id' => $newAddonId, 'name' => $name, 'price' => $price, 'is_active' => 1]); // Add-on service added successfully
             exit;
         } catch (PDOException $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
-            if ($e->getCode() == 23000) { 
-                http_response_code(409); 
+            if ($e->getCode() == 23000) {
+                http_response_code(409);
                 echo json_encode(['success' => false, 'message' => 'ชื่อบริการเสริมนี้มีอยู่แล้ว: "' . htmlspecialchars($name) . '"']); // Add-on service name already exists
             } else {
-                http_response_code(500); error_log("[API AddAddon] PDO Error: " . $e->getMessage());
+                http_response_code(500);
+                error_log("[API AddAddon] PDO Error: " . $e->getMessage());
                 echo json_encode(['success' => false, 'message' => 'เกิดข้อผิดพลาดฐานข้อมูลขณะเพิ่มบริการเสริม: ' . $e->getMessage()]); // Database error while adding add-on service
             }
             exit;
@@ -2788,30 +2939,30 @@ switch ($action) {
             echo json_encode(['success' => false, 'message' => $e->getMessage()]);
             exit;
         }
-        
+
     case 'update_addon_service':
         try {
             $pdo->beginTransaction();
             $id = (int)($_POST['id'] ?? $_POST['edit_addon_id'] ?? 0);
             $name = trim($_POST['name'] ?? $_POST['edit_addon_name_modal'] ?? '');
-            $price_str = $_POST['price'] ?? $_POST['edit_addon_price_modal'] ?? null; 
+            $price_str = $_POST['price'] ?? $_POST['edit_addon_price_modal'] ?? null;
 
             if (!$id) {
                 throw new Exception('ไม่พบรหัสบริการเสริมสำหรับการแก้ไข', 400); // Add-on service ID not found for editing
             }
-            if (empty($name)) { 
-                 throw new Exception('ชื่อบริการเสริมต้องไม่เป็นค่าว่าง', 400); // Add-on service name cannot be empty
+            if (empty($name)) {
+                throw new Exception('ชื่อบริการเสริมต้องไม่เป็นค่าว่าง', 400); // Add-on service name cannot be empty
             }
-            if ($price_str === null) { 
-                 throw new Exception('ราคาบริการเสริมต้องไม่เป็นค่าว่าง', 400); // Add-on service price cannot be empty
+            if ($price_str === null) {
+                throw new Exception('ราคาบริการเสริมต้องไม่เป็นค่าว่าง', 400); // Add-on service price cannot be empty
             }
-            if (!is_numeric($price_str) || (float)$price_str < 0) { 
+            if (!is_numeric($price_str) || (float)$price_str < 0) {
                 throw new Exception('ราคาบริการเสริมต้องเป็นตัวเลขและไม่ติดลบ', 400); // Add-on service price must be a non-negative number
             }
-            $price = (int)round((float)$price_str); 
+            $price = (int)round((float)$price_str);
 
             $stmt = $pdo->prepare("UPDATE addon_services SET name = ?, price = ?, updated_at = NOW() WHERE id = ?");
-            $stmt->execute([$name, $price, $id]); 
+            $stmt->execute([$name, $price, $id]);
 
             if ($stmt->rowCount() > 0) {
                 $pdo->commit();
@@ -2824,29 +2975,29 @@ switch ($action) {
                     error_log("Telegram notification failed after updating addon service: " . $tg_e->getMessage());
                 }
                 // --- END: Telegram Notification Trigger ---
-                echo json_encode(['success' => true, 'message' => 'แก้ไขบริการเสริม ID: '.htmlspecialchars($id).' เรียบร้อยแล้ว']); // Add-on service edited successfully
+                echo json_encode(['success' => true, 'message' => 'แก้ไขบริการเสริม ID: ' . htmlspecialchars($id) . ' เรียบร้อยแล้ว']); // Add-on service edited successfully
             } else {
                 $checkStmt = $pdo->prepare("SELECT COUNT(*) FROM addon_services WHERE id = ? AND name = ? AND price = ?");
-                $checkStmt->execute([$id, $name, $price]); 
-                if ($checkStmt->fetchColumn() > 0) { 
-                    $pdo->commit(); 
-                    echo json_encode(['success' => true, 'message' => 'ข้อมูลบริการเสริม ID: '.htmlspecialchars($id).' เหมือนเดิม ไม่มีการเปลี่ยนแปลง']); // Add-on service data is the same, no changes
-                } else { 
+                $checkStmt->execute([$id, $name, $price]);
+                if ($checkStmt->fetchColumn() > 0) {
+                    $pdo->commit();
+                    echo json_encode(['success' => true, 'message' => 'ข้อมูลบริการเสริม ID: ' . htmlspecialchars($id) . ' เหมือนเดิม ไม่มีการเปลี่ยนแปลง']); // Add-on service data is the same, no changes
+                } else {
                     $checkExistsStmt = $pdo->prepare("SELECT COUNT(*) FROM addon_services WHERE id = ?");
                     $checkExistsStmt->execute([$id]);
-                    if($checkExistsStmt->fetchColumn() == 0) {
+                    if ($checkExistsStmt->fetchColumn() == 0) {
                         $pdo->rollBack();
-                        throw new Exception('ไม่พบรายการบริการเสริม ID: '.htmlspecialchars($id).' ที่ต้องการแก้ไข', 404); // Add-on service not found for editing
+                        throw new Exception('ไม่พบรายการบริการเสริม ID: ' . htmlspecialchars($id) . ' ที่ต้องการแก้ไข', 404); // Add-on service not found for editing
                     }
                     $pdo->rollBack();
-                    throw new Exception('แก้ไขบริการเสริม ID: '.htmlspecialchars($id).' ล้มเหลว หรือข้อมูลเหมือนเดิม (แต่ rowCount = 0)', 500); // Add-on service editing failed or data is the same (but rowCount = 0)
+                    throw new Exception('แก้ไขบริการเสริม ID: ' . htmlspecialchars($id) . ' ล้มเหลว หรือข้อมูลเหมือนเดิม (แต่ rowCount = 0)', 500); // Add-on service editing failed or data is the same (but rowCount = 0)
                 }
             }
             exit;
         } catch (PDOException $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
-            if ($e->getCode() == 23000) { 
-                http_response_code(409); 
+            if ($e->getCode() == 23000) {
+                http_response_code(409);
                 echo json_encode(['success' => false, 'message' => 'ชื่อบริการเสริม "' . htmlspecialchars($name) . '" นี้มีอยู่แล้ว (สำหรับรายการอื่น)']); // Add-on service name already exists (for another item)
             } else {
                 http_response_code(500);
@@ -2862,13 +3013,13 @@ switch ($action) {
             echo json_encode(['success' => false, 'message' => $e->getMessage()]);
             exit;
         }
-        
-    case 'add_user': 
+
+    case 'add_user':
         try {
             $pdo->beginTransaction();
             $username = trim($_POST['username'] ?? '');
-            $role = $_POST['role'] ?? 'staff'; 
-            $password_raw = $_POST['password'] ?? ''; 
+            $role = $_POST['role'] ?? 'staff';
+            $password_raw = $_POST['password'] ?? '';
 
             if (empty($username) || !in_array($role, ['admin', 'staff'])) {
                 throw new Exception('ข้อมูลผู้ใช้ไม่ถูกต้อง (ชื่อผู้ใช้, บทบาท)', 400); // Invalid user data (username, role)
@@ -2878,10 +3029,10 @@ switch ($action) {
             }
 
             $password_hash = null;
-            if (!empty($password_raw)) { 
+            if (!empty($password_raw)) {
                 $password_hash = password_hash($password_raw, PASSWORD_DEFAULT);
-            } else if ($role === 'admin') { 
-                 throw new Exception('รหัสผ่านจำเป็นสำหรับผู้ดูแลระบบ', 400); // Password is required for administrators
+            } else if ($role === 'admin') {
+                throw new Exception('รหัสผ่านจำเป็นสำหรับผู้ดูแลระบบ', 400); // Password is required for administrators
             }
 
             $stmt = $pdo->prepare("INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)");
@@ -2897,45 +3048,46 @@ switch ($action) {
                 error_log("Telegram notification failed after adding user: " . $tg_e->getMessage());
             }
             // --- END: Telegram Notification Trigger ---
-            echo json_encode(['success' => true, 'message' => 'เพิ่มผู้ใช้ "'.htmlspecialchars($username).'" เรียบร้อยแล้ว', 'user_id' => $newUserId]); // User added successfully
+            echo json_encode(['success' => true, 'message' => 'เพิ่มผู้ใช้ "' . htmlspecialchars($username) . '" เรียบร้อยแล้ว', 'user_id' => $newUserId]); // User added successfully
             exit;
         } catch (PDOException $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
-            if ($e->getCode() == 23000) { 
-                http_response_code(409); 
+            if ($e->getCode() == 23000) {
+                http_response_code(409);
                 echo json_encode(['success' => false, 'message' => 'ชื่อผู้ใช้นี้มีอยู่แล้ว: "' . htmlspecialchars($username) . '"']); // Username already exists
             } else {
-                http_response_code(500); error_log("[API AddUser] PDO Error: " . $e->getMessage());
+                http_response_code(500);
+                error_log("[API AddUser] PDO Error: " . $e->getMessage());
                 echo json_encode(['success' => false, 'message' => 'เกิดข้อผิดพลาดฐานข้อมูล: ' . $e->getMessage()]); // Database error
             }
             exit;
         } catch (Exception $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
-            $errorCode = $e->getCode() ?: 500; 
-            if ($errorCode < 400 || $errorCode > 599) $errorCode = 500; 
+            $errorCode = $e->getCode() ?: 500;
+            if ($errorCode < 400 || $errorCode > 599) $errorCode = 500;
             http_response_code($errorCode);
             error_log("[API AddUser] App Error: " . $e->getMessage());
             echo json_encode(['success' => false, 'message' => $e->getMessage()]);
             exit;
         }
 
-    case 'toggle_user_status': 
+    case 'toggle_user_status':
         try {
             $pdo->beginTransaction();
             $userId = (int)($_POST['id'] ?? 0);
             if (!$userId) throw new Exception('ไม่พบรหัสผู้ใช้', 400); // User ID not found
-            
-            $requesting_user_id = get_current_user_id(); 
+
+            $requesting_user_id = get_current_user_id();
             if ($requesting_user_id !== null && $userId == $requesting_user_id) {
-                 throw new Exception('ไม่สามารถเปลี่ยนสถานะผู้ใช้ของตัวเองได้', 403); // Cannot change your own user status
+                throw new Exception('ไม่สามารถเปลี่ยนสถานะผู้ใช้ของตัวเองได้', 403); // Cannot change your own user status
             }
 
             $stmt_current = $pdo->prepare("SELECT is_active FROM users WHERE id = ?");
             $stmt_current->execute([$userId]);
             $current_status_val = $stmt_current->fetchColumn();
 
-            if ($current_status_val === false) throw new Exception('ไม่พบผู้ใช้ ID: '.htmlspecialchars($userId), 404); // User ID: {$userId} not found
-            
+            if ($current_status_val === false) throw new Exception('ไม่พบผู้ใช้ ID: ' . htmlspecialchars($userId), 404); // User ID: {$userId} not found
+
             $new_status = ((int)$current_status_val === 1) ? 0 : 1;
 
             $stmt = $pdo->prepare("UPDATE users SET is_active = ? WHERE id = ?");
@@ -2951,7 +3103,7 @@ switch ($action) {
             }
             // --- END: Telegram Notification Trigger ---
             $status_text = $new_status === 1 ? "เปิดใช้งาน" : "ปิดใช้งาน"; // Activated : Deactivated
-            echo json_encode(['success' => true, 'message' => 'เปลี่ยนสถานะผู้ใช้เป็น "'.$status_text.'" เรียบร้อยแล้ว', 'new_status' => $new_status]); // User status changed successfully
+            echo json_encode(['success' => true, 'message' => 'เปลี่ยนสถานะผู้ใช้เป็น "' . $status_text . '" เรียบร้อยแล้ว', 'new_status' => $new_status]); // User status changed successfully
             exit;
         } catch (Exception $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
@@ -2963,7 +3115,7 @@ switch ($action) {
             exit;
         }
 
-    case 'reset_admin_password': 
+    case 'reset_admin_password':
         try {
             $pdo->beginTransaction();
             $userIdToReset = (int)($_POST['user_id'] ?? 0);
@@ -2977,8 +3129,8 @@ switch ($action) {
             $stmtUser->execute([$userIdToReset]);
             $userRole = $stmtUser->fetchColumn();
 
-            if ($userRole === false) { 
-                throw new Exception('ไม่พบผู้ใช้ ID: '.htmlspecialchars($userIdToReset).' สำหรับการตั้งรหัสผ่านใหม่', 404); // User ID: {$userIdToReset} not found for setting new password
+            if ($userRole === false) {
+                throw new Exception('ไม่พบผู้ใช้ ID: ' . htmlspecialchars($userIdToReset) . ' สำหรับการตั้งรหัสผ่านใหม่', 404); // User ID: {$userIdToReset} not found for setting new password
             }
             if ($userRole !== 'admin') {
                 throw new Exception('สามารถตั้งรหัสผ่านใหม่ให้เฉพาะผู้ดูแลเท่านั้น', 403); // Can only set new password for administrators
@@ -2999,9 +3151,9 @@ switch ($action) {
                     error_log("Telegram notification failed after resetting admin password: " . $tg_e->getMessage());
                 }
                 // --- END: Telegram Notification Trigger ---
-                echo json_encode(['success' => true, 'message' => 'ตั้งรหัสผ่านใหม่สำหรับผู้ใช้ ID: '.htmlspecialchars($userIdToReset).' เรียบร้อยแล้ว']); // New password set successfully for user ID: {$userIdToReset}
+                echo json_encode(['success' => true, 'message' => 'ตั้งรหัสผ่านใหม่สำหรับผู้ใช้ ID: ' . htmlspecialchars($userIdToReset) . ' เรียบร้อยแล้ว']); // New password set successfully for user ID: {$userIdToReset}
             } else {
-                 $pdo->rollBack();
+                $pdo->rollBack();
                 throw new Exception('ไม่สามารถตั้งรหัสผ่านใหม่ได้ อาจมีข้อผิดพลาดกับข้อมูลผู้ใช้ หรือผู้ใช้ไม่ใช่ Admin', 500); // Could not set new password. There may be an error with user data, or user is not an Admin.
             }
             exit;
@@ -3015,7 +3167,7 @@ switch ($action) {
             exit;
         }
 
-    case 'toggle_addon_service_status': 
+    case 'toggle_addon_service_status':
         try {
             $pdo->beginTransaction();
             $id = (int)($_POST['id'] ?? 0);
@@ -3027,8 +3179,8 @@ switch ($action) {
             $stmt_current->execute([$id]);
             $current_status_val = $stmt_current->fetchColumn();
 
-            if ($current_status_val === false) { 
-                throw new Exception('ไม่พบรายการบริการเสริม ID: '.htmlspecialchars($id), 404); // Add-on service not found
+            if ($current_status_val === false) {
+                throw new Exception('ไม่พบรายการบริการเสริม ID: ' . htmlspecialchars($id), 404); // Add-on service not found
             }
             $new_status = ((int)$current_status_val === 1) ? 0 : 1;
 
@@ -3045,9 +3197,9 @@ switch ($action) {
             }
             // --- END: Telegram Notification Trigger ---
             $status_text = $new_status === 1 ? "เปิดใช้งาน" : "ปิดใช้งาน"; // Activated : Deactivated
-            echo json_encode(['success' => true, 'message' => 'เปลี่ยนสถานะบริการเสริมเป็น "'.$status_text.'" เรียบร้อยแล้ว', 'new_status' => $new_status]); // Add-on service status changed successfully
+            echo json_encode(['success' => true, 'message' => 'เปลี่ยนสถานะบริการเสริมเป็น "' . $status_text . '" เรียบร้อยแล้ว', 'new_status' => $new_status]); // Add-on service status changed successfully
             exit;
-        } catch (Exception $e) { 
+        } catch (Exception $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
             $errorCode = ($e->getCode() >= 400 && $e->getCode() < 600) ? $e->getCode() : 500;
             http_response_code($errorCode);
@@ -3055,17 +3207,17 @@ switch ($action) {
             echo json_encode(['success' => false, 'message' => $e->getMessage()]);
             exit;
         }
-    
+
     case 'get_room_statuses':
         try {
             // --- START OF MODIFIED SQL QUERY --- // <<< [V2 REFACTOR] REMOVING OLD QUERY
             // This query is designed to fetch comprehensive status information for each room.
             // ... (approx 88 lines of old query removed) ...
             // --- END OF MODIFIED SQL QUERY --- // <<< [V2 REFACTOR] REMOVING OLD QUERY
-            
+
             // $roomsDataQueryApi->execute(); // <<< [V2 REFACTOR] REMOVED
             // $roomsStatuses = $roomsDataQueryApi->fetchAll(PDO::FETCH_ASSOC); // <<< [V2 REFACTOR] REMOVED
-            
+
             // +++ START: REFACTORED V2 - PERFORMANCE FIX 1.1 +++
             // เรียกใช้ฟังก์ชันกลางที่ถูก Optimize แล้วจาก bootstrap.php
             if (!function_exists('fetchRoomStatuses')) {
@@ -3075,7 +3227,7 @@ switch ($action) {
             // +++ END: REFACTORED V2 +++
 
             // Sanitize numerical values before encoding
-            $sanitizedRoomsStatuses = array_map(function($room) {
+            $sanitizedRoomsStatuses = array_map(function ($room) {
                 if (isset($room['current_booking_total_price'])) {
                     $room['current_booking_total_price'] = (int)round((float)$room['current_booking_total_price']);
                 }
@@ -3091,7 +3243,7 @@ switch ($action) {
                 if (isset($room['price_per_day'])) {
                     $room['price_per_day'] = (int)round((float)$room['price_per_day']);
                 }
-                 if (isset($room['price_short_stay'])) {
+                if (isset($room['price_short_stay'])) {
                     $room['price_short_stay'] = (int)round((float)$room['price_short_stay']);
                 }
                 if (isset($room['price_per_hour_extension'])) {
@@ -3107,7 +3259,7 @@ switch ($action) {
             error_log("[API GetRoomStatuses] PDO Error: " . $e->getMessage());
             echo json_encode(['success' => false, 'message' => 'Error fetching room statuses: ' . $e->getMessage()]);
         }
-        break; 
+        break;
 
     // ***** START: โค้ดที่เพิ่มเข้ามา (NEW ACTIONS) *****
     case 'get_available_rooms_for_move':
@@ -3143,7 +3295,7 @@ switch ($action) {
             $available_rooms_raw = $stmt_avail->fetchAll(PDO::FETCH_ASSOC);
 
             // Sanitize numerical values before encoding
-            $available_rooms = array_map(function($room) {
+            $available_rooms = array_map(function ($room) {
                 if (isset($room['price_per_day'])) {
                     $room['price_per_day'] = (int)round((float)$room['price_per_day']);
                 }
@@ -3154,7 +3306,6 @@ switch ($action) {
             }, $available_rooms_raw);
 
             echo json_encode(['success' => true, 'rooms' => $available_rooms]);
-
         } catch (Exception $e) {
             http_response_code($e->getCode() >= 400 ? $e->getCode() : 500);
             error_log("[API GetAvailableRoomsForMove] Error: " . $e->getMessage());
@@ -3233,12 +3384,11 @@ switch ($action) {
             echo json_encode(['success' => false, 'message' => 'เกิดข้อผิดพลาด: ' . $e->getMessage()]); // An error occurred
         }
         exit;
-    // ***** END: โค้ดที่เพิ่มเข้ามา *****
+        // ***** END: โค้ดที่เพิ่มเข้ามา *****
 
     default:
         http_response_code(400);
         error_log("[API] Default case triggered. Action: '{$action}'. This means the switch did not match any case.");
         echo json_encode(['success' => false, 'message' => 'ไม่มี action ที่ระบุหรือ action ไม่ถูกต้อง (No action specified or action is invalid: ' . htmlspecialchars($action) . ')', 'detail' => 'Invalid action specified in main switch.']); // No action specified or action is invalid
-        exit; 
+        exit;
 }
-?>

@@ -40,11 +40,11 @@ if (!$booking) {
 }
 ?>
 <div class="booking-confirmation-details">
-    <h4>ยืนยันการเช็คอินสำหรับห้อง <?= h($booking['zone'] . $booking['room_number']) ?></h4>
+    <h4 style="color: var(--color-primary-dark); border-bottom: 2px solid var(--color-border); padding-bottom: 0.75rem; margin-bottom: 1.5rem; font-weight: 700; letter-spacing: -0.5px;">ยืนยันการเช็คอินสำหรับห้อง <?= h($booking['zone'] . $booking['room_number']) ?></h4>
     <p><strong>รหัสการจอง:</strong> <?= h($booking['booking_id']) ?></p>
     <p><strong>ชื่อผู้จอง:</strong> <?= h($booking['customer_name']) ?></p>
     <?php if (!empty($booking['customer_phone'])): ?>
-        <p><strong>เบอร์โทรศัพท์:</strong> <a href="tel:<?= h(preg_replace('/[^0-9+]/', '', $booking['customer_phone'])) ?>" class="link-like"><?= h($booking['customer_phone']) ?></a></p>
+        <p><strong>เบอร์โทรศัพท์:</strong> <a href="tel:<?= h(preg_replace('/[^0-9+]/', '', $booking['customer_phone'])) ?>" style="color: var(--color-primary); font-weight: 700; text-decoration: none; border-bottom: 1px dashed var(--color-primary);"><?= h($booking['customer_phone']) ?></a></p>
     <?php endif; ?>
     <p><strong>ประเภทการจอง:</strong> <?= h($booking['booking_type'] === 'short_stay' ? 'ชั่วคราว' : 'ค้างคืน') ?></p>
     <p><strong>กำหนดเช็กอิน:</strong> <?= h($booking['formatted_checkin']) ?></p>
@@ -61,8 +61,8 @@ if (!$booking) {
         <div class="receipt-preview-inline" style="margin-top:10px;">
             <strong>หลักฐานการชำระ:</strong><br>
             <img src="/hotel_booking/uploads/receipts/<?= h($booking['receipt_path']) ?>"
-                 alt="หลักฐานการชำระ" style="max-width: 200px; max-height: 150px; border-radius: 4px; margin-top:5px; cursor:pointer;"
-                 onclick="viewReceiptImage('/hotel_booking/uploads/receipts/<?= h($booking['receipt_path']) ?>')">
+                alt="หลักฐานการชำระ" style="max-width: 200px; max-height: 150px; border-radius: 4px; margin-top:5px; cursor:pointer;"
+                onclick="viewReceiptImage('/hotel_booking/uploads/receipts/<?= h($booking['receipt_path']) ?>')">
         </div>
     <?php else: ?>
         <p><em>ไม่มีหลักฐานการชำระเงินแนบมา</em></p>
@@ -70,20 +70,20 @@ if (!$booking) {
 </div>
 
 <script>
-// This script is part of the AJAX response.
-// viewReceiptImage should be globally available from main.js or layout.php
-if (typeof viewReceiptImage !== 'function' && document.getElementById('image-modal')) { // Check if modal exists too
-    window.viewReceiptImage = function(src) { // Define locally if not global, ensure it matches global def
-        const imageModalGlobal = document.getElementById('image-modal');
-        const modalImageGlobal = document.getElementById('modal-image');
-        if (imageModalGlobal && modalImageGlobal) {
-            modalImageGlobal.src = src;
-            // Assuming showModal is globally available from main.js
-            if(typeof showModal === 'function') showModal(imageModalGlobal);
-            else imageModalGlobal.classList.add('show');
-        } else {
-            window.open(src, '_blank');
+    // This script is part of the AJAX response.
+    // viewReceiptImage should be globally available from main.js or layout.php
+    if (typeof viewReceiptImage !== 'function' && document.getElementById('image-modal')) { // Check if modal exists too
+        window.viewReceiptImage = function(src) { // Define locally if not global, ensure it matches global def
+            const imageModalGlobal = document.getElementById('image-modal');
+            const modalImageGlobal = document.getElementById('modal-image');
+            if (imageModalGlobal && modalImageGlobal) {
+                modalImageGlobal.src = src;
+                // Assuming showModal is globally available from main.js
+                if (typeof showModal === 'function') showModal(imageModalGlobal);
+                else imageModalGlobal.classList.add('show');
+            } else {
+                window.open(src, '_blank');
+            }
         }
     }
-}
 </script>

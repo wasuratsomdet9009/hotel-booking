@@ -1,7 +1,7 @@
 <?php
 // FILEX: hotel_booking/pages/index.php
 require_once __DIR__ . '/../bootstrap.php';
-require_login(); 
+require_login();
 
 $pageTitle = 'Dashboard โรงแรม';
 
@@ -76,7 +76,7 @@ try {
             ':total_price' => $ozfBooking['total_price'],
             ':amount_paid' => $ozfBooking['amount_paid'],
             ':additional_paid_amount' => $ozfBooking['additional_paid_amount'] ?? 0.00,
-            ':deposit_amount' => $ozfBooking['deposit_amount'] ?? 0.00, 
+            ':deposit_amount' => $ozfBooking['deposit_amount'] ?? 0.00,
             ':payment_method' => $ozfBooking['payment_method'],
             ':extended_payment_method' => $ozfBooking['extended_payment_method'],
             ':receipt_path' => $ozfBooking['receipt_path'],
@@ -129,7 +129,6 @@ try {
         error_log("[AutoArchive ZoneF NO DEPOSIT] Successfully auto-archived {$archivedCountZoneF} overdue Zone F bookings (NO DEPOSIT).");
     }
     $pdo->commit();
-
 } catch (Exception $e) {
     if ($pdo->inTransaction()) $pdo->rollBack();
     error_log("[AutoArchive ZoneF NO DEPOSIT] Error during auto-archiving: " . $e->getMessage() . "\nTrace: " . $e->getTraceAsString());
@@ -158,7 +157,7 @@ try {
           );
     ");
     $stmtCorrectRoomStatus->execute();
-    
+
     $stmtSetBooked = $pdo->prepare("
         UPDATE rooms r SET status = 'booked'
         WHERE r.status = 'free' 
@@ -202,7 +201,7 @@ try {
           );
     ");
     $stmtFreeNoShowNonZoneF->execute();
-    
+
     $pdo->commit();
 } catch (PDOException $e) {
     if ($pdo->inTransaction()) $pdo->rollBack();
@@ -239,10 +238,14 @@ try {
 
 $groupedRooms = ['นั้งกินนอนฟิน' => [], 'ภัทรรีสอร์ท' => []];
 foreach ($roomsData as $room) {
-    if (in_array($room['zone'], ['A', 'B', 'C'])) { $groupedRooms['นั้งกินนอนฟิน'][] = $room; } 
-    elseif ($room['zone'] === 'F') { $groupedRooms['ภัทรรีสอร์ท'][] = $room; } 
-    else {
-        if (!isset($groupedRooms['โซน ' . $room['zone']])) { $groupedRooms['โซน ' . $room['zone']] = []; }
+    if (in_array($room['zone'], ['A', 'B', 'C'])) {
+        $groupedRooms['นั้งกินนอนฟิน'][] = $room;
+    } elseif ($room['zone'] === 'F') {
+        $groupedRooms['ภัทรรีสอร์ท'][] = $room;
+    } else {
+        if (!isset($groupedRooms['โซน ' . $room['zone']])) {
+            $groupedRooms['โซน ' . $room['zone']] = [];
+        }
         $groupedRooms['โซน ' . $room['zone']][] = $room;
     }
 }
@@ -262,248 +265,425 @@ if (!empty($customerSearchTerm)) {
 ob_start();
 ?>
 
-<div class="dashboard-stats">
-  <div class="stat-box">
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-bottom: 0.5rem; color: var(--color-warning-dark);"><path d="M7 4a2 2 0 012-2h6a2 2 0 012 2v2h2a1 1 0 011 1v11a1 1 0 01-1 1H6a1 1 0 01-1-1V7a1 1 0 011-1h2V4zm10 4H7v9h10V8zM9 6V4h6v2H9z" fill="currentColor"/></svg>
-    <h3>รอเช็กอิน (วันนี้)</h3>
-    <p><?= h($bookedCount) ?></p>
-  </div>
-  <div class="stat-box">
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-bottom: 0.5rem; color: var(--color-alert-dark);"><path d="M17.663 2.307C17.29 2.115 16.863 2 16.403 2c-1.717 0-3.314.958-4.403 2.438C10.914 2.958 9.317 2 7.597 2c-.46 0-.887.115-1.26.307A4.002 4.002 0 003 6.166V18c0 1.104.896 2 2 2h14c1.104 0 2-.896 2-2V6.166a4.002 4.002 0 00-3.337-3.859zM5 18V6.166a2.001 2.001 0 011.663-1.973c.393-.2.854-.315 1.337-.315.968 0 1.896.532 2.597 1.403V18H5zm14 0h-5.597V5.281c.701-.871 1.629-1.403 2.597-1.403.483 0 .944.115 1.337.315A2.001 2.001 0 0119 6.166V18z" fill="currentColor"/></svg>
-    <h3>เช็กอินแล้ว (Occupied)</h3>
-    <p><?= h($occupiedCount) ?></p>
-  </div>
-  <div class="stat-box">
-     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-bottom: 0.5rem; color: var(--color-secondary-dark);"><path d="M17.663 2.307C17.29 2.115 16.863 2 16.403 2c-1.717 0-3.314.958-4.403 2.438C10.914 2.958 9.317 2 7.597 2c-.46 0-.887.115-1.26.307A4.002 4.002 0 003 6.166V18c0 1.104.896 2 2 2h14c1.104 0 2-.896 2-2V6.166a4.002 4.002 0 00-3.337-3.859zM5 18V6.166a2.001 2.001 0 011.663-1.973c.393-.2.854-.315 1.337-.315.968 0 1.896.532 2.597 1.403V18H5zm14 0h-5.597V5.281c.701-.871 1.629-1.403 2.597-1.403.483 0 .944.115 1.337.315A2.001 2.001 0 0119 6.166V18zM9.5 11a.5.5 0 000 1h5a.5.5 0 000-1h-5z" fill="currentColor"/></svg>
-    <h3>ห้องว่าง (Free Now)</h3>
-    <p><?= h($freeCount) ?></p>
-  </div>
-  <div class="stat-box">
-     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-bottom: 0.5rem; color: var(--color-primary-dark);"><path clip-rule="evenodd" d="M10 1a1 1 0 011 1v2.065A8.001 8.001 0 0119.935 11H22a1 1 0 110 2h-2.065a8.001 8.001 0 01-15.87 0H2a1 1 0 110-2h2.065A8.001 8.001 0 0110 4.065V2a1 1 0 011-1zM7.5 12a4.5 4.5 0 109 0 4.5 4.5 0 00-9 0zm4.5-2.5a1 1 0 00-1 1v1h-1a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1v-1a1 1 0 00-1-1z" fill-rule="evenodd" fill="currentColor"/></svg>
-    <h3>กำลังเข้าพัก (Active Stays)</h3>
-    <p><?= h($todayOccupancyCount) ?></p>
-  </div>
-</div>
-
-<div class="dashboard-toolbar" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 10px;">
-    <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
-        <button id="share-dashboard-btn" class="button info">
-            <img src="/hotel_booking/assets/image/share.png" alt="Share" style="width:16px; height:16px; margin-right:8px; vertical-align:middle;">
-            แชร์ภาพรวม Dashboard
-        </button>
-        <a href="/hotel_booking/pages/cash_bill.php" class="button secondary">
-             <img src="/hotel_booking/assets/image/printer.png" alt="Bill" style="width:16px; height:16px; margin-right:8px; vertical-align:middle;">
-             ระบบบิลเงินสด
-        </a>
-        <!-- START: Bulk Action Button -->
-        <button id="bulk-checkout-btn" class="button alert" style="display: none;">
-            <i class="fas fa-money-bill-wave"></i> คืนมัดจำ/เช็คเอาท์ (<span id="bulk-selected-count">0</span>)
-        </button>
-        <!-- END: Bulk Action Button -->
-    </div>
-    <div>
-        <?php $isTableView = ($viewMode === 'table'); ?>
-        <label for="view-mode-toggle-checkbox" class="switch" aria-label="สลับมุมมอง Grid และ ตาราง">
-          <input type="checkbox" id="view-mode-toggle-checkbox" <?= $isTableView ? 'checked' : '' ?> />
-          <span>Grid</span><span>ตาราง</span>
-        </label>
-    </div>
-</div>
-
-<form method="GET" action="index.php" class="report-filter mb-8 bg-white p-4 rounded-lg shadow">
-    <div class="filter-group flex flex-wrap gap-4 items-end">
-        <div class="flex-grow">
-            <label for="customer_search" class="block text-sm font-medium text-gray-700 mb-1">ค้นหาชื่อผู้จอง (การจองปัจจุบันและอนาคต):</label>
-            <input type="text" name="customer_search" id="customer_search" value="<?= h($customerSearchTerm) ?>" placeholder="พิมพ์ชื่อลูกค้า..." class="p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 w-full shadow-sm">
+<div class="dashboard-stats" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.5rem; margin-bottom: 2.5rem;">
+    <!-- Wait for Checkin -->
+    <div class="stat-box glass-card" style="display: flex; flex-direction: column; justify-content: space-between; position: relative; overflow: hidden; padding: 1.5rem; background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(245, 158, 11, 0.05)); border-color: rgba(245, 158, 11, 0.2);">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
+            <h3 style="margin: 0; font-size: 0.95rem; font-weight: 600; color: var(--color-warning-dark);">รอเช็กอิน (วันนี้)</h3>
+            <div style="background: rgba(245, 158, 11, 0.2); padding: 0.5rem; border-radius: 0.5rem; color: var(--color-warning-dark);">
+                <i class="fa-solid fa-clock"></i>
+            </div>
         </div>
-        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-md shadow-sm hover:shadow-md transition-shadow duration-200">ค้นหา</button>
+        <p class="number-font" style="font-size: 2.5rem; font-weight: 700; color: var(--color-text); margin: 0; line-height: 1;"><?= h($bookedCount) ?></p>
+        <div style="position: absolute; right: -15px; bottom: -15px; opacity: 0.1; font-size: 5rem; color: var(--color-warning-dark);"><i class="fa-solid fa-clock"></i></div>
+    </div>
+
+    <!-- Occupied -->
+    <div class="stat-box glass-card" style="display: flex; flex-direction: column; justify-content: space-between; position: relative; overflow: hidden; padding: 1.5rem; background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(239, 68, 68, 0.05)); border-color: rgba(239, 68, 68, 0.2);">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
+            <h3 style="margin: 0; font-size: 0.95rem; font-weight: 600; color: var(--color-alert-dark);">ห้องไม่ว่าง (Occupied)</h3>
+            <div style="background: rgba(239, 68, 68, 0.2); padding: 0.5rem; border-radius: 0.5rem; color: var(--color-alert-dark);">
+                <i class="fa-solid fa-bed"></i>
+            </div>
+        </div>
+        <p class="number-font" style="font-size: 2.5rem; font-weight: 700; color: var(--color-text); margin: 0; line-height: 1;"><?= h($occupiedCount) ?></p>
+        <div style="position: absolute; right: -15px; bottom: -15px; opacity: 0.1; font-size: 5rem; color: var(--color-alert-dark);"><i class="fa-solid fa-bed"></i></div>
+    </div>
+
+    <!-- Free -->
+    <div class="stat-box glass-card" style="display: flex; flex-direction: column; justify-content: space-between; position: relative; overflow: hidden; padding: 1.5rem; background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.05)); border-color: rgba(16, 185, 129, 0.2);">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
+            <h3 style="margin: 0; font-size: 0.95rem; font-weight: 600; color: var(--color-success);">ห้องว่าง (Free)</h3>
+            <div style="background: rgba(16, 185, 129, 0.2); padding: 0.5rem; border-radius: 0.5rem; color: var(--color-success);">
+                <i class="fa-solid fa-door-open"></i>
+            </div>
+        </div>
+        <p class="number-font" style="font-size: 2.5rem; font-weight: 700; color: var(--color-text); margin: 0; line-height: 1;"><?= h($freeCount) ?></p>
+        <div style="position: absolute; right: -15px; bottom: -15px; opacity: 0.1; font-size: 5rem; color: var(--color-success);"><i class="fa-solid fa-door-open"></i></div>
+    </div>
+
+    <!-- Active Stays (Unique Bookings) -->
+    <div class="stat-box glass-card" style="display: flex; flex-direction: column; justify-content: space-between; position: relative; overflow: hidden; padding: 1.5rem; background: linear-gradient(135deg, rgba(79, 70, 229, 0.1), rgba(79, 70, 229, 0.05)); border-color: rgba(79, 70, 229, 0.2);">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
+            <h3 style="margin: 0; font-size: 0.95rem; font-weight: 600; color: var(--color-primary-dark);">กำลังเข้าพัก (Active Stays)</h3>
+            <div style="background: rgba(79, 70, 229, 0.2); padding: 0.5rem; border-radius: 0.5rem; color: var(--color-primary-dark);">
+                <i class="fa-solid fa-users"></i>
+            </div>
+        </div>
+        <p class="number-font" style="font-size: 2.5rem; font-weight: 700; color: var(--color-text); margin: 0; line-height: 1;"><?= h($todayOccupancyCount) ?></p>
+        <div style="position: absolute; right: -15px; bottom: -15px; opacity: 0.1; font-size: 5rem; color: var(--color-primary-dark);"><i class="fa-solid fa-users"></i></div>
+    </div>
+</div>
+
+<div class="dashboard-toolbar" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; flex-wrap: wrap; gap: 15px; background: var(--color-surface); padding: 1rem 1.5rem; border-radius: 1rem; border: 1px solid var(--color-border); box-shadow: var(--shadow-sm);">
+    <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+        <a href="booking.php?mode=multi" class="button" style="background: linear-gradient(135deg, var(--color-primary), var(--color-purple)); color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 0.5rem; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; text-decoration: none; box-shadow: 0 4px 10px rgba(79, 70, 229, 0.3);">
+            <i class="fa-solid fa-layer-group"></i> จองหลายห้อง/จองกลุ่ม
+        </a>
+        <button id="share-dashboard-btn" class="button outline-secondary" style="display: inline-flex; align-items: center; gap: 8px; padding: 0.6rem 1.2rem; border-radius: 0.5rem;">
+            <i class="fa-solid fa-share-nodes"></i> แชร์ภาพรวม
+        </button>
+        <a href="/hotel_booking/pages/cash_bill.php" class="button outline-secondary" style="display: inline-flex; align-items: center; gap: 8px; padding: 0.6rem 1.2rem; border-radius: 0.5rem;">
+            <i class="fa-solid fa-receipt"></i> ระบบบิลเงินสด
+        </a>
+        <!-- START: Multi-Select Mode Toggle & Bulk Action Buttons -->
+        <button id="toggle-select-mode-btn" class="button outline-secondary" style="display: inline-flex; align-items: center; gap: 8px; padding: 0.6rem 1.2rem; border-radius: 0.5rem;">
+            <i class="fa-solid fa-check-square"></i> เลือกหลายห้อง
+        </button>
+        <button id="bulk-cancel-btn" class="button alert" style="display: none; align-items: center; gap: 8px; padding: 0.6rem 1.2rem; border-radius: 0.5rem; background: var(--color-error);">
+            <i class="fa-solid fa-ban"></i> ยกเลิก/ลบ (<span id="bulk-cancel-count">0</span>)
+        </button>
+        <button id="bulk-checkout-btn" class="button success" style="display: none; align-items: center; gap: 8px; padding: 0.6rem 1.2rem; border-radius: 0.5rem;">
+            <i class="fa-solid fa-money-bill-wave"></i> คืนมัดจำ/เช็คเอาท์ (<span id="bulk-selected-count">0</span>)
+        </button>
+        <!-- END: Multi-Select Mode Toggle & Bulk Action Buttons -->
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px; background: var(--color-bg); padding: 0.3rem; border-radius: 0.5rem; border: 1px solid var(--color-border);">
+        <?php $isTableView = ($viewMode === 'table'); ?>
+        <a href="?view=grid" style="padding: 0.4rem 1rem; border-radius: 0.3rem; text-decoration: none; font-size: 0.9rem; font-weight: 500; color: <?= !$isTableView ? 'var(--color-primary)' : 'var(--color-text-muted)' ?>; background: <?= !$isTableView ? 'var(--color-surface)' : 'transparent' ?>; box-shadow: <?= !$isTableView ? 'var(--shadow-sm)' : 'none' ?>; transition: all 0.2s;">
+            <i class="fa-solid fa-grip" style="margin-right: 5px;"></i> Grid
+        </a>
+        <a href="?view=table" style="padding: 0.4rem 1rem; border-radius: 0.3rem; text-decoration: none; font-size: 0.9rem; font-weight: 500; color: <?= $isTableView ? 'var(--color-primary)' : 'var(--color-text-muted)' ?>; background: <?= $isTableView ? 'var(--color-surface)' : 'transparent' ?>; box-shadow: <?= $isTableView ? 'var(--shadow-sm)' : 'none' ?>; transition: all 0.2s;">
+            <i class="fa-solid fa-list" style="margin-right: 5px;"></i> List
+        </a>
+    </div>
+</div>
+
+<form method="GET" action="index.php" class="report-filter" style="background: var(--color-surface); padding: 1.5rem; border-radius: 1rem; border: 1px solid var(--color-border); box-shadow: var(--shadow-sm); margin-bottom: 2rem;">
+    <div class="filter-group" style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-end;">
+        <div style="flex-grow: 1; min-width: 250px;">
+            <label for="customer_search" style="display: block; margin-bottom: 0.5rem; font-weight: 500; color: var(--color-text-muted);"><i class="fa-solid fa-magnifying-glass"></i> ค้นหาชื่อผู้จอง (ปัจจุบันและอนาคต):</label>
+            <input type="text" name="customer_search" id="customer_search" value="<?= h($customerSearchTerm) ?>" placeholder="พิมพ์ชื่อลูกค้า..." style="width: 100%; padding: 0.75rem 1rem; border: 1px solid var(--color-border); border-radius: 0.5rem; background: var(--color-bg); font-family: 'Prompt', sans-serif;">
+        </div>
+        <button type="submit" class="button primary" style="padding: 0.75rem 1.5rem; border-radius: 0.5rem;">ค้นหา</button>
         <?php if (!empty($customerSearchTerm)): ?>
             <?php $clearSearchParams = ['view' => $viewMode]; ?>
-            <a href="index.php?<?= http_build_query($clearSearchParams) ?>" class="border border-gray-300 hover:bg-gray-100 text-gray-700 font-semibold py-2 px-4 rounded-md shadow-sm hover:shadow-md transition-shadow duration-200">ล้างการค้นหา</a>
+            <a href="index.php?<?= http_build_query($clearSearchParams) ?>" class="button secondary" style="padding: 0.75rem 1.5rem; border-radius: 0.5rem;">ล้าง</a>
         <?php endif; ?>
     </div>
     <input type="hidden" name="view" id="search_view_mode_input" value="<?= h($viewMode) ?>">
 </form>
 
-<?php if (!empty($customerSearchTerm)): ?>
-    <section class="search-results-section report-section mb-8">
-        <h3 class="text-xl font-semibold mb-3">ผลการค้นหาสำหรับ "<?= h($customerSearchTerm) ?>"</h3>
-        <?php if (!empty($searchedBookings)): ?>
-            <div class="table-responsive shadow border-b border-gray-200 sm:rounded-lg">
-                <table class="report-table modern-table min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID จอง</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ห้อง</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ชื่อลูกค้า</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">เบอร์โทร</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">เช็คอิน</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">เช็คเอาท์</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ประเภท</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ระยะเวลา</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">สถานะ</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ดำเนินการ</th>
-                        </tr>
-                    </thead>
-                    <tbody class="bg-white divide-y divide-gray-200">
-                        <?php foreach ($searchedBookings as $sBooking): ?>
-                        <tr>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900"><?= h($sBooking['booking_id']) ?></td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900"><?= h($sBooking['zone'] . $sBooking['room_number']) ?></td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900"><?= h($sBooking['customer_name']) ?></td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= h($sBooking['customer_phone'] ?? '-') ?></td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= h($sBooking['checkin_datetime_formatted']) ?></td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= h($sBooking['checkout_datetime_formatted']) ?></td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= h($sBooking['booking_type'] === 'short_stay' ? 'ชั่วคราว' : 'ค้างคืน') ?></td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= h($sBooking['booking_type'] === 'short_stay' ? ($sBooking['short_stay_duration_hours'] . ' ชม.') : ($sBooking['nights'] . ' คืน')) ?></td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= h($sBooking['booking_status_display']) ?></td>
-                            <td class="actions-cell px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                                <button class="button-small room px-3 py-1 text-xs font-medium rounded-md text-gray-700 bg-gray-200 hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500" data-id="<?=h($sBooking['room_id'])?>" data-booking-id="<?=h($sBooking['booking_id'])?>">ดูห้อง</button>
-                                <a href="booking.php?edit_booking_id=<?= h($sBooking['booking_id']) ?>" class="button-small edit-booking-btn info px-3 py-1 text-xs font-medium rounded-md text-white bg-blue-500 hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">แก้ไข</a>
+<section class="search-results-section report-section">
+    <?php if (!empty($customerSearchTerm)): ?>
+        <h3 style="font-size: 1.2rem; margin-bottom: 1rem; color: var(--color-text);">ผลการค้นหาสำหรับ "<?= h($customerSearchTerm) ?>"</h3>
+    <?php endif; ?>
+    <?php if (!empty($searchedBookings)): ?>
+        <div class="table-responsive glass-card" style="padding: 0; margin-bottom: 2rem;">
+            <table class="report-table modern-table" style="margin: 0;">
+                <thead style="background: var(--color-table-head-bg);">
+                    <tr>
+                        <th style="padding: 1rem; border-bottom: 1px solid var(--color-border); font-weight: 600; color: var(--color-text-muted);">ID จอง</th>
+                        <th style="padding: 1rem; border-bottom: 1px solid var(--color-border); font-weight: 600; color: var(--color-text-muted);">ห้อง</th>
+                        <th style="padding: 1rem; border-bottom: 1px solid var(--color-border); font-weight: 600; color: var(--color-text-muted);">ชื่อลูกค้า</th>
+                        <th style="padding: 1rem; border-bottom: 1px solid var(--color-border); font-weight: 600; color: var(--color-text-muted);">เบอร์โทร</th>
+                        <th style="padding: 1rem; border-bottom: 1px solid var(--color-border); font-weight: 600; color: var(--color-text-muted);">เช็คอิน</th>
+                        <th style="padding: 1rem; border-bottom: 1px solid var(--color-border); font-weight: 600; color: var(--color-text-muted);">เช็คเอาท์</th>
+                        <th style="padding: 1rem; border-bottom: 1px solid var(--color-border); font-weight: 600; color: var(--color-text-muted);">ประเภท</th>
+                        <th style="padding: 1rem; border-bottom: 1px solid var(--color-border); font-weight: 600; color: var(--color-text-muted);">ระยะเวลา</th>
+                        <th style="padding: 1rem; border-bottom: 1px solid var(--color-border); font-weight: 600; color: var(--color-text-muted);">สถานะ</th>
+                        <th style="padding: 1rem; border-bottom: 1px solid var(--color-border); font-weight: 600; color: var(--color-text-muted);">ดำเนินการ</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($searchedBookings as $sBooking): ?>
+                        <tr style="border-bottom: 1px solid var(--color-border); transition: background 0.2s;">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm number-font" style="color: var(--color-text-muted);"><?= h($sBooking['booking_id']) ?></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold" style="color: var(--color-text);"><?= h($sBooking['zone'] . $sBooking['room_number']) ?></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm" style="color: var(--color-text);"><?= h($sBooking['customer_name']) ?></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm number-font" style="color: var(--color-text-muted);"><?= h($sBooking['customer_phone'] ?? '-') ?></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm number-font" style="color: var(--color-text-muted);"><?= h($sBooking['checkin_datetime_formatted']) ?></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm number-font" style="color: var(--color-text-muted);"><?= h($sBooking['checkout_datetime_formatted']) ?></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm" style="color: var(--color-text-muted);"><?= h($sBooking['booking_type'] === 'short_stay' ? 'ชั่วคราว' : 'ค้างคืน') ?></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm" style="color: var(--color-text-muted);"><?= h($sBooking['booking_type'] === 'short_stay' ? ($sBooking['short_stay_duration_hours'] . ' ชม.') : ($sBooking['nights'] . ' คืน')) ?></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                <span style="background: var(--color-surface-alt); padding: 0.3rem 0.6rem; border-radius: 1rem; font-size: 0.8rem; font-weight: 500;"><?= h($sBooking['booking_status_display']) ?></span>
+                            </td>
+                            <td class="actions-cell px-6 py-4" style="display: flex; gap: 8px;">
+                                <button class="button outline-secondary button-small" style="padding: 0.4rem 0.8rem; border-radius: 0.4rem; font-size: 0.85rem;" data-id="<?= h($sBooking['room_id']) ?>" data-booking-id="<?= h($sBooking['booking_id']) ?>">ดูห้อง</button>
+                                <a href="booking.php?edit_booking_id=<?= h($sBooking['booking_id']) ?>" class="button outline-primary button-small" style="padding: 0.4rem 0.8rem; border-radius: 0.4rem; font-size: 0.85rem;">แก้ไข</a>
                             </td>
                         </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-        <?php else: ?>
-            <p class="text-gray-600">ไม่พบการจองตามชื่อที่ค้นหา</p>
-        <?php endif; ?>
-    </section>
-<?php endif; ?>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    <?php elseif (!empty($customerSearchTerm)): ?>
+        <p style="color: var(--color-text-muted); padding: 1rem; background: var(--color-surface); border-radius: 0.5rem; text-align: center; border: 1px dashed var(--color-border);"><i class="fa-solid fa-inbox" style="display: block; font-size: 2rem; margin-bottom: 0.5rem; opacity: 0.5;"></i>ไม่พบข้อมูลการจองสำหรับชื่อนี้</p>
+    <?php endif; ?>
+</section>
 
-<div class="status-container">
-  <div class="status-box"><div class="color-box status-overdue_occupied" style="background-color: var(--color-alert-dark, #a71d2a);"></div><span>เกินกำหนด (Overdue)</span></div>
-  <div class="status-box"><div class="color-box occupied"></div><span>ห้องไม่ว่าง (Occupied)</span></div>
-  <div class="status-box"><div class="color-box booked"></div><span>รอเช็กอิน (Booked for Today)</span></div>
-  <div class="status-box"><div class="color-box status-f_short_occupied" style="background-color: var(--color-purple, #6f42c1);"></div><span>โซน F (ชั่วคราว, ไม่ว่าง)</span></div>
-  <div class="status-box"><div class="color-box free"></div><span>ห้องว่าง (Free)</span></div>
-  <div class="status-box"><div class="color-box advance_booking"></div><span>มีจองล่วงหน้า (Free Today)</span></div>
-  <div class="status-box" title="ห้องนี้มียอดค้างชำระ"><span style="font-size: 1.2em;">💰</span><span style="margin-left: 5px;">ค้างชำระ</span></div>
+<!-- Legend (Simplified and Clean) -->
+<div class="status-container" style="display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem; background: var(--color-surface); padding: 1rem 1.5rem; border-radius: 1rem; border: 1px solid var(--color-border);">
+    <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; font-weight: 500;">
+        <div style="width: 12px; height: 12px; border-radius: 50%; background-color: var(--status-overdue-bg);"></div> เกินกำหนด (Overdue)
+    </div>
+    <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; font-weight: 500;">
+        <div style="width: 12px; height: 12px; border-radius: 50%; background-color: var(--status-occupied-bg);"></div> ไม่ว่าง (Occupied)
+    </div>
+    <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; font-weight: 500;">
+        <div style="width: 12px; height: 12px; border-radius: 50%; background-color: var(--status-booked-bg);"></div> รอเข้าพัก (Booked)
+    </div>
+    <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; font-weight: 500;">
+        <div style="width: 12px; height: 12px; border-radius: 50%; background-color: var(--status-free-bg);"></div> ว่าง (Free)
+    </div>
+    <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; font-weight: 500;">
+        <div style="width: 12px; height: 12px; border-radius: 50%; background-color: var(--status-advance_booking-bg);"></div> จองล่วงหน้าพรุ่งนี้ (Advance)
+    </div>
+    <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; font-weight: 500;">
+        <div style="width: 12px; height: 12px; border-radius: 50%; background-color: var(--status-zone_f-bg);"></div> โซน F
+    </div>
 </div>
 
 <?php if ($viewMode === 'grid'): ?>
     <?php foreach ($groupedRooms as $groupName => $roomsInGroup): ?>
         <?php if (!empty($roomsInGroup)): ?>
-            <h3 class="text-xl font-semibold mt-8 mb-4 pb-2 border-b border-gray-300"><?= h($groupName) ?></h3>
-            <div class="rooms-grid">
-              <?php foreach ($roomsInGroup as $r): ?>
-                <div class="room-container" style="position: relative;" title="ห้อง <?= h($r['zone'] . $r['room_number']) ?> - สถานะ: <?= h(ucfirst(str_replace('_', ' ', $r['display_status']))) ?> <?= ($r['is_overdue'] ?? 0) ? '(เกินกำหนด!)' : '' ?>">
-                    <!-- START: Grid Checkbox Logic -->
-                    <?php if (in_array($r['display_status'], ['occupied', 'overdue_occupied', 'f_short_occupied'])): ?>
-                        <input type="checkbox" class="room-select-checkbox" 
-                               data-booking-id="<?= h($r['current_booking_id']) ?>" 
-                               data-room-name="<?= h($r['zone'] . $r['room_number']) ?>"
-                               style="position: absolute; top: 5px; left: 5px; z-index: 10; width: 18px; height: 18px; cursor: pointer;">
-                    <?php endif; ?>
-                    <!-- END: Grid Checkbox Logic -->
-
-                    <svg
-                        class="room room-svg-house <?= h($r['display_status']) ?> <?= ($r['is_overdue'] ?? 0) ? 'has-overdue-indicator' : '' ?>" 
-                        viewBox="0 0 100 95"
+            <h3 class="group-header" style="font-size: 1.5rem; font-weight: 700; color: var(--color-text); margin-top: 2rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 10px;">
+                <i class="fa-solid fa-layer-group" style="color: var(--color-primary); font-size: 1.2rem;"></i> <?= h($groupName) ?>
+            </h3>
+            <!-- Modern CSS Grid for Rooms -->
+            <div class="rooms-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 1.2rem; margin-bottom: 2rem;">
+                <?php foreach ($roomsInGroup as $r): ?>
+                    <?php
+                    // Determine background color based on status
+                    $bgColor = 'var(--status-default-bg)';
+                    $textColor = '#fff';
+                    switch ($r['display_status']) {
+                        case 'free':
+                            $bgColor = 'var(--status-free-bg)';
+                            break;
+                        case 'booked':
+                            $bgColor = 'var(--status-booked-bg)';
+                            $textColor = '#1e293b';
+                            break;
+                        case 'occupied':
+                            $bgColor = 'var(--status-occupied-bg)';
+                            break;
+                        case 'overdue_occupied':
+                            $bgColor = 'var(--status-overdue-bg)';
+                            break;
+                        case 'advance_booking':
+                            $bgColor = 'var(--status-advance_booking-bg)';
+                            break;
+                        case 'f_short_occupied':
+                            $bgColor = 'var(--status-zone_f-bg)';
+                            break;
+                    }
+                    ?>
+                    <div class="room-card room <?= h($r['display_status']) ?> <?= ($r['is_overdue'] ?? 0) ? 'has-overdue' : '' ?>"
                         data-id="<?= h($r['id']) ?>"
                         data-status="<?= h($r['display_status']) ?>"
-                        data-is-overdue="<?= ($r['is_overdue'] ?? 0) ? 'true' : 'false' ?>"
-                        <?php if (!empty($r['relevant_booking_id']) && !in_array($r['display_status'], ['occupied', 'booked', 'overdue_occupied', 'f_short_occupied'] ) ): ?>
-                            data-booking-id="<?= h($r['relevant_booking_id']) ?>"
+                        <?php if (!empty($r['relevant_booking_id']) && !in_array($r['display_status'], ['occupied', 'booked', 'overdue_occupied', 'f_short_occupied'])): ?>
+                        data-booking-id="<?= h($r['relevant_booking_id']) ?>"
                         <?php elseif (!empty($r['current_booking_id'])): ?>
-                            data-booking-id="<?= h($r['current_booking_id']) ?>"
+                        data-booking-id="<?= h($r['current_booking_id']) ?>"
                         <?php endif; ?>
-                    >
-                        <path class="house-shape" d="M50 0 L0 35 L0 95 L100 95 L100 35 Z" />
-                        <text class="room-text" x="50" y="67" text-anchor="middle" dominant-baseline="middle">
+                        style="background-color: <?= $bgColor ?>; color: <?= $textColor ?>; border-radius: 1rem; padding: 1.2rem; position: relative; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; box-shadow: var(--shadow-sm); display: flex; flex-direction: column; align-items: center; justify-content: center; aspect-ratio: 1; border: 2px solid transparent; overflow: hidden;">
+
+                        <!-- Optional Checkbox for Bulk Actions -->
+                        <?php if (!empty($r['current_booking_id'])): ?>
+                            <input type="checkbox" class="room-select-checkbox" data-booking-id="<?= h($r['current_booking_id']) ?>" data-room-name="<?= h($r['zone'] . $r['room_number']) ?>" style="position: absolute; top: 10px; left: 10px; z-index: 10; cursor: pointer; transform: scale(1.2);">
+                        <?php endif; ?>
+
+                        <!-- Room Number -->
+                        <div class="number-font" style="font-size: 1.8rem; font-weight: 800; z-index: 2; text-shadow: 0px 2px 4px rgba(0,0,0,0.1); margin-bottom: 0.2rem; pointer-events: none;">
                             <?= h($r['zone'] . $r['room_number']) ?>
-                        </text>
-                        <?php if ($r['is_overdue'] ?? 0): ?>
-                            <text class="overdue-indicator-svg" x="85" y="25" font-size="24" fill="red" dominant-baseline="middle" text-anchor="middle">⚠️</text>
-                        <?php endif; ?>
-                        <?php if (($r['has_pending_payment_dashboard'] ?? 0) && in_array($r['display_status'], ['occupied', 'booked', 'f_short_occupied', 'overdue_occupied']) ): ?>
-                            <text class="pending-payment-indicator-svg" x="15" y="85" font-size="24" fill="#16a34a" dominant-baseline="middle" text-anchor="middle" title="มียอดค้างชำระ">💰</text>
-                        <?php endif; ?>
-                    </svg>
-                </div>
-              <?php endforeach; ?>
+                        </div>
+
+                        <!-- Status Badge (Optional small badge) -->
+                        <!-- <span style="font-size: 0.70rem; font-weight: 600; padding: 0.1rem 0.5rem; background: rgba(255,255,255,0.2); border-radius: 1rem; backdrop-filter: blur(4px); z-index: 2; pointer-events: none;"> -->
+                        <!-- <?= h(strtoupper(str_replace('_', ' ', $r['display_status']))) ?> -->
+                        <!-- </span> -->
+
+                        <!-- Indicators -->
+                        <div style="position: absolute; bottom: 10px; display: flex; gap: 5px; z-index: 2;">
+                            <?php if ($r['is_overdue'] ?? 0): ?>
+                                <span title="เกินกำหนด" style="background: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; box-shadow: var(--shadow-sm);">⚠️</span>
+                            <?php endif; ?>
+                            <?php if (($r['has_pending_payment_dashboard'] ?? 0) && in_array($r['display_status'], ['occupied', 'booked', 'f_short_occupied', 'overdue_occupied'])): ?>
+                                <span title="ค้างชำระ" style="background: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; box-shadow: var(--shadow-sm);">💰</span>
+                            <?php endif; ?>
+                        </div>
+
+                        <!-- Hover Overlay (Added via JS class or CSS below) -->
+                    </div>
+                <?php endforeach; ?>
             </div>
+            <!-- Inline styles for room-card hover effects -->
+            <style>
+                .room-card:hover {
+                    transform: translateY(-4px);
+                    box-shadow: var(--shadow-lg);
+                }
+
+                .room-card::after {
+                    content: '';
+                    position: absolute;
+                    inset: 0;
+                    background: linear-gradient(180deg, rgba(255, 255, 255, 0.2) 0%, rgba(0, 0, 0, 0) 100%);
+                    pointer-events: none;
+                }
+
+                .room-card.has-overdue {
+                    border-color: #ffffff;
+                    animation: pulse-border 2s infinite;
+                }
+
+                .room-select-checkbox {
+                    display: none;
+                    /* Hidden by default, shown in select-mode */
+                }
+
+                body.select-mode .room-select-checkbox {
+                    display: block;
+                }
+
+                @keyframes pulse-border {
+                    0% {
+                        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+                    }
+
+                    70% {
+                        box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+                    }
+
+                    100% {
+                        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+                    }
+                }
+            </style>
         <?php endif; ?>
     <?php endforeach; ?>
 <?php elseif ($viewMode === 'table'): ?>
     <section class="report-section mt-8">
-        <h3 class="text-xl font-semibold mb-4">ภาพรวมห้องพักวันนี้ (มุมมองตาราง)</h3>
-        <div id="group-action-toolbar" style="padding: 0.5rem 0; text-align: right; display: none;">
-            <button id="group-selected-bookings-btn" class="button secondary">
-                <i class="fas fa-object-group"></i> จัดกลุ่มที่เลือก (<span id="selected-booking-count">0</span>)
+        <h3 style="font-size: 1.5rem; font-weight: 700; color: var(--color-text); margin-top: 2rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 10px;">
+            <i class="fa-solid fa-list" style="color: var(--color-primary); font-size: 1.2rem;"></i> ภาพรวมห้องพักวันนี้ (มุมมองตาราง)
+        </h3>
+        <div id="group-action-toolbar" style="padding: 0.5rem 0; text-align: right; display: none; margin-bottom: 1rem;">
+            <button id="group-selected-bookings-btn" class="button secondary" style="border-radius: 0.5rem; padding: 0.5rem 1rem;">
+                <i class="fa-solid fa-object-group"></i> จัดกลุ่มที่เลือก (<span id="selected-booking-count">0</span>)
             </button>
         </div>
-        <div class="table-responsive shadow border-b border-gray-200 sm:rounded-lg">
-            <table class="report-table modern-table min-w-full divide-y divide-gray-200" id="room-status-table-view">
-                <thead class="bg-gray-50">
+        <div class="table-responsive glass-card" style="padding: 0; margin-bottom: 2rem;">
+            <table class="report-table modern-table" id="room-status-table-view" style="margin: 0; width: 100%;">
+                <thead style="background: var(--color-table-head-bg);">
                     <tr>
-                        <th scope="col" class="px-3 py-3 text-center">
-                            <input type="checkbox" id="select-all-bookings-checkbox" title="เลือกทั้งหมด">
+                        <th style="padding: 1rem; border-bottom: 1px solid var(--color-border); text-align: center;">
+                            <input type="checkbox" id="select-all-bookings-checkbox" title="เลือกทั้งหมด" style="cursor: pointer; transform: scale(1.2);">
                         </th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ห้อง</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">สถานะ</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ผู้เข้าพัก/รอเช็คอิน</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">เบอร์โทร</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">เช็คอิน</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">เช็คเอาท์</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ประเภท</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ระยะเวลา</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">สลิป</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style="min-width: 200px;">ดำเนินการ</th>
+                        <th style="padding: 1rem; border-bottom: 1px solid var(--color-border); font-weight: 600; color: var(--color-text-muted);">ห้อง</th>
+                        <th style="padding: 1rem; border-bottom: 1px solid var(--color-border); font-weight: 600; color: var(--color-text-muted);">สถานะ</th>
+                        <th style="padding: 1rem; border-bottom: 1px solid var(--color-border); font-weight: 600; color: var(--color-text-muted);">ผู้เข้าพัก/รอเช็คอิน</th>
+                        <th style="padding: 1rem; border-bottom: 1px solid var(--color-border); font-weight: 600; color: var(--color-text-muted);">เบอร์โทร</th>
+                        <th style="padding: 1rem; border-bottom: 1px solid var(--color-border); font-weight: 600; color: var(--color-text-muted);">เช็คอิน</th>
+                        <th style="padding: 1rem; border-bottom: 1px solid var(--color-border); font-weight: 600; color: var(--color-text-muted);">เช็คเอาท์</th>
+                        <th style="padding: 1rem; border-bottom: 1px solid var(--color-border); font-weight: 600; color: var(--color-text-muted);">ประเภท</th>
+                        <th style="padding: 1rem; border-bottom: 1px solid var(--color-border); font-weight: 600; color: var(--color-text-muted);">ระยะเวลา</th>
+                        <th style="padding: 1rem; border-bottom: 1px solid var(--color-border); font-weight: 600; color: var(--color-text-muted);">สลิป</th>
+                        <th style="padding: 1rem; border-bottom: 1px solid var(--color-border); font-weight: 600; color: var(--color-text-muted); min-width: 200px;">ดำเนินการ</th>
                     </tr>
                 </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
+                <tbody>
                     <?php if (empty($roomsData)): ?>
-                        <tr><td colspan="11" class="px-6 py-4 text-center text-sm text-gray-500"><em>ไม่พบข้อมูลห้องพัก</em></td></tr>
+                        <tr>
+                            <td colspan="11" style="padding: 2rem; text-align: center; color: var(--color-text-muted); font-style: italic;">ไม่พบข้อมูลห้องพัก</td>
+                        </tr>
                     <?php else: ?>
                         <?php foreach ($roomsData as $room): ?>
-                            <tr class="room-row-status-<?= h($room['display_status']) ?> <?= ($room['is_overdue'] ?? 0) ? 'has-overdue-indicator-row' : '' ?>">
-                                <td class="px-3 py-4 whitespace-nowrap text-center">
-                                    <?php if (!empty($room['current_booking_id']) && in_array($room['display_status'], ['occupied', 'overdue_occupied', 'f_short_occupied'])): ?>
-                                        <input type="checkbox" class="room-select-checkbox" 
-                                               data-booking-id="<?= h($room['current_booking_id']) ?>" 
-                                               data-room-name="<?= h($room['zone'] . $room['room_number']) ?>">
-                                    <?php elseif (!empty($room['current_booking_id'])): ?>
-                                         <input type="checkbox" class="booking-group-checkbox" data-booking-id="<?= h($room['current_booking_id']) ?>">
+                            <tr class="room-row-status-<?= h($room['display_status']) ?> <?= ($room['is_overdue'] ?? 0) ? 'has-overdue-indicator' : '' ?>" style="border-bottom: 1px solid var(--color-border); transition: background 0.2s;">
+                                <td style="padding: 1rem; text-align: center;">
+                                    <?php if (!empty($room['current_booking_id'])): ?>
+                                        <input type="checkbox" class="room-select-checkbox booking-group-checkbox"
+                                            data-booking-id="<?= h($room['current_booking_id']) ?>"
+                                            data-room-name="<?= h($room['zone'] . $room['room_number']) ?>" style="cursor: pointer; transform: scale(1.2);">
                                     <?php endif; ?>
                                 </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 room-name-cell" data-room-id-cell="<?= h($room['id']) ?>">
-                                    <strong><?= h($room['zone'] . $room['room_number']) ?></strong>
+                                <td class="room-name-cell number-font" data-room-id-cell="<?= h($room['id']) ?>" style="padding: 1rem; font-weight: 700; color: var(--color-text); font-size: 1.1rem;">
+                                    <?= h($room['zone'] . $room['room_number']) ?>
                                     <?php if ($room['is_overdue'] ?? 0): ?>
-                                        <span class="overdue-indicator-table" title="การจองนี้เกินกำหนดเวลาเช็คเอาท์แล้ว">⚠️</span>
+                                        <span class="overdue-indicator-table" title="การจองนี้เกินกำหนดเวลาเช็คเอาท์แล้ว" style="margin-left: 4px;">⚠️</span>
                                     <?php endif; ?>
-                                    <span class="nearing-checkout-indicator-table" style="display: <?= ($room['is_nearing_checkout_dashboard'] ?? 0) ? 'inline-block' : 'none' ?>; color: orange; margin-left: 4px;" title="ใกล้หมดเวลาเช็คเอาท์!"><img src="/hotel_booking/assets/image/clock_alert.png" alt="Clock Alert" style="width:16px; height:16px; vertical-align:middle;"></span>
-                                    <span class="pending-payment-indicator-table" style="display: <?= ($room['has_pending_payment_dashboard'] ?? 0) ? 'inline-block' : 'none' ?>; color: green; margin-left: 4px;" title="มียอดค้างชำระ!">💰</span>
+                                    <?php if ($room['is_nearing_checkout_dashboard'] ?? 0): ?>
+                                        <span class="nearing-checkout-indicator-table" style="color: var(--color-warning); margin-left: 4px;" title="ใกล้หมดเวลาเช็คเอาท์!"><i class="fa-solid fa-clock-rotate-left"></i></span>
+                                    <?php endif; ?>
+                                    <?php if ($room['has_pending_payment_dashboard'] ?? 0): ?>
+                                        <span class="pending-payment-indicator-table" style="color: var(--color-success); margin-left: 4px;" title="มียอดค้างชำระ!">💰</span>
+                                    <?php endif; ?>
                                 </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <span class="status-indicator status-<?= h($room['display_status']) ?> px-2 inline-flex text-xs leading-5 font-semibold rounded-full" style="color: white; background-color: <?= match($room['display_status']) { 'overdue_occupied' => 'var(--color-alert-dark, #a71d2a)', 'occupied' => 'var(--color-danger, #DC2626)', 'booked' => 'var(--color-warning, #F59E0B)', 'free' => 'var(--color-success, #10B981)', 'advance_booking' => 'var(--color-info, #3B82F6)', 'f_short_occupied' => 'var(--color-purple, #6f42c1)', default => 'var(--color-secondary-text, #6B7280)' };?> ;">
+                                <td style="padding: 1rem;">
+                                    <?php
+                                    $statusBg = 'var(--color-surface-alt)';
+                                    $statusText = 'var(--color-text)';
+                                    switch ($room['display_status']) {
+                                        case 'overdue_occupied':
+                                            $statusBg = 'var(--status-overdue-bg)';
+                                            $statusText = 'white';
+                                            break;
+                                        case 'occupied':
+                                            $statusBg = 'var(--status-occupied-bg)';
+                                            $statusText = 'white';
+                                            break;
+                                        case 'booked':
+                                            $statusBg = 'var(--status-booked-bg)';
+                                            $statusText = '#1e293b';
+                                            break;
+                                        case 'free':
+                                            $statusBg = 'var(--status-free-bg)';
+                                            $statusText = 'white';
+                                            break;
+                                        case 'advance_booking':
+                                            $statusBg = 'var(--status-advance_booking-bg)';
+                                            $statusText = 'white';
+                                            break;
+                                        case 'f_short_occupied':
+                                            $statusBg = 'var(--status-zone_f-bg)';
+                                            $statusText = 'white';
+                                            break;
+                                    }
+                                    ?>
+                                    <span class="status-indicator status-<?= h($room['display_status']) ?>" style="background-color: <?= $statusBg ?>; color: <?= $statusText ?>; padding: 0.3rem 0.8rem; border-radius: 1rem; font-size: 0.8rem; font-weight: 600; display: inline-block;">
                                         <?= h(ucfirst(str_replace(['_', 'f short '], [' ', 'F ชั่วคราว '], $room['display_status']))) ?>
                                     </span>
                                 </td>
                                 <?php if (!empty($room['current_customer_name']) && in_array($room['display_status'], ['occupied', 'booked', 'f_short_occupied', 'overdue_occupied'])): ?>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900"><?= h($room['current_customer_name']) ?></td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?php if (!empty($room['current_customer_phone'])): ?><a href="tel:<?= h(preg_replace('/[^0-9+]/', '', $room['current_customer_phone'])) ?>" class="text-indigo-600 hover:text-indigo-900"><?= h($room['current_customer_phone']) ?></a><?php else: echo '-'; endif; ?></td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= h($room['current_formatted_checkin']) ?></td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= h($room['current_formatted_checkout']) ?></td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= h($room['current_booking_type'] === 'short_stay' ? 'ชั่วคราว' : 'ค้างคืน') ?></td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= h($room['current_booking_type'] === 'short_stay' ? ($room['current_short_stay_duration'] . ' ชม.') : ($room['current_nights'] . ' คืน')) ?></td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?php if (!empty($room['current_receipt_path'])): ?><img src="/hotel_booking/uploads/receipts/<?= h($room['current_receipt_path']) ?>" alt="สลิป" class="receipt-thumbnail-table receipt-btn-global w-10 h-10 object-cover rounded-md cursor-pointer shadow-sm hover:shadow-md" data-src="/hotel_booking/uploads/receipts/<?= h($room['current_receipt_path']) ?>"><?php else: echo '-'; endif; ?></td>
+                                    <td style="padding: 1rem; color: var(--color-text); font-weight: 500;"><?= h($room['current_customer_name']) ?></td>
+                                    <td class="number-font" style="padding: 1rem; color: var(--color-text-muted);">
+                                        <?php if (!empty($room['current_customer_phone'])): ?>
+                                            <a href="tel:<?= h(preg_replace('/[^0-9+]/', '', $room['current_customer_phone'])) ?>" style="color: var(--color-primary); text-decoration: none;"><?= h($room['current_customer_phone']) ?></a>
+                                        <?php else: echo '-';
+                                        endif; ?>
+                                    </td>
+                                    <td class="number-font" style="padding: 1rem; color: var(--color-text-muted); font-size: 0.9rem;"><?= h($room['current_formatted_checkin']) ?></td>
+                                    <td class="number-font" style="padding: 1rem; color: var(--color-text-muted); font-size: 0.9rem;"><?= h($room['current_formatted_checkout']) ?></td>
+                                    <td style="padding: 1rem; color: var(--color-text-muted);"><?= h($room['current_booking_type'] === 'short_stay' ? 'ชั่วคราว' : 'ค้างคืน') ?></td>
+                                    <td style="padding: 1rem; color: var(--color-text-muted); font-weight: 500;"><?= h($room['current_booking_type'] === 'short_stay' ? ($room['current_short_stay_duration'] . ' ชม.') : ($room['current_nights'] . ' คืน')) ?></td>
+                                    <td style="padding: 1rem;">
+                                        <?php if (!empty($room['current_receipt_path'])): ?>
+                                            <img src="/hotel_booking/uploads/receipts/<?= h($room['current_receipt_path']) ?>" alt="สลิป" class="receipt-thumbnail-table receipt-btn-global" style="width: 40px; height: 40px; object-fit: cover; border-radius: 0.4rem; cursor: pointer; box-shadow: var(--shadow-sm); transition: transform 0.2s;" data-src="/hotel_booking/uploads/receipts/<?= h($room['current_receipt_path']) ?>" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
+                                        <?php else: echo '-';
+                                        endif; ?>
+                                    </td>
                                 <?php else: ?>
-                                    <td colspan="7" class="px-6 py-4 text-center text-sm text-gray-500 italic"><?= match($room['display_status']) { 'free' => 'ห้องว่าง', 'advance_booking' => 'มีจองล่วงหน้า (สำหรับวันพรุ่งนี้)', default => 'รอข้อมูล / ยังไม่มีการจองสำหรับวันนี้' };?></td>
+                                    <td colspan="7" style="padding: 1rem; text-align: center; color: var(--color-text-muted); font-style: italic;">
+                                        <?= match ($room['display_status']) {
+                                            'free' => 'ห้องว่าง',
+                                            'advance_booking' => 'มีจองล่วงหน้า (สำหรับวันพรุ่งนี้)',
+                                            default => 'รอข้อมูล / ยังไม่มีการจองสำหรับวันนี้'
+                                        }; ?>
+                                    </td>
                                 <?php endif; ?>
-                                <td class="actions-cell px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                                    <button class="button-small room px-3 py-1 text-xs font-medium rounded-md text-gray-700 bg-gray-200 hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500" data-id="<?=h($room['id'])?>" <?php if (!empty($room['current_booking_id'])): ?>data-booking-id="<?=h($room['current_booking_id'])?>"<?php elseif(!empty($room['relevant_booking_id'])): ?>data-booking-id="<?=h($room['relevant_booking_id'])?>"<?php endif; ?>>ดูห้อง</button>
+                                <td class="actions-cell" style="padding: 1rem; display: flex; gap: 8px; flex-wrap: wrap;">
+                                    <button class="button outline-secondary button-small room" style="padding: 0.4rem 0.8rem; border-radius: 0.4rem; font-size: 0.8rem;" data-id="<?= h($room['id']) ?>" <?php if (!empty($room['current_booking_id'])): ?>data-booking-id="<?= h($room['current_booking_id']) ?>" <?php elseif (!empty($room['relevant_booking_id'])): ?>data-booking-id="<?= h($room['relevant_booking_id']) ?>" <?php endif; ?>>ดูห้อง</button>
                                     <?php if ($room['display_status'] === 'booked' && !empty($room['current_booking_id'])): ?>
-                                        <button class="button-small occupy-btn-table success px-3 py-1 text-xs font-medium rounded-md text-white bg-green-500 hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500" data-booking-id="<?=h($room['current_booking_id'])?>" id="occupy-tbl-<?=h($room['current_booking_id'])?>">เช็คอิน</button>
+                                        <button class="button success button-small occupy-btn-table" style="padding: 0.4rem 0.8rem; border-radius: 0.4rem; font-size: 0.8rem;" data-booking-id="<?= h($room['current_booking_id']) ?>" id="occupy-tbl-<?= h($room['current_booking_id']) ?>">เช็คอิน</button>
                                     <?php endif; ?>
                                     <?php if (!empty($room['current_booking_id']) && in_array($room['display_status'], ['occupied', 'booked', 'f_short_occupied', 'overdue_occupied'])): ?>
                                         <?php if (!empty($room['current_booking_group_id'])): ?>
-                                            <a href="edit_booking_group.php?booking_group_id=<?= h($room['current_booking_group_id']) ?>" class="button-small warning px-3 py-1 text-xs font-medium rounded-md text-white bg-yellow-500 hover:bg-yellow-600">แก้ไขกลุ่ม</a>
+                                            <a href="edit_booking_group.php?booking_group_id=<?= h($room['current_booking_group_id']) ?>" class="button warning button-small" style="padding: 0.4rem 0.8rem; border-radius: 0.4rem; font-size: 0.8rem;">แก้ไขกลุ่ม</a>
                                         <?php endif; ?>
-                                        <a href="booking.php?edit_booking_id=<?= h($room['current_booking_id']) ?>" class="button-small edit-booking-btn info px-3 py-1 text-xs font-medium rounded-md text-white bg-blue-500 hover:bg-blue-600">แก้ไขห้องนี้</a>
+                                        <a href="booking.php?edit_booking_id=<?= h($room['current_booking_id']) ?>" class="button primary button-small edit-booking-btn" style="padding: 0.4rem 0.8rem; border-radius: 0.4rem; font-size: 0.8rem;">แก้ไข</a>
                                     <?php elseif ($room['display_status'] === 'free' || $room['display_status'] === 'advance_booking'): ?>
-                                        <a href="booking.php?room_id=<?= h($room['id']) ?>" class="button-small success px-3 py-1 text-xs font-medium rounded-md text-white bg-green-500 hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">จองห้องนี้</a>
+                                        <a href="booking.php?room_id=<?= h($room['id']) ?>" class="button success button-small" style="padding: 0.4rem 0.8rem; border-radius: 0.4rem; font-size: 0.8rem;">จองห้องนี้</a>
                                     <?php endif; ?>
                                 </td>
                             </tr>
@@ -512,68 +692,79 @@ ob_start();
                 </tbody>
             </table>
         </div>
+        <style>
+            tr.has-overdue-indicator {
+                background-color: rgba(239, 68, 68, 0.05);
+                /* very light red */
+            }
+        </style>
     </section>
 <?php endif; ?>
 
 <?php if (!empty($advBookings)): ?>
-<h3 class="text-xl font-semibold mt-10 mb-4 pb-2 border-b border-gray-300">การจองล่วงหน้าทั้งหมด (All Future Bookings)</h3>
-<div class="table-responsive shadow border-b border-gray-200 sm:rounded-lg">
-    <table class="report-table modern-table advance-table min-w-full divide-y divide-gray-200">
-      <thead class="bg-gray-50">
-        <tr>
-          <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ห้อง</th>
-          <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ผู้จอง</th>
-          <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">กลุ่ม</th>
-          <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันเวลาเช็กอิน</th>
-          <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันเวลาเช็กเอาต์</th>
-          <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ประเภท</th>
-          <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ระยะเวลา</th>
-          <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style="min-width: 260px;">การดำเนินการ</th>
-        </tr>
-      </thead>
-      <tbody class="bg-white divide-y divide-gray-200">
-        <?php foreach($advBookings as $a): ?>
-        <tr>
-          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900"><?= h($a['zone'].$a['room_number']) ?></td>
-          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900"><?= h($a['customer_name']) ?></td>
-          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
-              <?php if (!empty($a['booking_group_id'])): ?>
-                  <a href="edit_booking_group.php?booking_group_id=<?= h($a['booking_group_id']) ?>" class="link-like" title="ไปที่หน้าแก้ไขกลุ่ม ID: <?= h($a['booking_group_id']) ?>">กลุ่ม #<?= h($a['booking_group_id']) ?></a>
-              <?php else: ?><span class="text-muted">-</span><?php endif; ?>
-          </td>
-          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= h($a['checkin_datetime_formatted']) ?></td>
-          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= h($a['checkout_datetime_formatted']) ?></td>
-          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= h($a['booking_type'] === 'short_stay' ? 'ชั่วคราว' : 'ค้างคืน') ?></td>
-          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?= h($a['booking_type'] === 'short_stay' ? ($a['short_stay_duration_hours'] . ' ชม.') : ($a['nights'] . ' คืน')) ?></td>
-          <td class="actions-cell px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-            <?php if (!empty($a['receipt_path'])): ?>
-              <button class="button-small receipt-btn-global px-3 py-1 text-xs font-medium rounded-md text-white bg-teal-500 hover:bg-teal-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500" data-src="/hotel_booking/uploads/receipts/<?= h($a['receipt_path']) ?>">ดูสลิป</button>
-            <?php endif; ?>
-            <button class="button-small room px-3 py-1 text-xs font-medium rounded-md text-gray-700 bg-gray-200 hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500" data-id="<?=h($a['room_id_for_link'])?>" data-booking-id="<?=h($a['id'])?>">ดูห้อง</button>
-            <a href="/hotel_booking/pages/booking.php?edit_booking_id=<?= h($a['id']) ?>" class="button-small edit-booking-btn info px-3 py-1 text-xs font-medium rounded-md text-white bg-blue-500 hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">แก้ไข</a>
-            <button class="delete-booking-btn flex inline-flex items-center gap-x-1 h-7 px-3 cursor-pointer rounded-md shadow text-white text-xs font-semibold bg-gradient-to-r from-[#fb7185] via-[#e11d48] to-[#be123c] hover:shadow-xl hover:shadow-red-500/50 hover:scale-105 duration-300 hover:from-[#be123c] hover:to-[#fb7185]" data-booking-id="<?= h($a['id']) ?>" id="delete-adv-booking-idx-<?=h($a['id'])?>"><svg class="w-4 h-4" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" stroke-linejoin="round" stroke-linecap="round"></path></svg><span>ลบ</span></button>
-          </td>
-        </tr>
-        <?php endforeach; ?>
-      </tbody>
-      </table>
-</div>
+    <h3 style="font-size: 1.5rem; font-weight: 700; color: var(--color-text); margin-top: 3rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 10px;">
+        <i class="fa-solid fa-calendar-days" style="color: var(--color-primary); font-size: 1.2rem;"></i> การจองล่วงหน้าทั้งหมด (All Future Bookings)
+    </h3>
+    <div class="table-responsive glass-card" style="padding: 0; margin-bottom: 2rem;">
+        <table class="report-table modern-table advance-table" style="margin: 0; width: 100%;">
+            <thead style="background: var(--color-table-head-bg);">
+                <tr>
+                    <th style="padding: 1rem; border-bottom: 1px solid var(--color-border); font-weight: 600; color: var(--color-text-muted);">ห้อง</th>
+                    <th style="padding: 1rem; border-bottom: 1px solid var(--color-border); font-weight: 600; color: var(--color-text-muted);">ผู้จอง</th>
+                    <th style="padding: 1rem; border-bottom: 1px solid var(--color-border); font-weight: 600; color: var(--color-text-muted); text-align: center;">กลุ่ม</th>
+                    <th style="padding: 1rem; border-bottom: 1px solid var(--color-border); font-weight: 600; color: var(--color-text-muted);">วันเวลาเช็กอิน</th>
+                    <th style="padding: 1rem; border-bottom: 1px solid var(--color-border); font-weight: 600; color: var(--color-text-muted);">วันเวลาเช็กเอาต์</th>
+                    <th style="padding: 1rem; border-bottom: 1px solid var(--color-border); font-weight: 600; color: var(--color-text-muted);">ประเภท</th>
+                    <th style="padding: 1rem; border-bottom: 1px solid var(--color-border); font-weight: 600; color: var(--color-text-muted);">ระยะเวลา</th>
+                    <th style="padding: 1rem; border-bottom: 1px solid var(--color-border); font-weight: 600; color: var(--color-text-muted); min-width: 200px;">การดำเนินการ</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($advBookings as $a): ?>
+                    <tr style="border-bottom: 1px solid var(--color-border); transition: background 0.2s;">
+                        <td class="number-font" style="padding: 1rem; font-weight: 700; color: var(--color-text);"><?= h($a['zone'] . $a['room_number']) ?></td>
+                        <td style="padding: 1rem; font-weight: 500; color: var(--color-text);"><?= h($a['customer_name']) ?></td>
+                        <td style="padding: 1rem; text-align: center;">
+                            <?php if (!empty($a['booking_group_id'])): ?>
+                                <a href="edit_booking_group.php?booking_group_id=<?= h($a['booking_group_id']) ?>" style="background: var(--color-surface-alt); padding: 0.3rem 0.8rem; border-radius: 1rem; font-size: 0.8rem; font-weight: 600; color: var(--color-primary); text-decoration: none;" title="ไปที่หน้าแก้ไขกลุ่ม ID: <?= h($a['booking_group_id']) ?>">กลุ่ม #<?= h($a['booking_group_id']) ?></a>
+                            <?php else: ?><span style="color: var(--color-text-muted);">-</span><?php endif; ?>
+                        </td>
+                        <td class="number-font" style="padding: 1rem; color: var(--color-text-muted); font-size: 0.9rem;"><?= h($a['checkin_datetime_formatted']) ?></td>
+                        <td class="number-font" style="padding: 1rem; color: var(--color-text-muted); font-size: 0.9rem;"><?= h($a['checkout_datetime_formatted']) ?></td>
+                        <td style="padding: 1rem; color: var(--color-text-muted);"><?= h($a['booking_type'] === 'short_stay' ? 'ชั่วคราว' : 'ค้างคืน') ?></td>
+                        <td style="padding: 1rem; color: var(--color-text-muted); font-weight: 500;"><?= h($a['booking_type'] === 'short_stay' ? ($a['short_stay_duration_hours'] . ' ชม.') : ($a['nights'] . ' คืน')) ?></td>
+                        <td class="actions-cell" style="padding: 1rem; display: flex; gap: 8px; flex-wrap: wrap;">
+                            <?php if (!empty($a['receipt_path'])): ?>
+                                <button class="button primary button-small receipt-btn-global" style="padding: 0.4rem 0.8rem; border-radius: 0.4rem; font-size: 0.8rem;" data-src="/hotel_booking/uploads/receipts/<?= h($a['receipt_path']) ?>">ดูสลิป</button>
+                            <?php endif; ?>
+                            <button class="button outline-secondary button-small room" style="padding: 0.4rem 0.8rem; border-radius: 0.4rem; font-size: 0.8rem;" data-id="<?= h($a['room_id_for_link']) ?>" data-booking-id="<?= h($a['id']) ?>">ดูห้อง</button>
+                            <a href="/hotel_booking/pages/booking.php?edit_booking_id=<?= h($a['id']) ?>" class="button outline-primary button-small edit-booking-btn" style="padding: 0.4rem 0.8rem; border-radius: 0.4rem; font-size: 0.8rem;">แก้ไข</a>
+                            <button class="button alert button-small delete-booking-btn" style="padding: 0.4rem 0.8rem; border-radius: 0.4rem; font-size: 0.8rem;" data-booking-id="<?= h($a['id']) ?>" id="delete-adv-booking-idx-<?= h($a['id']) ?>"><i class="fa-solid fa-trash-can"></i> ลบ</button>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
 <?php else: ?>
-<p class="mt-6 text-gray-600">ไม่มีการจองล่วงหน้าในขณะนี้</p>
+    <div class="glass-card" style="padding: 2.5rem; text-align: center; margin-top: 2rem;">
+        <div style="font-size: 2.5rem; color: var(--color-text-muted); opacity: 0.5; margin-bottom: 1rem;"><i class="fa-solid fa-calendar-xmark"></i></div>
+        <p style="color: var(--color-text-muted); font-size: 1.1rem; font-weight: 500; margin: 0;">ไม่มีการจองล่วงหน้าในขณะนี้</p>
+    </div>
 <?php endif; ?>
 
 <div id="modal" class="modal-overlay">
-  <div class="modal-content" data-aos="fade-down" data-aos-duration="300">
-    <button class="modal-close" aria-label="Close">×</button>
-    <div id="modal-body"></div>
-  </div>
+    <div class="modal-content" data-aos="fade-down" data-aos-duration="300">
+        <button class="modal-close" aria-label="Close">×</button>
+        <div id="modal-body"></div>
+    </div>
 </div>
 
 <div id="image-modal" class="modal-overlay">
-  <div class="modal-content" data-aos="zoom-in" data-aos-duration="300" style="max-width:700px; width:90%;">
-    <button class="modal-close" aria-label="Close">×</button>
-    <img id="modal-image" src="" alt="หลักฐาน" style="max-width:100%; height:auto; border-radius:var(--border-radius-md); display:block;" />
-  </div>
+    <div class="modal-content" data-aos="zoom-in" data-aos-duration="300" style="max-width:700px; width:90%;">
+        <button class="modal-close" aria-label="Close">×</button>
+        <img id="modal-image" src="" alt="หลักฐาน" style="max-width:100%; height:auto; border-radius:var(--border-radius-md); display:block;" />
+    </div>
 </div>
 
 <?php

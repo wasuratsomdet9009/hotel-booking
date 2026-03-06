@@ -1,355 +1,83 @@
 /* assets/css/main.css */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Prompt:wght@300;400;500;600;700&display=swap');
+
 :root {
-  /* --- Color Palette (Light Theme - ที่มีอยู่และเพิ่มเติม) --- */
-  --color-primary: #0056b3;
-  --color-primary-dark: #004080;
-  --color-primary-rgb: 0, 86, 179; /* For rgba() */
-  --color-secondary: #218838;
-  --color-secondary-dark: #1e7e34;
-  --color-alert: #c82333;
-  --color-alert-dark: #bd2130; /* Used for overdue indicators */
-  --color-warning: #e0a800;
-  --color-warning-dark: #d39e00;
-  --color-info: #17a2b8;
-  --color-info-dark: #138496;
-  --color-purple: #6f42c1; /* Example purple */
-  --color-purple-dark: #5a32a3;
-  --color-purple-light: #e9d8f8; /* Light shade for row backgrounds */
+  /* --- Premium Modern Palette --- */
+  --color-primary: #4f46e5; /* Indigo 600 */
+  --color-primary-dark: #3730a3; /* Indigo 800 */
+  --color-primary-light: #e0e7ff; /* Indigo 100 */
+  --color-primary-rgb: 79, 70, 229;
+  
+  --color-secondary: #64748b; /* Slate 500 */
+  --color-secondary-dark: #334155; /* Slate 700 */
+  
+  --color-alert: #ef4444; /* Red 500 */
+  --color-alert-dark: #b91c1c; /* Red 700 */
+  
+  --color-warning: #f59e0b; /* Amber 500 */
+  --color-warning-dark: #d97706; /* Amber 600 */
+  
+  --color-info: #0ea5e9; /* Sky 500 */
+  --color-info-dark: #0369a1; /* Sky 700 */
+  
+  --color-success: #10b981; /* Emerald 500 */
+  
+  --color-purple: #8b5cf6; /* Violet 500 */
+  --color-purple-dark: #6d28d9; /* Violet 700 */
 
-  --color-bg: #f8f9fa;
-  --color-surface: #ffffff;    /* พื้นหลังของกล่อง, การ์ด, modal */
-  --color-surface-alt: #f1f3f5; /* พื้นหลังสำรองที่สว่างเล็กน้อย */
-  --color-text: #343a40;
-  --color-text-muted: #6c757d;
-  --color-border: #dee2e6;
-  --color-header-bg: var(--color-primary-dark);
-  --color-header-text: #ffffff;
-  --color-table-head-bg: #e9ecef;
+  /* Surface & Background */
+  --color-bg: #f8fafc; /* Slate 50 */
+  --color-surface: #ffffff;
+  --color-surface-alt: #f1f5f9; /* Slate 100 */
+  --color-text: #0f172a; /* Slate 900 */
+  --color-text-muted: #64748b; /* Slate 500 */
+  --color-border: #e2e8f0; /* Slate 200 */
+  
+  --color-header-bg: #ffffff;
+  --color-header-text: #0f172a;
   --link-color: var(--color-primary);
-  --color-white: #ffffff; /* Explicit white */
-  --color-black: #000000; /* Explicit black */
+  --color-white: #ffffff;
+  --color-black: #000000;
 
-  /* Messaging & Feedback Colors */
-  --color-error-bg: #f8d7da;
-  --color-error-text: #721c24; /* Using a darker red than --color-alert-dark for better contrast on light bg */
-  --color-error-border: #f5c6cb;
-  --color-success-bg: #d4edda;
-  --color-success-text: #155724;
-  --color-success-border: #c3e6cb;
-  --color-info-bg-light: #e6f7ff;
-  --color-info-border-light: #b3e0ff;
-  --color-warning-bg-light: #fffbe6;
-  --color-warning-border-light: #ffe58f;
-  --color-muted-bg: #f9f9f9; /* For .notes-display-box */
-
-  /* Component Specific Variables (Light Theme) */
+  /* Component Specific */
   --color-focus-ring: rgba(var(--color-primary-rgb), 0.5);
-  --color-focus-ring-input: rgba(var(--color-primary-rgb), 0.25);
-  --color-disabled-bg: #e9ecef;
-  --color-readonly-bg: #f0f2f5;
-  --color-input-group-btn-bg: #e9ecef;
-  --color-input-group-btn-hover-bg: #ced4da;
-  --color-input-group-btn-active-bg: #adb5bd;
-  --color-svg-stroke: rgba(0,0,0,0.2);
-  --color-svg-text-on-light-bg: var(--color-text);
-  --color-modal-overlay-bg: rgba(0, 0, 0, 0.6);
-  --color-calendar-today-bg: #fffadc;
-  --color-calendar-today-border: var(--color-warning-dark);
-  --color-calendar-fab-options-bg: var(--color-surface);
-  --color-calendar-fab-option-btn-text: var(--color-text); /* Adjusted */
-  --color-calendar-fab-option-btn-bg: var(--color-surface-alt); /* Adjusted */
-  --color-calendar-fab-option-btn-border: var(--color-border); /* Adjusted */
-  --color-toggle-slider-bg: #ccc; /* For theme toggle */
-  --color-toggle-slider-knob-bg: var(--color-white); /* For theme toggle */
-  --color-table-row-even-bg: var(--color-bg); /* Consistent with main bg or specific like #f8f9fa */
-  --color-table-row-hover-bg: #e9ecef; /* Or var(--color-surface-alt) */
-  --color-nav-link-hover-bg: rgba(255, 255, 255, 0.15);
-  --color-footer-bg: #e9ecef;
-  --color-booking-entry-regular-hover-bg: #f0f8ff;
-  --color-booking-roomnames-lighttheme: #555;
-  --color-upload-label-active-bg: #eef3f8;
-  --color-switch-component-track-bg: #70a9c5;
-  --color-switch-component-slider-bg: rgba(12, 74, 110, 0.65);
-  --color-switch-component-slider-on-bg: rgba(12, 74, 110, 1);
-  --color-switch-component-slider-shadow-inset: rgba(0, 0, 0, 0.2);
-  --color-switch-component-slider-shadow-highlight: rgba(255, 255, 255, 0.2);
-  --color-scrollbar-thumb-bg: #bdc3c7;
-  --color-scrollbar-thumb-hover-bg: #95a5a6;
-  --color-primary-light: #e6f0ff; /* Example for a light primary shade for hovers like .booking-more-indicator */
+  --color-disabled-bg: #e2e8f0;
+  --color-table-head-bg: #f8fafc;
+  
+  /* Status Indicators (Matching modern palette) */
+  --status-overdue-bg: #ef4444; 
+  --status-occupied-bg: #f43f5e; /* Rose 500 */
+  --status-booked-bg: #f59e0b;
+  --status-free-bg: #10b981;
+  --status-advance_booking-bg: #0ea5e9;
+  --status-zone_f-bg: #8b5cf6;
 
-
-  /* Variables สำหรับ Status Indicator ใน Table View (Light Theme) */
-  --status-occupied-bg: var(--color-alert);
-  --status-booked-bg: var(--color-warning);
-  --status-free-bg: var(--color-secondary);
-  --status-advance_booking-bg: var(--color-info);
-  --status-f-short-occupied-bg: var(--color-purple);
-  --status-default-bg: var(--color-text-muted);
-  --status-occupied-text: var(--color-white);
-  --status-booked-text: var(--color-black); /* Dark text on yellow for light theme */
-  --status-free-text: var(--color-white);
-  --status-advance_booking-text: var(--color-white);
-  --status-f-short-occupied-text: var(--color-white);
-  --status-default-text: var(--color-white);
-  /* Note: overdue_occupied will use --status-occupied-bg and --status-occupied-text or specific overrides if needed */
-
-  /* --- Dark Theme Variables --- */
-  --dt-color-primary: #60a5fa; /* Blue 400 */
-  --dt-color-primary-dark: #3b82f6; /* Blue 500 */
-  --dt-color-primary-rgb: 96, 165, 250;
-  --dt-color-secondary: #34d399; /* Emerald 400 */
-  --dt-color-secondary-dark: #10b981; /* Emerald 500 */
-  --dt-color-alert: #f87171; /* Red 400 */
-  --dt-color-alert-dark: #ef4444; /* Red 500 */
-  --dt-color-warning: #fbbf24; /* Amber 400 */
-  --dt-color-warning-dark: #f59e0b; /* Amber 500 */
-  --dt-color-info: #38bdf8; /* Sky 400 */
-  --dt-color-info-dark: #0ea5e9; /* Sky 500 */
-  --dt-color-purple: #a78bfa; /* Violet 400 */
-  --dt-color-purple-dark: #8b5cf6; /* Violet 500 */
-  --dt-color-purple-light: #2e1065; /* Violet 950 for row backgrounds */
-
-  /* Soothing Dark Palette (Slate/Midnight) */
-  --dt-color-bg: #0f172a; /* Slate 900 - Background */
-  --dt-color-surface: #1e293b; /* Slate 800 - Cards, Modals */
-  --dt-color-surface-alt: #334155; /* Slate 700 - Hover states, secondary boxes */
-  --dt-color-text: #f8fafc; /* Slate 50 - Primary text */
-  --dt-color-text-muted: #94a3b8; /* Slate 400 - Secondary text */
-  --dt-color-border: #334155; /* Slate 700 - Borders */
-  --dt-color-header-bg: #0f172a; /* Slate 900 - Header */
-  --dt-color-header-text: #f8fafc;
-  --dt-color-table-head-bg: #1e293b; /* Slate 800 */
-  --dt-link-color: var(--dt-color-primary);
-  --dt-color-primary-light: #1e3a8a; /* Blue 900 */
-
-  /* Messaging & Feedback Colors (Dark Theme) */
-  --dt-color-error-bg: rgba(239, 68, 68, 0.1);
-  --dt-color-error-text: #fca5a5;
-  --dt-color-error-border: rgba(239, 68, 68, 0.2);
-  --dt-color-success-bg: rgba(16, 185, 129, 0.1);
-  --dt-color-success-text: #6ee7b7;
-  --dt-color-success-border: rgba(16, 185, 129, 0.2);
-  --dt-color-info-bg-light: rgba(14, 165, 233, 0.1);
-  --dt-color-info-border-light: rgba(14, 165, 233, 0.2);
-  --dt-color-warning-bg-light: rgba(245, 158, 11, 0.1);
-  --dt-color-warning-border-light: rgba(245, 158, 11, 0.2);
-  --dt-color-muted-bg: #1e293b;
-
-  /* Component Specific Variables (Dark Theme) */
-  --dt-color-focus-ring: rgba(var(--dt-color-primary-rgb), 0.5);
-  --dt-color-focus-ring-input: rgba(var(--dt-color-primary-rgb), 0.35);
-  --dt-color-disabled-bg: #1e293b;
-  --dt-color-readonly-bg: #0f172a;
-  --dt-color-input-group-btn-bg: #334155;
-  --dt-color-input-group-btn-hover-bg: #475569;
-  --dt-color-input-group-btn-active-bg: #64748b;
-  --dt-color-svg-stroke: rgba(255,255,255,0.1);
-  --dt-color-svg-text-on-light-bg: var(--color-black);
-  --dt-color-modal-overlay-bg: rgba(15, 23, 42, 0.75); /* Slate 900 with opacity */
-  --dt-color-calendar-today-bg: rgba(245, 158, 11, 0.1);
-  --dt-color-calendar-today-border: var(--dt-color-warning-dark);
-  --dt-color-calendar-fab-options-bg: var(--dt-color-surface);
-  --dt-color-calendar-fab-option-btn-text: var(--dt-color-text);
-  --dt-color-calendar-fab-option-btn-bg: #334155;
-  --dt-color-calendar-fab-option-btn-border: #475569;
-  --dt-color-toggle-slider-bg: #475569;
-  --dt-color-toggle-slider-knob-bg: #cbd5e1;
-  --dt-color-table-row-even-bg: #0f172a;
-  --dt-color-table-row-hover-bg: #1e293b;
-  --dt-color-nav-link-hover-bg: rgba(255, 255, 255, 0.05);
-  --dt-color-footer-bg: var(--dt-color-surface);
-  --dt-color-booking-entry-regular-hover-bg: #1e293b;
-  --dt-color-booking-roomnames-lighttheme: var(--dt-color-text-muted);
-  --dt-color-upload-label-active-bg: #1e293b;
-  --color-switch-component-track-bg: #334155;
-  --color-switch-component-slider-bg: rgba(96, 165, 250, 0.65);
-  --color-switch-component-slider-on-bg: rgba(59, 130, 246, 1);
-  --color-switch-component-slider-shadow-inset: rgba(0, 0, 0, 0.3);
-  --color-switch-component-slider-shadow-highlight: rgba(255, 255, 255, 0.05);
-  --dt-color-scrollbar-thumb-bg: #475569;
-  --dt-color-scrollbar-thumb-hover-bg: #64748b;
-
-  /* Dark Theme Status Indicator Variables */
-  --dt-status-occupied-bg: var(--dt-color-alert);
-  --dt-status-booked-bg: var(--dt-color-warning);
-  --dt-status-free-bg: var(--dt-color-secondary);
-  --dt-status-advance_booking-bg: var(--dt-color-info);
-  --dt-status-f-short-occupied-bg: var(--dt-color-purple);
-  --dt-status-default-bg: var(--dt-color-text-muted);
-  --dt-status-occupied-text: var(--dt-color-text); /* Text on dark alert */
-  --dt-status-booked-text: var(--color-black); /* Dark text on light yellow warning (dark theme) */
-  --dt-status-free-text: var(--dt-color-text);   /* Text on dark green */
-  --dt-status-advance_booking-text: var(--dt-color-text); /* Text on dark info */
-  --dt-status-f-short-occupied-text: var(--color-black); /* or a light color like var(--dt-color-text) if --dt-color-purple is dark */
-  --dt-status-default-text: var(--dt-color-text); /* Text on dark muted */
-  /* Note: overdue_occupied will use --dt-status-occupied-bg and --dt-status-occupied-text or specific overrides if needed */
-
-
-  /* --- Transitions (เหมือนเดิม) --- */
-  --transition-speed: 0.4s; /* From your summary */
-  --transition-func: ease-in-out; /* From your summary */
-  --angle: 0deg; /* From existing */
-
-  /* Default Border Radii (Example values, adjust as needed) */
-  --border-radius-sm: 0.2rem;
-  --border-radius-md: 0.375rem;
-  --border-radius-lg: 0.5rem;
-
-  /* Default Shadows (Example values, adjust as needed) */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+  /* --- Transitions & Shadows --- */
+  --transition-fast: 0.15s ease-in-out;
+  --transition-normal: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  
+  --border-radius-sm: 0.375rem;
+  --border-radius-md: 0.5rem;
+  --border-radius-lg: 0.75rem;
+  --border-radius-xl: 1rem;
 }
-
-
-/* --- Smooth Transition (Comprehensive list from previous version, properties from summary) --- */
-body,
-.site-header, .site-footer,
-.stat-box,
-form, .form-group label,
-.modal-overlay, .modal-content, .modal-close,
-/* button, .button, -- REMOVED FROM HERE AS TRANSITION IS HANDLED IN NEW BUTTON STYLES */
-input, select, textarea, /* Simplified for brevity, covered by specific input types below */
-.report-table th, .report-table td, .report-table tbody tr,
-.advance-table th, .advance-table td, .advance-table tbody tr,
-.advance-table-popup th, .advance-table-popup td, .advance-table-popup tbody tr,
-.rooms-grid .room-svg-house .house-shape, svg.room-svg-house .room-text,
-.calendar-navigation, .calendar-navigation h3,
-.calendar-table th, .calendar-table td.calendar-day, .date-number,
-.booking-group, .booking-customer-name-highlight, .booking-room-names,
-.theme-toggle-switch .slider, .theme-toggle-switch .label-text,
-.site-nav a, .site-header .logo,
-.color-box,
-.switch, .switch::before, .switch::after, .switch > span, /* For generic .switch */
-.checkbox-btn .checkmark,
-label[for="receipt"],
-.fab-main-btn, .fab-option-btn,
-.input-group-quantity .quantity-btn, .input-group-quantity .quantity-input,
-.addon-chip-wrapper, .addon-chip-wrapper.selected .addon-chip-label,
-#room-status-table-view th, #room-status-table-view td, .status-indicator,
-#room-status-table-view tr,
-.report-filter,
-.action-cell .button-small, /* button-small specific transitions handled by new button code if needed */
-.edit-booking-btn,
-.link-like,
-.addon-item, .booking-addons-summary h4, .booking-addons-summary > p,
-.addon-chips-flex-container,
-.delete-booking-btn.btn-danger-confirm, /* Handled by new button code */
-.message, /* For flash messages */
-#flexible-overnight-group, #zone-f-deposit-group, /* For booking form groups */
-.kpi-box, .chart-container, .report-filter-form, /* For report.php */
-.notes-display-box, /* For details.php */
-.overdue-indicator-svg, .overdue-indicator-table, /* Added for smooth transition for new elements */
-.report-section h3, .settings-section h3, .booking-header h2, .details-container h3 /* Enhanced Headers */
-{
-  transition: background-color var(--transition-speed) var(--transition-func),
-              color var(--transition-speed) var(--transition-func),
-              border-color var(--transition-speed) var(--transition-func),
-              fill var(--transition-speed) var(--transition-func), /* For SVG */
-              box-shadow var(--transition-speed) var(--transition-func),
-              transform var(--transition-speed) var(--transition-func), /* Added transform for smooth hover effects */
-              opacity var(--transition-speed) var(--transition-func); /* Added opacity for animations */
-}
-
 
 body.dark-theme {
-  --color-primary: var(--dt-color-primary);
-  --color-primary-dark: var(--dt-color-primary-dark);
-  --color-primary-rgb: var(--dt-color-primary-rgb);
-  --color-secondary: var(--dt-color-secondary);
-  --color-secondary-dark: var(--dt-color-secondary-dark);
-  --color-alert: var(--dt-color-alert);
-  --color-alert-dark: var(--dt-color-alert-dark);
-  --color-warning: var(--dt-color-warning);
-  --color-warning-dark: var(--dt-color-warning-dark);
-  --color-info: var(--dt-color-info);
-  --color-info-dark: var(--dt-color-info-dark);
-  --color-purple: var(--dt-color-purple);
-  --color-purple-dark: var(--dt-color-purple-dark);
-  --color-purple-light: var(--dt-color-purple-light);
-
-  --color-bg: var(--dt-color-bg);
-  --color-surface: var(--dt-color-surface);
-  --color-surface-alt: var(--dt-color-surface-alt);
-  --color-text: var(--dt-color-text);
-  --color-text-muted: var(--dt-color-text-muted);
-  --color-border: var(--dt-color-border);
-  --color-header-bg: var(--dt-color-header-bg);
-  --color-header-text: var(--dt-color-header-text);
-  --color-table-head-bg: var(--dt-color-table-head-bg);
-  --link-color: var(--dt-link-color);
-  /* --color-white and --color-black remain absolute */
-  --color-primary-light: var(--dt-color-primary-light);
-
-
-  /* Messaging & Feedback Colors */
-  --color-error-bg: var(--dt-color-error-bg);
-  --color-error-text: var(--dt-color-error-text);
-  --color-error-border: var(--dt-color-error-border);
-  --color-success-bg: var(--dt-color-success-bg);
-  --color-success-text: var(--dt-color-success-text);
-  --color-success-border: var(--dt-color-success-border);
-  --color-info-bg-light: var(--dt-color-info-bg-light);
-  --color-info-border-light: var(--dt-color-info-border-light);
-  --color-warning-bg-light: var(--dt-color-warning-bg-light);
-  --color-warning-border-light: var(--dt-color-warning-border-light);
-  --color-muted-bg: var(--dt-color-muted-bg);
-
-  /* Component Specific Variables */
-  --color-focus-ring: var(--dt-color-focus-ring);
-  --color-focus-ring-input: var(--dt-color-focus-ring-input);
-  --color-disabled-bg: var(--dt-color-disabled-bg);
-  --color-readonly-bg: var(--dt-color-readonly-bg);
-  --color-input-group-btn-bg: var(--dt-color-input-group-btn-bg);
-  --color-input-group-btn-hover-bg: var(--dt-color-input-group-btn-hover-bg);
-  --color-input-group-btn-active-bg: var(--dt-color-input-group-btn-active-bg);
-  --color-svg-stroke: var(--dt-color-svg-stroke);
-  --color-svg-text-on-light-bg: var(--dt-color-svg-text-on-light-bg);
-  --color-modal-overlay-bg: var(--dt-color-modal-overlay-bg);
-  --color-calendar-today-bg: var(--dt-color-calendar-today-bg);
-  --color-calendar-today-border: var(--dt-color-calendar-today-border);
-  --color-calendar-fab-options-bg: var(--dt-color-calendar-fab-options-bg);
-  --color-calendar-fab-option-btn-text: var(--dt-color-calendar-fab-option-btn-text);
-  --color-calendar-fab-option-btn-bg: var(--dt-color-calendar-fab-option-btn-bg);
-  --color-calendar-fab-option-btn-border: var(--dt-color-calendar-fab-option-btn-border);
-  --color-toggle-slider-bg: var(--dt-color-toggle-slider-bg);
-  --color-toggle-slider-knob-bg: var(--dt-color-toggle-slider-knob-bg);
-  --color-table-row-even-bg: var(--dt-color-table-row-even-bg);
-  --color-table-row-hover-bg: var(--dt-color-table-row-hover-bg);
-  --color-nav-link-hover-bg: var(--dt-color-nav-link-hover-bg);
-  --color-footer-bg: var(--dt-color-footer-bg);
-  --color-booking-entry-regular-hover-bg: var(--dt-color-booking-entry-regular-hover-bg);
-  --color-booking-roomnames-lighttheme: var(--dt-color-booking-roomnames-lighttheme);
-  --color-upload-label-active-bg: var(--dt-color-upload-label-active-bg);
-  --color-switch-component-track-bg: var(--dt-color-switch-component-track-bg);
-  --color-switch-component-slider-bg: var(--dt-color-switch-component-slider-bg);
-  --color-switch-component-slider-on-bg: var(--dt-color-switch-component-slider-on-bg);
-  --color-switch-component-slider-shadow-inset: var(--dt-color-switch-component-slider-shadow-inset);
-  --color-switch-component-slider-shadow-highlight: var(--dt-color-switch-component-slider-shadow-highlight);
-  --color-scrollbar-thumb-bg: var(--dt-color-scrollbar-thumb-bg);
-  --color-scrollbar-thumb-hover-bg: var(--dt-color-scrollbar-thumb-hover-bg);
-
-
-  /* Status Indicator Variables Override */
-  --status-occupied-bg: var(--dt-status-occupied-bg);
-  --status-booked-bg: var(--dt-status-booked-bg);
-  --status-free-bg: var(--dt-status-free-bg);
-  --status-advance_booking-bg: var(--dt-status-advance_booking-bg);
-  --status-f-short-occupied-bg: var(--dt-status-f-short-occupied-bg);
-  --status-default-bg: var(--dt-status-default-bg);
-  --status-occupied-text: var(--dt-status-occupied-text);
-  --status-booked-text: var(--dt-status-booked-text);
-  --status-free-text: var(--dt-status-free-text);
-  --status-advance_booking-text: var(--dt-status-advance_booking-text);
-  --status-f-short-occupied-text: var(--dt-status-f-short-occupied-text);
-  --status-default-text: var(--dt-status-default-text);
-
-  background-color: var(--color-bg);
-  color: var(--color-text);
-
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.25);
-  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.35);
-  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.35);
+  --color-bg: #0f172a; /* Slate 900 */
+  --color-surface: #1e293b; /* Slate 800 */
+  --color-surface-alt: #334155; /* Slate 700 */
+  --color-text: #f8fafc; /* Slate 50 */
+  --color-text-muted: #94a3b8; /* Slate 400 */
+  --color-border: #334155;
+  --color-header-bg: #1e293b;
+  --color-header-text: #f8fafc;
+  --color-table-head-bg: #0f172a;
 }
 
 /* --- Base & Resets --- */
@@ -357,9 +85,8 @@ body.dark-theme {
   box-sizing: border-box;
 }
 
-html,
-body {
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+html, body {
+  font-family: 'Prompt', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   background-color: var(--color-bg);
   color: var(--color-text);
   line-height: 1.6;
@@ -368,25 +95,48 @@ body {
   font-size: 16px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
 }
 
-/* --- Layout: Container --- */
+/* Typography Overrides for English Text/Numbers if needed */
+.number-font {
+  font-family: 'Inter', sans-serif;
+}
+
+/* Modern Container */
 .container {
-  width: 95%;
-  max-width: 1200px;
+  width: 100%;
+  max-width: 1280px; /* Wider for modern screens */
   margin-left: auto;
   margin-right: auto;
-  padding-left: 1rem;
-  padding-right: 1rem;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+}
+
+/* Glassmorphism Classes */
+.glass-effect {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+body.dark-theme .glass-effect {
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 /* --- Layout: Header --- */
 .site-header {
-  background-color: var(--color-header-bg);
+  background: var(--color-header-bg);
   color: var(--color-header-text);
-  padding: 0.8rem 0;
-  box-shadow: var(--shadow-md);
-  margin-bottom: 2rem;
+  padding: 1rem 0;
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 2.5rem;
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .site-header .container {
@@ -397,10 +147,15 @@ body {
 
 .site-header .logo {
   font-size: 1.5rem;
-  font-weight: 600;
+  font-weight: 800;
   margin: 0;
   color: var(--color-header-text);
   text-decoration: none;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-purple));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  letter-spacing: -0.5px;
 }
 
 .site-nav ul {
@@ -451,15 +206,19 @@ body.dark-theme .site-footer {
 }
 
 .stat-box {
-  background-color: var(--color-surface);
+  background: var(--color-surface);
   border-radius: var(--border-radius-lg);
   padding: 1.5rem;
   box-shadow: var(--shadow-sm);
   text-align: center;
-  border: 1px solid var(--color-border);
+  border: 2px solid var(--color-border);
+  transition: all 0.2s ease;
 }
+
 .stat-box:hover {
-  transform: translateY(-5px);
+  background: var(--color-surface-alt);
+  border-color: var(--color-primary);
+  transform: translateY(-2px);
   box-shadow: var(--shadow-md);
 }
 .stat-box h3 {
@@ -480,46 +239,37 @@ body.dark-theme .site-footer {
 }
 /* body.dark-theme .stat-box svg is covered by variable override */
 
-/* --- Components: Buttons (ปรับปรุงใหม่และยิ่งใหญ่ขึ้น) --- */
+/* --- Components: Buttons (Flat UI Style) --- */
 .button,
 button {
   display: inline-block;
-  padding: 0.7em 1.7em;
-  font-size: 16px;
-  font-weight: 600; /* เพิ่มความหนาตัวอักษร */
-  letter-spacing: 0.5px; /* เพิ่มระยะห่างตัวอักษรเล็กน้อย */
+  padding: 0.8rem 1.8rem;
+  font-size: 1rem;
+  font-weight: 600;
   text-align: center;
   text-decoration: none;
   vertical-align: middle;
   cursor: pointer;
-  border-radius: 0.5em;
-  border: 1px solid #e8e8e8;
-  background: #e8e8e8;
-  color: #090909;
-  box-shadow: 6px 6px 12px #c5c5c5, -6px -6px 12px #ffffff;
+  border-radius: 0.5rem;
+  background-color: var(--color-primary);
+  border: none;
+  color: #ffffff;
+  box-shadow: none;
+  transition: background-color 0.2s, transform 0.1s, box-shadow 0.2s;
   -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
   user-select: none;
-  transition: all 0.25s cubic-bezier(0.68, -0.55, 0.265, 1.55); /* ปรับ transition ให้ดูมีชีวิตชีวา */
 }
 
 .button:hover, button:hover {
-    transform: translateY(-2px); /* ยกปุ่มขึ้นเล็กน้อยเมื่อ hover */
-    box-shadow: 8px 8px 16px #c5c5c5, -8px -8px 16px #ffffff, 0 4px 8px rgba(0,0,0,0.1); /* เพิ่มเงาให้ดูเด่นขึ้น */
-}
-body.dark-theme .button:hover, body.dark-theme button:hover {
-    box-shadow: 8px 8px 16px #101010, -8px -8px 16px #2c2c2c, 0 4px 8px rgba(0,0,0,0.2);
+  background-color: var(--color-primary-dark);
+  transform: none;
+  box-shadow: var(--shadow-md);
 }
 
-.button:active,
-button:active {
-  color: #666;
-  transform: translateY(1px); /* กดปุ่มลงเล็กน้อย */
-  box-shadow: inset 5px 5px 10px #c5c5c5, inset -5px -5px 10px #ffffff; /* ปรับเงาตอนกดให้ชัดเจน */
-}
-body.dark-theme .button:active, body.dark-theme button:active {
-    box-shadow: inset 5px 5px 10px #101010, inset -5px -5px 10px #2c2c2c;
+.button:active, button:active {
+  background-color: var(--color-primary-dark);
+  transform: translateY(1px);
+  box-shadow: none;
 }
 
 .button:focus,
@@ -535,17 +285,20 @@ button:focus-visible {
 /* Primary Button */
 .button.primary {
   background-color: var(--color-primary);
-  border-color: var(--color-primary);
+  border: none;
   color: var(--color-white);
+  font-weight: 700;
+  box-shadow: 0 4px 0 var(--color-primary-dark);
+  transition: transform 0.1s, box-shadow 0.1s, background-color 0.2s;
 }
 .button.primary:hover {
   background-color: var(--color-primary-dark);
-  border-color: var(--color-primary-dark);
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 var(--color-primary-dark);
 }
 .button.primary:active {
-  background-color: var(--color-primary-dark);
-  color: #f0f0f0;
-  box-shadow: inset 4px 4px 12px rgba(0,0,0,0.2), inset -4px -4px 12px rgba(255,255,255,0.7);
+  transform: translateY(4px);
+  box-shadow: none;
 }
 body.dark-theme .button.primary {
   background-color: var(--dt-color-primary);
@@ -558,25 +311,25 @@ body.dark-theme .button.primary:hover {
 }
 body.dark-theme .button.primary:active {
   background-color: var(--dt-color-primary-dark);
-  color: #1a1a1a;
-  box-shadow: inset 4px 4px 12px rgba(0,0,0,0.4), inset -4px -4px 12px rgba(255,255,255,0.1);
 }
 
 
 /* Secondary Button */
 .button.secondary {
   background-color: var(--color-secondary);
-  border-color: var(--color-secondary);
+  border: none;
   color: var(--color-white);
+  font-weight: 700;
+  box-shadow: 0 4px 0 var(--color-secondary-dark);
+  transition: transform 0.1s, box-shadow 0.1s, background-color 0.2s;
 }
 .button.secondary:hover {
   background-color: var(--color-secondary-dark);
-  border-color: var(--color-secondary-dark);
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 var(--color-secondary-dark);
 }
 .button.secondary:active {
   background-color: var(--color-secondary-dark);
-  color: #f0f0f0;
-  box-shadow: inset 4px 4px 12px rgba(0,0,0,0.2), inset -4px -4px 12px rgba(255,255,255,0.7);
 }
 body.dark-theme .button.secondary {
   background-color: var(--dt-color-secondary);
@@ -589,25 +342,25 @@ body.dark-theme .button.secondary:hover {
 }
 body.dark-theme .button.secondary:active {
   background-color: var(--dt-color-secondary-dark);
-  color: #1a1a1a;
-  box-shadow: inset 4px 4px 12px rgba(0,0,0,0.4), inset -4px -4px 12px rgba(255,255,255,0.1);
 }
 
 
 /* Alert Button */
 .button.alert {
   background-color: var(--color-alert);
-  border-color: var(--color-alert);
+  border: none;
   color: var(--color-white);
+  font-weight: 700;
+  box-shadow: 0 4px 0 var(--color-alert-dark);
+  transition: transform 0.1s, box-shadow 0.1s, background-color 0.2s;
 }
 .button.alert:hover {
   background-color: var(--color-alert-dark);
-  border-color: var(--color-alert-dark);
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 var(--color-alert-dark);
 }
 .button.alert:active {
   background-color: var(--color-alert-dark);
-  color: #f0f0f0;
-  box-shadow: inset 4px 4px 12px rgba(0,0,0,0.2), inset -4px -4px 12px rgba(255,255,255,0.7);
 }
 body.dark-theme .button.alert {
   background-color: var(--dt-color-alert);
@@ -620,24 +373,25 @@ body.dark-theme .button.alert:hover {
 }
 body.dark-theme .button.alert:active {
   background-color: var(--dt-color-alert-dark);
-  color: #f0f0f0;
-  box-shadow: inset 4px 4px 12px rgba(0,0,0,0.4), inset -4px -4px 12px rgba(255,255,255,0.1);
 }
 
 /* Warning Button */
 .button.warning {
   background-color: var(--color-warning);
-  border-color: var(--color-warning);
+  border: none;
   color: var(--color-black);
+  font-weight: 700;
+  box-shadow: 0 4px 0 var(--color-warning-dark);
+  transition: transform 0.1s, box-shadow 0.1s, background-color 0.2s;
 }
 .button.warning:hover {
   background-color: var(--color-warning-dark);
-  border-color: var(--color-warning-dark);
+  color: var(--color-white);
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 var(--color-warning-dark);
 }
 .button.warning:active {
   background-color: var(--color-warning-dark);
-  color: #333;
-  box-shadow: inset 4px 4px 12px rgba(0,0,0,0.15), inset -4px -4px 12px rgba(255,255,255,0.8);
 }
 body.dark-theme .button.warning {
   background-color: var(--dt-color-warning);
@@ -650,25 +404,25 @@ body.dark-theme .button.warning:hover {
 }
 body.dark-theme .button.warning:active {
   background-color: var(--dt-color-warning-dark);
-  color: #1a1a1a;
-  box-shadow: inset 4px 4px 12px rgba(0,0,0,0.3), inset -4px -4px 12px rgba(255,255,255,0.15);
 }
 
 
 /* Info Button */
 .button.info {
   background-color: var(--color-info);
-  border-color: var(--color-info);
+  border: none;
   color: var(--color-white);
+  font-weight: 700;
+  box-shadow: 0 4px 0 var(--color-info-dark);
+  transition: transform 0.1s, box-shadow 0.1s, background-color 0.2s;
 }
 .button.info:hover {
   background-color: var(--color-info-dark);
-  border-color: var(--color-info-dark);
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 var(--color-info-dark);
 }
 .button.info:active {
   background-color: var(--color-info-dark);
-  color: #f0f0f0;
-  box-shadow: inset 4px 4px 12px rgba(0,0,0,0.2), inset -4px -4px 12px rgba(255,255,255,0.7);
 }
 body.dark-theme .button.info {
   background-color: var(--dt-color-info);
@@ -681,8 +435,6 @@ body.dark-theme .button.info:hover {
 }
 body.dark-theme .button.info:active {
   background-color: var(--dt-color-info-dark);
-  color: #1a1a1a;
-  box-shadow: inset 4px 4px 12px rgba(0,0,0,0.4), inset -4px -4px 12px rgba(255,255,255,0.1);
 }
 
 /* Outline Buttons */
@@ -783,22 +535,20 @@ body.dark-theme .button.link:active {
 }
 
 
-/* Button Disabled State */
 .button:disabled,
 button:disabled {
-  opacity: 0.7;
+  opacity: 0.6;
   cursor: not-allowed;
-  background: #dcdcdc;
-  color: #888;
-  box-shadow: inset 3px 3px 6px #b5b5b5, inset -3px -3px 6px #ffffff;
-  border-color: #d0d0d0;
+  background: #e2e8f0;
+  color: #94a3b8;
+  border: 1px solid #cbd5e1;
+  box-shadow: none;
 }
 body.dark-theme .button:disabled,
 body.dark-theme button:disabled {
-  background: #252525;
-  color: #666;
-  box-shadow: inset 3px 3px 6px #151515, inset -3px -3px 6px #353535;
-  border-color: #303030;
+  background: #334155;
+  color: #64748b;
+  border-color: #475569;
 }
 
 /* ปุ่มลบที่มีการยืนยัน (delete-booking-btn) */
@@ -813,7 +563,7 @@ body.dark-theme button:disabled {
 }
 .delete-booking-btn.btn-danger-confirm:active {
   background-color: #a71d2a !important;
-  box-shadow: inset 4px 4px 12px rgba(0,0,0,0.3), inset -4px -4px 12px rgba(255,255,255,0.6);
+  transform: translateY(1px);
 }
 
 
@@ -822,7 +572,6 @@ body.dark-theme button:disabled {
   position: relative;
   color: transparent !important;
   pointer-events: none;
-  box-shadow: inset 2px 2px 5px #c5c5c5, inset -2px -2px 5px #ffffff;
 }
 .button.loading::after { /* Spinner */
   content: '';
@@ -866,13 +615,13 @@ body.dark-theme .button.warning.loading::after {
 @keyframes button-spinner { to { transform: translate(-50%, -50%) rotate(360deg); } }
 
 
-/* --- Components: Forms & Enhanced Inputs --- */
+/* --- Components: Forms & Enhanced Inputs (Flat UI) --- */
 form {
-  background-color: var(--color-surface);
-  padding: 1.5rem;
-  border-radius: var(--border-radius-lg);
+  background: var(--color-surface);
+  padding: 2rem;
+  border-radius: 1rem;
   box-shadow: var(--shadow-sm);
-  border: 1px solid var(--color-border);
+  border: 2px solid var(--color-border);
   margin-bottom: 2rem;
 }
 .form-group {
@@ -894,16 +643,16 @@ select,
 textarea {
   display: block;
   width: 100%;
-  padding: 0.75rem 1rem; /* เพิ่ม padding ให้ดูใหญ่ขึ้น */
-  font-size: 1rem; /* เพิ่มขนาด font */
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
   line-height: 1.5;
   color: var(--color-text);
   background-color: var(--color-surface);
   background-clip: padding-box;
-  border: 1px solid var(--color-border);
-  border-radius: var(--border-radius-sm);
-  box-shadow: inset 2px 2px 5px var(--color-border), inset -2px -2px 5px var(--color-surface);
-  transition: box-shadow 0.3s, border-color 0.3s;
+  border: 2px solid var(--color-border);
+  border-radius: var(--border-radius-md);
+  box-shadow: none;
+  transition: border-color 0.2s, background-color 0.2s;
 }
 
 body.dark-theme input[type="text"],
@@ -913,7 +662,7 @@ body.dark-theme input[type="datetime-local"],
 body.dark-theme input[type="tel"],
 body.dark-theme select,
 body.dark-theme textarea {
-    box-shadow: inset 2px 2px 5px var(--dt-color-bg), inset -2px -2px 5px var(--dt-color-surface-alt);
+    box-shadow: none;
 }
 
 input[type="text"]:focus,
@@ -925,7 +674,7 @@ select:focus,
 textarea:focus {
   border-color: var(--color-primary);
   outline: 0;
-  box-shadow: 0 0 0 0.25rem var(--color-focus-ring-input), var(--shadow-md); /* เพิ่มเงาด้านนอกเมื่อ focus */
+  background-color: var(--color-surface-alt);
 }
 
 input:disabled, select:disabled, textarea:disabled {
@@ -1047,32 +796,28 @@ label.inline-checkbox, label.inline-radio {
 
 /* --- Enhanced Section Headers --- */
 .report-section h3, .settings-section h3, .booking-header h2, .details-container h3, #confirmBookingModalHeader h3, #calendar-day-modal-title {
-    font-size: 1.6rem; /* ขนาดหัวข้อใหญ่ขึ้น */
+    font-size: 1.6rem;
     color: var(--color-primary-dark);
     padding-bottom: 0.75rem;
     margin-bottom: 1.5rem;
-    border-bottom: 2px solid var(--color-primary); /* เส้นใต้หนาขึ้นและใช้สีหลัก */
+    border-bottom: 3px solid var(--color-primary);
     letter-spacing: 0.5px;
-}
-body.dark-theme .report-section h3,
-body.dark-theme .settings-section h3,
-body.dark-theme .booking-header h2,
-body.dark-theme .details-container h3,
-body.dark-theme #confirmBookingModalHeader h3,
-body.dark-theme #calendar-day-modal-title {
-    color: var(--dt-color-primary-dark);
-    border-bottom-color: var(--dt-color-primary);
+    font-weight: 700;
 }
 
 
-/* --- Components: Tables --- */
+/* --- Components: Tables (Flat UI) --- */
 .table-responsive {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
   margin: 1.5rem 0;
-  border: none;
-  border-radius: 1rem; /* Softer, larger radius */
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05); /* Soft premium shadow */
+  border-radius: 0.5rem;
   background: var(--color-surface);
+  border: 2px solid var(--color-border);
+  box-shadow: none;
+  /* Allow the inner table to be wider than the viewport on small screens */
+  width: 100%;
+  display: block;
 }
 .report-table,
 .advance-table,
@@ -1098,18 +843,14 @@ body.dark-theme .modern-table th, body.dark-theme .modern-table td {
     border-bottom: 1px solid rgba(255,255,255,0.05);
 }
 .report-table th, .advance-table th, .advance-table-popup th, .modern-table th {
-  background-color: rgba(248, 250, 252, 0.8); /* Very light grayish blue */
-  backdrop-filter: blur(4px);
-  font-weight: 600;
+  background-color: var(--color-table-head-bg);
+  font-weight: 700;
   font-size: 0.85rem;
-  color: var(--color-text-muted);
+  color: var(--color-primary-dark);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   white-space: nowrap;
-}
-body.dark-theme .report-table th, body.dark-theme .modern-table th {
-    background-color: rgba(30, 41, 59, 0.8);
-    color: var(--dt-color-text-muted);
+  border-bottom: 2px solid var(--color-border);
 }
 .report-table tbody tr,
 .advance-table tbody tr,
@@ -1131,16 +872,8 @@ body.dark-theme .modern-table tbody tr:nth-child(even) {
 .advance-table tbody tr:hover,
 .advance-table-popup tbody tr:hover,
 .modern-table tbody tr:hover {
-  background-color: rgba(59, 130, 246, 0.05); /* very light blue hover */
-  transform: translateY(-1px);
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-  z-index: 10;
-  position: relative;
-}
-body.dark-theme .report-table tbody tr:hover,
-body.dark-theme .modern-table tbody tr:hover {
-     background-color: rgba(59, 130, 246, 0.1);
-     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+  background-color: var(--color-surface-alt);
+  transform: none;
 }
 .report-table td img.deposit-thumb {
   width: 40px; height: auto; border-radius: var(--border-radius-sm);
@@ -1162,11 +895,7 @@ body.dark-theme .modern-table tbody tr:hover {
   position: relative; /* Added for positioning overdue indicator */
 }
 .room-container:hover {
-  transform: scale(1.08);
-  filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2));
-}
-body.dark-theme .room-container:hover {
-    filter: drop-shadow(0 4px 8px rgba(0,0,0,0.4));
+  transform: translateY(-2px);
 }
 svg.room-svg-house {
   width: 100%;
@@ -1179,11 +908,11 @@ svg.room-svg-house .house-shape {
   stroke: var(--color-svg-stroke); /* From summary */
   stroke-width: 1;
 }
-svg.room-svg-house.free .house-shape { fill: var(--color-secondary); }
-svg.room-svg-house.booked .house-shape { fill: var(--color-warning); }
-svg.room-svg-house.occupied .house-shape { fill: var(--color-alert); }
-svg.room-svg-house.advance_booking .house-shape { fill: var(--color-info); }
-svg.room-svg-house.f_short_occupied .house-shape { fill: var(--color-purple); } /* New Status */
+svg.room-svg-house.free .house-shape { fill: var(--status-free-bg); }
+svg.room-svg-house.booked .house-shape { fill: var(--status-booked-bg); }
+svg.room-svg-house.occupied .house-shape { fill: var(--status-occupied-bg); }
+svg.room-svg-house.advance_booking .house-shape { fill: var(--status-advance_booking-bg); }
+svg.room-svg-house.f_short_occupied .house-shape { fill: var(--status-f-short-occupied-bg); }
 
 /* --- ADDED FOR OVERDUE --- */
 svg.room-svg-house.overdue_occupied .house-shape { /* ถ้า display_status เป็น overdue_occupied */
@@ -1199,14 +928,13 @@ body.dark-theme svg.room-svg-house.overdue_occupied .room-text {
 }
 /* Style for the SVG warning icon */
 .overdue-indicator-svg {
-  position: absolute; /* Position it relative to .room-container */
-  top: -5px; /* Adjust as needed */
-  right: -5px; /* Adjust as needed */
-  width: 20px; /* Adjust as needed */
-  height: 20px; /* Adjust as needed */
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 20px;
+  height: 20px;
   z-index: 5;
-  fill: var(--color-alert-dark); /* Or any color you prefer */
-  animation: pulse-warning-svg 1.5s infinite ease-in-out;
+  fill: #dc2626;
 }
 /* --- END ADDED FOR OVERDUE --- */
 
@@ -1230,16 +958,17 @@ body.dark-theme svg.room-svg-house.f_short_occupied .room-text {
 }
 
 
-/* --- Components: Status Legend --- */
+/* --- Components: Status Legend (Flat UI) --- */
 .status-container {
   display: flex;
   flex-wrap: wrap;
-  gap: 1rem;
+  gap: 1.5rem;
   margin: 1.5rem 0 2rem 0;
-  padding: 1rem;
+  padding: 1.25rem;
   background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--border-radius-md);
+  border: 2px solid var(--color-border);
+  border-radius: 0.5rem;
+  box-shadow: none;
 }
 .status-box {
   display: flex;
@@ -1252,19 +981,15 @@ body.dark-theme svg.room-svg-house.f_short_occupied .room-text {
   border: 1px solid var(--color-svg-stroke);
   flex-shrink: 0;
 }
-.color-box.occupied { background-color: var(--color-alert); }
-.color-box.booked { background-color: var(--color-warning); }
-.color-box.free { background-color: var(--color-secondary); }
-.color-box.advance_booking { background-color: var(--color-info); }
-.color-box.f_short_occupied { background-color: var(--color-purple); } /* New Status for legend */
-/* --- ADDED FOR OVERDUE --- */
-.status-container .color-box.overdue_occupied {
-  background-color: var(--color-alert-dark); /* สีเดียวกับที่ใช้ใน table view */
-}
-/* --- END ADDED FOR OVERDUE --- */
+.color-box.occupied { background-color: var(--status-occupied-bg); }
+.color-box.booked { background-color: var(--status-booked-bg); }
+.color-box.free { background-color: var(--status-free-bg); border-color: var(--color-primary); }
+.color-box.advance_booking { background-color: var(--status-advance_booking-bg); }
+.color-box.f_short_occupied { background-color: var(--status-f-short-occupied-bg); }
+.status-container .color-box.overdue_occupied { background-color: #dc2626; }
 
 
-/* --- Components: Modals --- */
+/* --- Components: Modals (Flat UI) --- */
 .modal-overlay {
   display: flex;
   visibility: hidden;
@@ -1272,13 +997,11 @@ body.dark-theme svg.room-svg-house.f_short_occupied .room-text {
   justify-content: center;
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.4); /* Slightly lighter for glass effect */
-  backdrop-filter: blur(6px); /* Glassmorphism background blur */
-  -webkit-backdrop-filter: blur(6px); /* Safari support */
+  background: rgba(30, 58, 138, 0.4); /* Solid Navy Tint */
   z-index: 1000;
   padding: 1rem;
   opacity: 0;
-  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s linear 0.3s;
+  transition: opacity 0.2s ease, visibility 0s linear 0.2s;
 }
 .modal-overlay.show {
   visibility: visible;
@@ -1288,17 +1011,16 @@ body.dark-theme svg.room-svg-house.f_short_occupied .room-text {
 .modal-content {
   background: var(--color-surface);
   padding: 2.5rem 2rem;
-  border-radius: 1.25rem; /* Larger, softer border radius */
+  border-radius: 0.75rem;
   max-width: 90%;
   width: 550px;
   position: relative;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(255, 255, 255, 0.5) inset; /* Premium drop shadow and subtle inner border */
-  transform: scale(0.95) translateY(10px); /* Start slightly down and smaller */
+  box-shadow: var(--shadow-lg);
+  border: 2px solid var(--color-primary);
+  transform: translateY(10px);
   max-height: 90vh;
   overflow-y: auto;
-  min-height: 50px;
-  border: 1px solid rgba(255, 255, 255, 0.2); /* Soft transparent border */
-  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); /* Springy entrance animation */
+  transition: all 0.3s ease;
 }
 .modal-overlay.show .modal-content {
   transform: scale(1) translateY(0);
@@ -1385,13 +1107,28 @@ body.dark-theme svg.room-svg-house.f_short_occupied .room-text {
   padding: 0.3rem 0.6rem; font-size: 0.8rem;
   margin-right: 0.3rem; vertical-align: middle;
 }
-.actions-cell { white-space: nowrap; }
+.actions-cell { 
+  white-space: nowrap; 
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: center;
+}
 .actions-cell .button-small:last-child { margin-right: 0; }
 .edit-booking-btn {
   background-color: var(--color-info); color: var(--color-white);
   text-decoration: none; display: inline-block;
 }
 .edit-booking-btn:hover { background-color: var(--color-info-dark); }
+
+/* On mobile, allow table actions to wrap */
+@media (max-width: 768px) {
+  .actions-cell {
+    white-space: normal;
+    flex-wrap: wrap;
+    min-width: 140px;
+  }
+}
 .form-group input[type="tel"].input-phone {
   border-left: 3px solid var(--color-info);
 }
@@ -1576,7 +1313,149 @@ body.dark-theme .switch { --_slider-txt-clr: var(--dt-color-text); }
 .checkbox-btn input[type="checkbox"]:focus ~ .checkmark, .checkbox-btn input[type="checkbox"]:focus-visible ~ .checkmark { box-shadow: 0 0 0 0.2rem var(--color-focus-ring-input); border-color: var(--color-primary); }
 
 /* Booking Page Specific Styles (booking.php) */
-.booking-header { margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid var(--color-border); }
+/* Booking Page Specific Styles (booking.php) */
+.booking-header { margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--color-border); }
+
+/* Booking Mode Toggle */
+.booking-mode-toggle-container {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 2rem;
+}
+.mode-toggle-group {
+    display: flex;
+    background: var(--color-surface-alt);
+    padding: 6px;
+    border-radius: 12px;
+    gap: 8px;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
+}
+.mode-toggle-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--color-text-muted);
+    text-decoration: none;
+    transition: all 0.3s ease;
+}
+.mode-toggle-btn.active {
+    background: var(--color-white);
+    color: var(--color-primary);
+    box-shadow: var(--shadow-md);
+}
+.mode-toggle-btn:not(.active):hover {
+    color: var(--color-primary);
+    background: rgba(var(--color-primary-rgb), 0.05);
+}
+
+/* Room Selection Grid & Cards */
+.rooms-selection-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 1.5rem;
+    margin-top: 1rem;
+}
+.room-checkbox-card-wrapper {
+    position: relative;
+}
+.hidden-checkbox {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+.room-checkbox-card {
+    display: flex;
+    flex-direction: column;
+    padding: 1.5rem;
+    background: var(--color-surface);
+    border: 2px solid var(--color-border);
+    border-radius: 1rem;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    height: 100%;
+    min-height: 180px;
+}
+.room-checkbox-card:hover {
+    border-color: var(--color-primary);
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-lg);
+}
+.hidden-checkbox:checked + .room-checkbox-card {
+    border-color: var(--color-primary);
+    background: rgba(var(--color-primary-rgb), 0.03);
+    box-shadow: 0 0 0 4px rgba(var(--color-primary-rgb), 0.1);
+}
+.room-card-status-badge {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 99px;
+    text-transform: uppercase;
+}
+.room-card-status-badge.free { background: var(--status-free-bg); color: white; }
+.room-card-status-badge.booked { background: var(--status-booked-bg); color: var(--color-text); }
+.room-card-status-badge.occupied { background: var(--status-occupied-bg); color: white; }
+
+.room-card-icon {
+    margin-bottom: 1rem;
+    color: var(--color-primary);
+    opacity: 0.7;
+}
+.room-card-content .room-name {
+    display: block;
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: var(--color-text);
+    margin-bottom: 0.5rem;
+}
+.room-card-content .room-price {
+    display: block;
+    font-size: 0.95rem;
+    color: var(--color-text-muted);
+}
+.room-card-selection-indicator {
+    position: absolute;
+    bottom: 12px;
+    right: 12px;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: var(--color-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    transition: all 0.3s ease;
+}
+.hidden-checkbox:checked + .room-checkbox-card .room-card-selection-indicator {
+    background: var(--color-primary);
+    transform: scale(1.1);
+}
+.hidden-checkbox:checked + .room-checkbox-card .room-card-icon {
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+.no-rooms-alert {
+    grid-column: 1 / -1;
+    padding: 2rem;
+    background: var(--color-surface-alt);
+    border-radius: 12px;
+    text-align: center;
+    color: var(--color-text-muted);
+    font-style: italic;
+    border: 2px dashed var(--color-border);
+}
+
 #booking-form { padding: 2rem; margin-top: 0; }
 #booking-form .form-group p { margin-bottom: 0.5rem; font-size: 1rem; }
 #booking-form .form-group p strong { color: var(--color-text); font-weight: 500; }
@@ -1931,31 +1810,23 @@ body.dark-theme .skeleton {
 /* === MANAGER DASHBOARD & PREMIUM GLOBAL ENHANCEMENTS === */
 /* ======================================================== */
 
-/* Premium Card Glassmorphism Effect */
-.glass-panel {
-    background: rgba(255, 255, 255, 0.75);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.6);
-    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
-    border-radius: 16px;
+/* Optimized Glass Panel (Merged from legacy and new system) */
+.glass-panel, .glass-card {
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+    border-radius: 1.25rem;
     padding: 1.5rem;
-    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transform: translateZ(0);
 }
 
-body.dark-theme .glass-panel {
-    background: rgba(30, 41, 59, 0.65);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
-}
-
-.glass-panel:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.1);
-}
-
-body.dark-theme .glass-panel:hover {
-    box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.4);
+.glass-panel:hover, .glass-card:hover {
+    background: var(--glass-bg-hover);
+    transform: translateY(-4px) translateZ(0);
+    box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.12);
 }
 
 /* Gradients for text & background highlights */
