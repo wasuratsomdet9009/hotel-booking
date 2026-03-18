@@ -840,19 +840,19 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (currentSelectedRoomDetails) {
                 const z_check = currentSelectedRoomDetails.zone.toLowerCase();
                 const n_check = parseInt(currentSelectedRoomDetails.room_number, 10);
-                const isABC1to5 = ['a', 'b', 'c'].includes(z_check) && n_check >= 1 && n_check <= 5;
+                // isABC flag removed for universal deposit logic
 
                 if (currentBookingType === 'short_stay' && currentSelectedRoomDetails.allow_short_stay == '1') {
                     currentRoomCostOnly = parseFloat(currentSelectedRoomDetails.price_short_stay) || 0;
                     const duration = currentSelectedRoomDetails.short_stay_duration_hours || DEFAULT_SHORT_STAY_HOURS_GLOBAL_JS || 3;
                     if (baseAmountNote_BookingForm) baseAmountNote_BookingForm.textContent = `ยอดสำหรับค่าห้องพัก (${duration} ชม.) ไม่รวมบริการเสริม`;
                     
-                    if (isABC1to5) {
+                    if (!isCurrentRoomZoneF) {
                         depositAmount = FIXED_DEPOSIT_AMOUNT_GLOBAL_JS || 0;
-                        if (depositNoteText_BookingForm) depositNoteText_BookingForm.textContent = `(บังคับมัดจำ ${String(Math.round(depositAmount))} บาท สำหรับโซน ${z_check.toUpperCase()}${n_check})`;
+                        if (depositNoteText_BookingForm) depositNoteText_BookingForm.textContent = `(มัดจำ ${String(Math.round(depositAmount))} บาท สำหรับโซน ${z_check.toUpperCase()}${n_check})`;
                     } else {
                         depositAmount = 0;
-                        if (depositNoteText_BookingForm) depositNoteText_BookingForm.textContent = `(พักชั่วคราว ไม่มีค่ามัดจำ)`;
+                        if (depositNoteText_BookingForm) depositNoteText_BookingForm.textContent = `(โซน F พักชั่วคราว ไม่มีค่ามัดจำ)`;
                     }
                 } else {
                     currentRoomCostOnly = (parseFloat(currentSelectedRoomDetails.price_per_day) || 0) * nights;
@@ -864,15 +864,12 @@ document.addEventListener('DOMContentLoaded', () => {
                             depositAmount = 0;
                             if (depositNoteText_BookingForm) depositNoteText_BookingForm.textContent = `(โซน F - ไม่เก็บค่ามัดจำ)`;
                         }
-                    } else if (isABC1to5) {
-                        depositAmount = FIXED_DEPOSIT_AMOUNT_GLOBAL_JS || 0;
-                        if (depositNoteText_BookingForm) depositNoteText_BookingForm.textContent = `(บังคับมัดจำ ${String(Math.round(depositAmount))} บาท สำหรับโซน ${z_check.toUpperCase()}${n_check})`;
                     } else if (!isCurrentRoomZoneF) {
                         depositAmount = FIXED_DEPOSIT_AMOUNT_GLOBAL_JS || 0;
-                        if (depositNoteText_BookingForm) depositNoteText_BookingForm.textContent = `(มาตรฐาน ${String(Math.round(FIXED_DEPOSIT_AMOUNT_GLOBAL_JS || 0))} บาท สำหรับค้างคืน)`;
+                        if (depositNoteText_BookingForm) depositNoteText_BookingForm.textContent = `(มัดจำ ${String(Math.round(depositAmount))} บาท สำหรับค้างคืน)`;
                     } else {
                         depositAmount = 0;
-                         if (depositNoteText_BookingForm) depositNoteText_BookingForm.textContent = `(โซน F - ไม่มีการตั้งค่าให้ถามเก็บมัดจำ หรือไม่เลือกเก็บ)`;
+                        if (depositNoteText_BookingForm) depositNoteText_BookingForm.textContent = `(โซน F - ไม่มีการตั้งค่าให้ถามเก็บมัดจำ หรือไม่เลือกเก็บ)`;
                     }
                     if (baseAmountNote_BookingForm) baseAmountNote_BookingForm.textContent = `ยอดสำหรับค่าห้องพัก (${nights} คืน) ไม่รวมบริการเสริม`;
                 }
@@ -882,7 +879,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            if (baseAmountPaidDisplay_BookingForm) baseAmountPaidDisplay_BookingForm.value = String(Math.round(currentRoomCostOnly));
+            if (baseAmountPaidDisplay_BookingForm) {
+                // ให้แสดงแยกต่างหากตามราคาฐาน
+                baseAmountPaidDisplay_BookingForm.value = String(Math.round(currentRoomCostOnly));
+            }
 
             let currentTotalAddonPrice = 0;
             if (addonChipsContainer_BookingForm) {

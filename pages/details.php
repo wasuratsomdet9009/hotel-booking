@@ -52,17 +52,17 @@ $stmtRelevantBooking = $pdo->prepare("
           ORDER BY
               (CASE
                   WHEN b_latest.checkin_datetime <= NOW() AND NOW() < b_latest.checkout_datetime_calculated THEN 1 /* Active */
-                  WHEN DATE(b_latest.checkin_datetime) = CURDATE() AND b_latest.checkin_datetime > NOW() THEN 2  /* Pending Today */
-                  WHEN NOW() >= b_latest.checkout_datetime_calculated THEN 3 /* Potentially Overdue */
+                  WHEN NOW() >= b_latest.checkout_datetime_calculated THEN 2 /* Potentially Overdue (Must handle before next guest) */
+                  WHEN DATE(b_latest.checkin_datetime) = CURDATE() AND b_latest.checkin_datetime > NOW() THEN 3  /* Pending Today */
                   ELSE 4 /* Future or other states */
               END) ASC,
               CASE
                   WHEN (CASE
                           WHEN b_latest.checkin_datetime <= NOW() AND NOW() < b_latest.checkout_datetime_calculated THEN 1
-                          WHEN DATE(b_latest.checkin_datetime) = CURDATE() AND b_latest.checkin_datetime > NOW() THEN 2
-                          WHEN NOW() >= b_latest.checkout_datetime_calculated THEN 3
+                          WHEN NOW() >= b_latest.checkout_datetime_calculated THEN 2
+                          WHEN DATE(b_latest.checkin_datetime) = CURDATE() AND b_latest.checkin_datetime > NOW() THEN 3
                           ELSE 4
-                      END) = 3 THEN b_latest.checkout_datetime_calculated
+                      END) = 2 THEN b_latest.checkout_datetime_calculated
                   ELSE b_latest.checkin_datetime
               END DESC,
               b_latest.id DESC

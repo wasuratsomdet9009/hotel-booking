@@ -379,10 +379,8 @@ switch ($action) {
                         }
                     }
 
-                    // คำนวณมัดจำเฉพาะห้องนี้
                     $z_check = strtolower($r_detail['zone'] ?? '');
-                    $n_check = (int)($r_detail['room_number'] ?? 0);
-                    $isABC1to5 = in_array($z_check, ['a', 'b', 'c']) && $n_check >= 1 && $n_check <= 5;
+                    // $isABC flag removed for universal deposit logic
 
                     $deposit_this_room = 0;
                     if ($booking_type === 'overnight') {
@@ -393,8 +391,12 @@ switch ($action) {
                         } else {
                             $deposit_this_room = FIXED_DEPOSIT_AMOUNT;
                         }
-                    } elseif ($booking_type === 'short_stay' && $isABC1to5) {
-                        $deposit_this_room = FIXED_DEPOSIT_AMOUNT;
+                    } elseif ($booking_type === 'short_stay') {
+                        if ($z_check === 'f') {
+                            $deposit_this_room = 0; // Zone F doesn't generally charge deposit strictly on short stay unless needed. The previous logic didn't force it for short stay in Zone F either. We will keep it 0 as base short stay behavior unless specified.
+                        } else {
+                            $deposit_this_room = FIXED_DEPOSIT_AMOUNT; // Universal deposit for all other zones on short stay
+                        }
                     }
 
                     // เก็บ total price ของแต่ละห้องไว้ใน map ด้วย
@@ -436,7 +438,7 @@ switch ($action) {
                     $current_room_price_per_night = $current_room_details_multi['price_per_day'];
                     $z_check2 = strtolower($current_room_details_multi['zone'] ?? '');
                     $n_check2 = (int)($current_room_details_multi['room_number'] ?? 0);
-                    $isABC1to5_2 = in_array($z_check2, ['a', 'b', 'c']) && $n_check2 >= 1 && $n_check2 <= 5;
+                    // $isABC_2 flag removed for universal deposit logic
 
                     $deposit_this_room = 0;
                     if ($booking_type === 'overnight') {
@@ -445,8 +447,12 @@ switch ($action) {
                         } else {
                             $deposit_this_room = FIXED_DEPOSIT_AMOUNT;
                         }
-                    } elseif ($booking_type === 'short_stay' && $isABC1to5_2) {
-                        $deposit_this_room = FIXED_DEPOSIT_AMOUNT;
+                    } elseif ($booking_type === 'short_stay') {
+                        if ($z_check2 === 'f') {
+                            $deposit_this_room = 0;
+                        } else {
+                            $deposit_this_room = FIXED_DEPOSIT_AMOUNT;
+                        }
                     }
 
                     // สร้างการจอง (Insert into bookings table) - (โค้ดส่วนนี้เหมือนเดิม แต่ใช้ค่าที่คำนวณใหม่)
@@ -578,7 +584,7 @@ switch ($action) {
 
                 $z_check_s = strtolower($room_zone_for_logic);
                 $n_check_s = (int)($room_details_for_validation['room_number'] ?? 0);
-                $isABC1to5_s = in_array($z_check_s, ['a', 'b', 'c']) && $n_check_s >= 1 && $n_check_s <= 5;
+                // $isABC_s flag removed for universal deposit logic
 
                 $base_room_cost_single = 0;
                 $price_per_night_db_single = null;
@@ -602,10 +608,10 @@ switch ($action) {
                     if (!$room_details_for_validation) throw new Exception("ไม่พบรายละเอียดห้องพักสำหรับคำนวณราคา (Short Stay)", 500); // Room details not found for price calculation (Short Stay)
                     if (!$room_details_for_validation['allow_short_stay']) throw new Exception("ห้องนี้ ID:{$roomId} ไม่รองรับการจองแบบชั่วคราว", 400); // This room ID:{$roomId} does not support short-stay bookings
                     $base_room_cost_single = (int)round((float)$room_details_for_validation['price_short_stay']);
-                    if ($isABC1to5_s) {
-                        $deposit_amount_single = FIXED_DEPOSIT_AMOUNT;
+                    if ($z_check_s === 'f') {
+                        $deposit_amount_single = 0; // Short stay Zone F typically doesn't force deposit in the UI/old logic either.
                     } else {
-                        $deposit_amount_single = 0;
+                        $deposit_amount_single = FIXED_DEPOSIT_AMOUNT;
                     }
                 }
                 $total_price_for_db_single = $base_room_cost_single + $total_addon_cost_for_group_calculated + $deposit_amount_single;
@@ -749,6 +755,15 @@ switch ($action) {
 
             // --- START: Telegram Notification Trigger ---
             try {
+                // 1. Send specific booking notification with receipt image (if any)
+                if (function_exists('sendTelegramNewBookingNotification')) {
+                    $firstReceiptFsPath = null;
+                    if (!empty($uploadedReceipts) && isset($uploadedReceipts[0]['path'])) {
+                        $firstReceiptFsPath = __DIR__ . '/../uploads/receipts/' . $uploadedReceipts[0]['path'];
+                    }
+                    sendTelegramNewBookingNotification($pdo, $createdBookingIds, $firstReceiptFsPath);
+                }
+                // 2. Update the room status overview panel
                 if (function_exists('sendTelegramRoomStatusUpdate')) {
                     sendTelegramRoomStatusUpdate($pdo);
                 }
@@ -1563,7 +1578,7 @@ switch ($action) {
             }
 
             $stmtBooking = $pdo->prepare("
-                SELECT b.*, r.id as room_actual_id, r.zone as room_zone, 
+                SELECT b.*, r.id as room_actual_id, r.zone as room_zone, r.room_number,
                        COALESCE(r.short_stay_duration_hours, " . DEFAULT_SHORT_STAY_DURATION_HOURS . ") as room_short_stay_duration_config
                 FROM bookings b 
                 JOIN rooms r ON b.room_id = r.id 
@@ -1735,6 +1750,14 @@ switch ($action) {
                 $current_user_id_for_archive = $current_user_id; // User performing the action
 
                 // 1. Insert into archives
+                // [MODIFICATION for All Zones]: If a deposit is returned, we deduct it from the amount_paid 
+                // to reflect the true revenue in the archives (Room Price + Addons).
+                $recorded_amount_paid = (int)round((float)$booking['amount_paid']);
+                if ($actuallyReturnDepositFlag) {
+                    $recorded_amount_paid -= $original_deposit_amount_for_this_booking;
+                    error_log("[API ReturnComplete] Deposit returned. Deducting {$original_deposit_amount_for_this_booking} from archived amount_paid. New value: {$recorded_amount_paid}");
+                }
+
                 // Note: The receipt_path and extended_receipt_path are now legacy.
                 // New system should look up receipts via booking_group_id -> booking_group_receipts.
                 // We keep them in archives for historical data from before the system change.
@@ -1770,7 +1793,7 @@ switch ($action) {
                     ':extended_hours' => $booking['extended_hours'] ?? 0,
                     ':price_per_night' => (int)round((float)($booking['price_per_night'] ?? 0)),
                     ':total_price' => (int)round((float)$booking['total_price']),
-                    ':amount_paid' => (int)round((float)$booking['amount_paid']),
+                    ':amount_paid' => $recorded_amount_paid,
                     ':additional_paid_amount' => (int)round((float)($booking['additional_paid_amount'] ?? 0.00)),
                     ':deposit_amount' => $original_deposit_amount_for_this_booking,
                     ':payment_method' => $booking['payment_method'],
@@ -1898,6 +1921,22 @@ switch ($action) {
                 $pdo->commit();
                 // --- START: Telegram Notification Trigger ---
                 try {
+                    // 1. Send specific deposit return notification with proof image (if any)
+                    if (function_exists('sendTelegramDepositReturnNotification') && $actuallyReturnDepositFlag) {
+                        $roomNameForTg = ($booking['room_zone'] ?? '') . ($booking['room_number'] ?? '');
+                        $depositProofFsPath = null;
+                        if ($depositProofFile) {
+                            $depositProofFsPath = __DIR__ . '/../uploads/deposit/' . $depositProofFile;
+                        }
+                        sendTelegramDepositReturnNotification(
+                            $pdo,
+                            $roomNameForTg,
+                            $booking['customer_name'] ?? '',
+                            $original_deposit_amount_for_this_booking,
+                            $depositProofFsPath
+                        );
+                    }
+                    // 2. Update the room status overview panel
                     if (function_exists('sendTelegramRoomStatusUpdate')) {
                         sendTelegramRoomStatusUpdate($pdo);
                     }

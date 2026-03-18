@@ -262,345 +262,187 @@ ob_start();
     }
 
     /* ============================
-       INVOICE DOCUMENT STYLES
+       INVOICE DOCUMENT STYLES (CLASSIC THAI STYLE)
        ============================ */
     #bill-content {
         font-family: 'Sarabun', sans-serif;
         background-color: #fff;
-        color: #1a1a2e;
+        color: #000;
         width: 210mm;
         min-width: 210mm;
-        /* บังคับขนาด A4 เสมอ ป้องกันการเบียดบนมือถือ */
         min-height: 297mm;
         margin: 0 auto;
-        /* จัดกึ่งกลาง */
-        text-align: left;
-        /* รีเซ็ต text-align ภายในเอกสาร */
-        font-size: 11pt;
-        padding: 0;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+        padding: 10mm;
+        /* ระยะห่างขอบกระดาษ */
         box-sizing: border-box;
+        text-align: left;
+        font-size: 11pt;
+    }
+
+    .classic-border-wrap {
+        border: 1px solid #000;
+        padding: 10mm 12mm;
+        height: 100%;
+        min-height: 277mm;
+        /* 297 - 20 */
         display: flex;
         flex-direction: column;
-        position: relative;
-        flex-shrink: 0;
-        overflow: hidden;
+        box-sizing: border-box;
     }
 
-    /* Header Bar */
-    .inv-header {
-        background: linear-gradient(135deg, #cde4f5 0%, #dceef8 50%, #e8f4fd 100%);
-        padding: 8mm 10mm 6mm 10mm;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        border-bottom: 3px solid #5BA4CF;
-        flex-shrink: 0;
-    }
-
-    .inv-header-left {
-        display: flex;
-        align-items: center;
-        gap: 4mm;
-    }
-
-    .inv-logo-wrap svg {
-        width: 18mm;
-        height: 18mm;
-        padding: 2.5mm;
-        border-radius: 50%;
-        border: 2px solid #5BA4CF;
-        background: #fff;
-        color: #5BA4CF;
-        /* สีของรูปบ้าน */
-    }
-
-    .inv-header-right {
-        text-align: right;
-    }
-
-    .inv-title-main {
-        font-size: 2em;
-        font-weight: 800;
-        color: #1a5276;
-        line-height: 1;
-        margin: 0;
-    }
-
-    .inv-title-sub {
-        font-size: 1em;
-        font-weight: 600;
-        color: #2980b9;
-        margin: 0;
-        letter-spacing: 0.1em;
-    }
-
-    /* Company Info */
-    .inv-company {
-        padding: 4mm 10mm 3mm 10mm;
-        border-bottom: 1px solid #dce8f0;
-        flex-shrink: 0;
-    }
-
-    .inv-company-name {
-        font-size: 1.15em;
-        font-weight: 800;
-        color: #1a5276;
-        margin: 0 0 1mm 0;
-    }
-
-    .inv-company-detail {
-        font-size: 0.88em;
-        color: #555;
-        line-height: 1.6;
-    }
-
-    .inv-company-contact {
-        margin-top: 2mm;
-        font-size: 0.88em;
-        color: #444;
-        display: flex;
-        gap: 6mm;
-        flex-wrap: wrap;
-    }
-
-    .inv-company-contact span {
-        display: flex;
-        align-items: center;
-        gap: 1mm;
-    }
-
-    /* Info Box (Customer + Meta) */
-    .inv-info-box {
-        margin: 4mm 10mm;
-        border: 1.5px solid #c8def0;
-        border-radius: 2mm;
-        display: flex;
-        gap: 0;
-        overflow: hidden;
-        flex-shrink: 0;
-        background: #f7fbff;
-    }
-
-    .inv-info-customer {
-        flex: 1 1 55%;
-        padding: 4mm 5mm;
-        border-right: 1.5px solid #c8def0;
-    }
-
-    .inv-info-meta {
-        flex: 1 1 45%;
-        padding: 4mm 5mm;
-    }
-
-    .inv-info-row {
-        display: flex;
-        margin-bottom: 1.5mm;
-        font-size: 0.9em;
-        line-height: 1.5;
-        align-items: flex-start;
-    }
-
-    .inv-info-label {
-        font-weight: 700;
-        color: #2c3e50;
-        min-width: 32mm;
-        flex-shrink: 0;
-    }
-
-    .inv-info-val {
-        color: #333;
-        word-break: break-word;
-    }
-
-    /* Line Items Table */
-    .inv-items-section {
-        margin: 3mm 10mm;
-        flex-grow: 1;
-        flex-shrink: 0;
-    }
-
-    .inv-items-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 0.9em;
-    }
-
-    .inv-items-table thead tr {
-        background: linear-gradient(135deg, #a8d1f0, #c8e5f8);
-    }
-
-    .inv-items-table th {
-        padding: 2.5mm 2mm;
-        font-weight: 700;
-        color: #1a3a5c;
-        border: 1px solid #a0c8e8;
+    .c-header {
         text-align: center;
+        margin-bottom: 5mm;
     }
 
-    .inv-items-table th:nth-child(2) {
-        text-align: center;
-    }
-
-    .inv-items-table td {
-        padding: 2mm;
-        border: 1px solid #cde4f5;
-        vertical-align: middle;
-        color: #1a1a2e;
-    }
-
-    .inv-items-table tbody tr:nth-child(even) {
-        background: #f0f8ff;
-    }
-
-    .inv-items-table .inv-col-no {
-        width: 7%;
-        text-align: center;
-    }
-
-    .inv-items-table .inv-col-desc {
-        width: 45%;
-    }
-
-    .inv-items-table .inv-col-qty {
-        width: 10%;
-        text-align: center;
-    }
-
-    .inv-items-table .inv-col-unit {
-        width: 10%;
-        text-align: center;
-    }
-
-    .inv-items-table .inv-col-price {
-        width: 14%;
-        text-align: right;
-    }
-
-    .inv-items-table .inv-col-total {
-        width: 14%;
-        text-align: right;
-        font-weight: 600;
-    }
-
-    .inv-empty-row td {
-        height: 7mm;
-    }
-
-    /* Totals Section */
-    .inv-footer-area {
-        margin: 3mm 10mm 5mm 10mm;
-        display: flex;
-        flex-direction: column;
-        flex-shrink: 0;
-    }
-
-    .inv-amount-words {
-        font-size: 0.85em;
-        color: #444;
-        margin-bottom: 3mm;
-        font-style: italic;
-        padding: 2mm 0;
-    }
-
-    .inv-totals-table {
-        width: 55%;
-        margin-left: auto;
-        border-collapse: collapse;
-        font-size: 0.9em;
-    }
-
-    .inv-totals-table td {
-        padding: 2mm 3mm;
-        border: 1px solid #cde4f5;
-    }
-
-    .inv-totals-table .inv-total-label {
-        font-weight: 600;
-        color: #1a3a5c;
-        background: #eaf4fc;
-        white-space: nowrap;
-    }
-
-    .inv-totals-table .inv-total-val {
-        text-align: right;
-        font-weight: 600;
-    }
-
-    .inv-totals-table .inv-grand-row td {
-        background: linear-gradient(135deg, #a8d1f0, #c8e5f8);
-        color: #1a3a5c;
-        font-weight: 800;
-        font-size: 1.05em;
-        border-color: #5BA4CF;
-    }
-
-    /* Signature & Footer */
-    .inv-sign-notes {
-        margin: 0 10mm 5mm 10mm;
-        display: flex;
-        gap: 5mm;
-        flex-shrink: 0;
-    }
-
-    .inv-notes-block {
-        flex: 1 1 55%;
-        font-size: 0.82em;
-        color: #444;
-    }
-
-    .inv-notes-block p {
-        margin: 0 0 1mm 0;
-        font-weight: 700;
-        color: #1a3a5c;
-    }
-
-    .inv-notes-block ul {
-        margin: 0;
-        padding-left: 4mm;
-        line-height: 1.6;
-    }
-
-    .inv-sign-block {
-        flex: 1 1 40%;
-        border: 1.5px solid #c8def0;
-        border-radius: 2mm;
-        background: #f7fbff;
-        padding: 4mm;
-        text-align: center;
-    }
-
-    .inv-sign-title {
-        font-weight: 700;
-        font-size: 0.9em;
-        color: #1a3a5c;
-        margin-bottom: 2mm;
-    }
-
-    .inv-sign-line {
-        height: 14mm;
-        border-bottom: 1px dashed #aaa;
-        margin-bottom: 2mm;
-        display: flex;
-        align-items: flex-end;
+    .c-header h2 {
+        font-size: 1.4em;
+        font-weight: bold;
+        margin: 0 0 2mm 0;
+        color: #000;
+        border: none;
+        padding: 0;
+        display: block;
         justify-content: center;
     }
 
-    .inv-sign-date {
-        font-size: 0.85em;
-        color: #555;
-        margin-top: 1mm;
+    .c-header h3 {
+        font-size: 1.4em;
+        font-weight: bold;
+        margin: 0 0 3mm 0;
+        color: #000;
+        border: none;
+        padding: 0;
+        display: block;
+        justify-content: center;
     }
 
-    .inv-doc-footer {
-        background: #eaf4fc;
-        border-top: 2px solid #5BA4CF;
+    .c-header p {
+        margin: 1.5mm 0;
+        font-size: 1.05em;
+    }
+
+    .c-dotted {
+        text-decoration: underline;
+        text-decoration-style: dotted;
+        text-underline-offset: 4px;
+        text-decoration-thickness: 1.5px;
+    }
+
+    .c-meta {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 4mm;
+        margin-bottom: 2mm;
+        font-size: 1em;
+    }
+
+    .c-line {
+        border-top: 1px solid #000;
+        margin-bottom: 4mm;
+    }
+
+    .c-customer {
+        border: 1px solid #000;
+        padding: 4mm 5mm;
+        margin-bottom: 6mm;
+        font-size: 1.05em;
+    }
+
+    .c-customer p {
+        margin: 2.5mm 0;
+        line-height: 1.6;
+    }
+
+    .c-dates {
+        font-size: 1.1em;
+        margin-bottom: 6mm;
+        font-weight: bold;
+    }
+
+    .c-dates p {
+        margin: 3mm 0;
+    }
+
+    .c-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 2mm;
+        font-size: 1em;
+    }
+
+    .c-table th {
+        border-top: 1px solid #000;
+        border-bottom: 1px solid #000;
+        padding: 3mm 1mm;
+        font-weight: bold;
+    }
+
+    .c-table td {
+        padding: 3mm 1mm;
+        vertical-align: top;
+    }
+
+    .c-table-bottom-line {
+        border-top: 1px solid #000;
+        margin-bottom: 5mm;
+    }
+
+    .c-total-wrap {
+        text-align: right;
+        font-weight: bold;
+        font-size: 1.2em;
+        padding-top: 2mm;
+        margin-bottom: 15mm;
+    }
+
+    .c-total-inner {
+        display: inline-block;
+        border-bottom: 3px double #000;
+        padding-bottom: 2mm;
+        padding-right: 2mm;
+    }
+
+    .c-total-inner span:first-child {
+        display: inline-block;
+        width: 40mm;
+        text-align: right;
+        margin-right: 6mm;
+    }
+
+    .c-total-inner span:last-child {
+        display: inline-block;
+        width: 25mm;
+        text-align: right;
+    }
+
+    .c-footer {
         text-align: center;
-        padding: 2.5mm;
-        font-size: 0.78em;
-        color: #3a82c4;
-        flex-shrink: 0;
         margin-top: auto;
+        padding-top: 10mm;
+    }
+
+    .c-footer .thank-you {
+        font-weight: bold;
+        font-size: 1.2em;
+        margin-bottom: 15mm;
+        letter-spacing: 1px;
+    }
+
+    .c-footer .sig {
+        margin-bottom: 8mm;
+        font-size: 1em;
+    }
+
+    .c-footer .sig-line {
+        margin-top: 8mm;
+        color: #333;
+    }
+
+    .c-footer .auto-gen {
+        font-size: 0.9em;
+        color: #555;
+        font-weight: bold;
     }
 
     /* Action Buttons */
@@ -821,145 +663,76 @@ ob_start();
         <h3><i class="fas fa-eye"></i> ตัวอย่างบิล / ใบแจ้งหนี้</h3>
         <div id="bill-content-wrapper">
             <div id="bill-content">
+                <div class="classic-border-wrap">
 
-                <!-- ===== INVOICE HEADER ===== -->
-                <header class="inv-header">
-                    <div class="inv-header-left">
-                        <div class="inv-logo-wrap">
-                            <!-- SVG รูปบ้านแทนการใช้ image path -->
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-                                <polyline points="9 22 9 12 15 12 15 22"></polyline>
-                            </svg>
-                        </div>
+                    <!-- ===== HEADER ===== -->
+                    <div class="c-header">
+                        <h2>ใบเสร็จรับเงิน / บิลเงินสด</h2>
+                        <h3>โรงแรมภัทรรีสอร์ท</h3>
+                        <p>ที่อยู่: <span class="c-dotted">119 / 2 ม.13 ต.โคกแย้ อ.หนองแค จ.สระบุรี 18230</span></p>
+                        <p>โทร: <span class="c-dotted">089 -889 -5019 / 083 -879 -4469 / 064 -879 -4469</span></p>
+                        <p>เลขประจำตัวผู้เสียภาษี: <span class="c-dotted">3260300408491</span></p>
                     </div>
-                    <div class="inv-header-right">
-                        <p class="inv-title-main">บิลเงินสด</p>
-                        <p class="inv-title-sub">CASH BILL</p>
-                    </div>
-                </header>
 
-                <!-- ===== COMPANY INFO ===== -->
-                <div class="inv-company">
-                    <p class="inv-company-name">โรงแรมภัทรรีสอร์ท</p>
-                    <div class="inv-company-detail">
-                        119/2 ม.13 ต.โคกแย้ อ.หนองแค จ.สระบุรี 18230<br>
-                        เลขประจำตัวผู้เสียภาษี: 3260300408491
+                    <!-- ===== META ===== -->
+                    <div class="c-meta">
+                        <div>เลขที่: <span id="preview_bill_number"></span></div>
+                        <div>วันที่: <span id="preview_bill_date"></span></div>
                     </div>
-                    <div class="inv-company-contact">
-                        <span><i class="fas fa-phone" style="color:#2980b9;font-size:0.8em;"></i> 089-889-5019 / 083-879-4469</span>
-                    </div>
-                </div>
+                    <div class="c-line"></div>
 
-                <!-- ===== CUSTOMER + META INFO BOX ===== -->
-                <div class="inv-info-box">
-                    <div class="inv-info-customer">
-                        <div class="inv-info-row">
-                            <span class="inv-info-label">ลูกค้า:</span>
-                            <span class="inv-info-val" id="preview_customer_name"></span>
-                        </div>
-                        <div class="inv-info-row">
-                            <span class="inv-info-label">ที่อยู่:</span>
-                            <span class="inv-info-val" id="preview_customer_address"></span>
-                        </div>
-                        <div class="inv-info-row">
-                            <span class="inv-info-label">เลขผู้เสียภาษี:</span>
-                            <span class="inv-info-val" id="preview_customer_tax_id"></span>
-                        </div>
-                        <div class="inv-info-row" id="preview_checkin_row">
-                            <span class="inv-info-label">เช็คอิน:</span>
-                            <span class="inv-info-val" id="preview_checkin_date"></span>
-                        </div>
-                        <div class="inv-info-row" id="preview_checkout_row">
-                            <span class="inv-info-label">เช็คเอาท์:</span>
-                            <span class="inv-info-val" id="preview_checkout_date"></span>
-                        </div>
+                    <!-- ===== CUSTOMER ===== -->
+                    <div class="c-customer">
+                        <p>นามลูกค้า/ บริษัท: <span id="preview_customer_name" class="c-dotted"></span></p>
+                        <p>ที่อยู่: <span id="preview_customer_address" class="c-dotted"></span></p>
+                        <p>เลขประจำตัวผู้เสียภาษี: <span id="preview_customer_tax_id" class="c-dotted"></span></p>
                     </div>
-                    <div class="inv-info-meta">
-                        <div class="inv-info-row">
-                            <span class="inv-info-label">เลขที่:</span>
-                            <span class="inv-info-val" id="preview_bill_number"><?= h($default_bill_number_prefix . '/' . $current_thai_year) ?></span>
-                        </div>
-                        <div class="inv-info-row">
-                            <span class="inv-info-label">วันที่:</span>
-                            <span class="inv-info-val" id="preview_bill_date"><?= toThaiDateString(date('Y-m-d')) ?></span>
-                        </div>
-                        <div class="inv-info-row">
-                            <span class="inv-info-label">วิธีชำระ:</span>
-                            <span class="inv-info-val" id="preview_payment_method">เงินสด</span>
-                        </div>
-                    </div>
-                </div>
 
-                <!-- ===== LINE ITEMS TABLE ===== -->
-                <div class="inv-items-section">
-                    <table class="inv-items-table">
+                    <!-- ===== DATES ===== -->
+                    <div class="c-dates" id="preview_dates_section">
+                        <p>วันที่เข้าพัก: <span id="preview_checkin_date"></span></p>
+                        <p>วันที่ออก: <span id="preview_checkout_date"></span></p>
+                    </div>
+
+                    <!-- ===== ITEMS TABLE ===== -->
+                    <table class="c-table">
                         <thead>
                             <tr>
-                                <th class="inv-col-no">#</th>
-                                <th class="inv-col-desc" style="text-align:left;">รายละเอียด</th>
-                                <th class="inv-col-qty">จำนวน</th>
-                                <th class="inv-col-unit">หน่วย</th>
-                                <th class="inv-col-price">ราคา/หน่วย</th>
-                                <th class="inv-col-total">ยอดรวม(บาท)</th>
+                                <th style="text-align:left; width: 45%;">รายการ</th>
+                                <th style="text-align:center; width: 15%;">จำนวน</th>
+                                <th style="text-align:center; width: 20%;">ราคา/ หน่วย</th>
+                                <th style="text-align:right; width: 20%;">จำนวนเงิน</th>
                             </tr>
                         </thead>
                         <tbody id="preview_line_items">
                             <tr>
-                                <td colspan="6" style="text-align:center; color:#888; padding: 6mm;"><i>- ยังไม่มีรายการ -</i></td>
+                                <td colspan="4" style="text-align:center; color:#888; padding: 6mm;"><i>- ยังไม่มีรายการ -</i></td>
                             </tr>
                         </tbody>
                     </table>
-                </div>
+                    <div class="c-table-bottom-line"></div>
 
-                <!-- ===== TOTALS + SIGNATURE ===== -->
-                <div class="inv-footer-area">
-                    <div class="inv-amount-words" id="preview_amount_words"></div>
-                    <table class="inv-totals-table">
-                        <tr>
-                            <td class="inv-total-label">รวมเป็นเงิน</td>
-                            <td class="inv-total-val"><span id="preview_subtotal">0.00</span></td>
-                        </tr>
-                        <tr>
-                            <td class="inv-total-label">ส่วนลด</td>
-                            <td class="inv-total-val">0</td>
-                        </tr>
-                        <tr class="inv-grand-row">
-                            <td class="inv-total-label">ยอดชำระ</td>
-                            <td class="inv-total-val"><span id="preview_grand_total">0.00</span></td>
-                        </tr>
-                    </table>
-                </div>
-
-                <!-- ===== NOTES + SIGNATURE ===== -->
-                <div class="inv-sign-notes">
-                    <div class="inv-notes-block">
-                        <p>หมายเหตุ:</p>
-                        <ul>
-                            <li>ราคารวมค่าบริการแล้ว</li>
-                        </ul>
-                        <br>
-                        <p>สถานะการชำระเงิน:</p>
-                        <ul>
-                            <li>ได้รับเงินเรียบร้อยแล้ว</li>
-                            <li>ขอบคุณที่ใช้บริการ</li>
-                        </ul>
+                    <!-- ===== TOTAL ===== -->
+                    <div class="c-total-wrap">
+                        <div class="c-total-inner">
+                            <span>ยอดรวมทั้งสิ้น:</span>
+                            <span id="preview_grand_total">0.00</span>
+                        </div>
                     </div>
-                    <div class="inv-sign-block">
-                        <div class="inv-sign-title">ผู้วางบิล</div>
-                        <div class="inv-sign-line"></div>
-                        <div class="inv-sign-date">วันที่ <span id="preview_sign_date"><?= toThaiDateString(date('Y-m-d')) ?></span></div>
+
+                    <!-- ===== FOOTER ===== -->
+                    <div class="c-footer">
+                        <p class="thank-you">*** ขอขอบคุณที่ไว้วางใจใช้บริการ ***</p>
+                        <div class="sig">
+                            <p>ผู้รับเงิน</p>
+                            <p class="sig-line">(....................................................................)</p>
+                        </div>
+                        <p class="auto-gen">เอกสารนี้ออกโดยระบบอัตโนมัติ - โรงแรมภัทรรีสอร์ท</p>
                     </div>
-                </div>
 
-                <!-- ===== DOCUMENT FOOTER ===== -->
-                <div class="inv-doc-footer">
-                    เอกสารออกโดยระบบ โรงแรมภัทรรีสอร์ท &nbsp;|&nbsp; 089-889-5019
                 </div>
-
             </div>
         </div>
-        <div class="bill-actions">
             <button type="button" id="save-bill-as-image-btn" class="button secondary" disabled>
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
@@ -990,6 +763,64 @@ ob_start();
     </div>
 </div>
 
+        <div class="export-settings-container" style="margin-top: 1.5rem; margin-bottom: 1rem; padding: 0 1rem;">
+            <details style="background: var(--color-surface-alt); border: 1px solid var(--color-border); border-radius: var(--border-radius-md); padding: 0.5rem 1rem;">
+                <summary style="cursor: pointer; font-weight: bold; color: var(--color-primary-dark); padding: 0.5rem 0; list-style: none; display: flex; align-items: center; justify-content: space-between;">
+                    <span><i class="fas fa-cog"></i> ตั้งค่าหน้ากระดาษก่อนพิมพ์/แชร์</span>
+                    <i class="fas fa-chevron-down" style="font-size: 0.8em; transition: transform 0.3s;"></i>
+                </summary>
+                
+                <div class="settings-content" style="padding-top: 1rem; border-top: 1px solid var(--color-border); margin-top: 0.5rem;">
+                    <!-- Basic Settings -->
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1rem;">
+                        <div class="form-group" style="margin: 0;">
+                            <label for="export_paper_size" style="font-size: 0.9em;">ขนาดกระดาษ:</label>
+                            <select id="export_paper_size" class="form-control form-control-sm" onchange="updateBillPreview()">
+                                <option value="a4">A4 (210 x 297 mm)</option>
+                                <option value="a3">A3 (297 x 420 mm)</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin: 0;">
+                            <label for="export_template_select" style="font-size: 0.9em;">รูปแบบเอกสาร:</label>
+                            <select id="export_template_select" class="form-control form-control-sm" onchange="updateBillPreview()">
+                                <option value="classic">แบบคลาสสิก (ขาวดำ มีกรอบ)</option>
+                                <option value="detailed">แบบละเอียด (ตารางมีเส้นกั้นทุกช่อง)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Advanced Settings inside another details tag -->
+                    <details style="margin-top: 0.5rem;">
+                        <summary style="cursor: pointer; font-size: 0.9em; color: var(--color-text-muted); opacity: 0.8;">
+                            <i class="fas fa-sliders-h"></i> ตั้งค่าขั้นสูง
+                        </summary>
+                        <div style="padding: 0.75rem; background: rgba(0,0,0,0.02); border-radius: var(--border-radius-sm); margin-top: 0.5rem;">
+                            <div class="form-group" style="margin: 0; max-width: 300px;">
+                                <label for="export_font_size" style="font-size: 0.85em;">ขนาดตัวอักษรตั้งต้น:</label>
+                                <select id="export_font_size" class="form-control form-control-sm" onchange="updateBillPreview()">
+                                    <option value="small">เล็ก (10pt)</option>
+                                    <option value="normal" selected>ปกติ (12pt)</option>
+                                    <option value="large">ใหญ่ (14pt)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </details>
+                </div>
+            </details>
+        </div>
+        
+        <script>
+            // Add slight animation to the chevron icon inside the details summary
+            document.querySelector('.export-settings-container details summary').addEventListener('click', function() {
+                const icon = this.querySelector('.fa-chevron-down');
+                if (this.parentNode.open) {
+                    icon.style.transform = 'rotate(0deg)';
+                } else {
+                    icon.style.transform = 'rotate(180deg)';
+                }
+            });
+        </script>
+
 <!-- ... existing custom modal ... -->
 <div id="custom-modal">
     <div id="custom-modal-content">
@@ -1005,6 +836,71 @@ ob_start();
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script>
+    window.updateBillPreview = function() {
+        const paperSize = document.getElementById('export_paper_size') ? document.getElementById('export_paper_size').value : 'a4';
+        const fontSize = document.getElementById('export_font_size') ? document.getElementById('export_font_size').value : 'normal';
+        const template = document.getElementById('export_template_select') ? document.getElementById('export_template_select').value : 'classic';
+        const billContent = document.getElementById('bill-content');
+        if (!billContent) return;
+
+        // Apply Paper Size
+        if (paperSize === 'a3') {
+            billContent.style.width = '297mm';
+            billContent.style.minWidth = '297mm';
+            billContent.style.minHeight = '420mm';
+        } else {
+            billContent.style.width = '210mm';
+            billContent.style.minWidth = '210mm';
+            billContent.style.minHeight = '297mm';
+        }
+
+        // Apply Font Size
+        let fontCssSize = '11pt'; // default
+        if (fontSize === 'small') fontCssSize = '10pt';
+        else if (fontSize === 'large') fontCssSize = '14pt';
+        else fontCssSize = '12pt';
+        billContent.style.fontSize = fontCssSize;
+
+        // Apply Template Styles (WYSIWYG)
+        const header = billContent.querySelector('.c-header');
+        const customer = billContent.querySelector('.c-customer');
+        const dates = billContent.querySelector('.c-dates');
+        const _table = billContent.querySelector('.c-table');
+        const totals = billContent.querySelector('.c-total-inner');
+        const line = billContent.querySelector('.c-line');
+        const tableBottomLine = billContent.querySelector('.c-table-bottom-line');
+        const wrap = billContent.querySelector('.classic-border-wrap');
+
+        if (template === 'detailed') {
+            if (wrap) { wrap.style.border = 'none'; wrap.style.padding = '0'; wrap.style.minHeight = (paperSize === 'a3' ? '410mm' : '287mm'); }
+            if (header) { header.style.borderBottom = '2px solid #2c3e50'; header.style.paddingBottom = '5mm'; }
+            if (customer) { customer.style.background = '#fff'; customer.style.borderRadius = '4px'; customer.style.border = '1px solid #dee2e6'; }
+            if (dates) { dates.style.background = '#e9ecef'; dates.style.borderRadius = '4px'; dates.style.border = '1px solid #ced4da'; dates.style.display = 'flex'; dates.style.gap = '20px'; }
+            if (_table) { 
+                _table.style.border = '1px solid #adb5bd'; 
+                _table.querySelectorAll('th').forEach(th => { th.style.background = '#e9ecef'; th.style.border = '1px solid #adb5bd'; th.style.color = '#000'; });
+                _table.querySelectorAll('td').forEach(td => { td.style.border = '1px solid #adb5bd'; th.style.color = '#000'; });
+            }
+            if (totals) { totals.style.background = '#e9ecef'; totals.style.borderRadius = '4px'; totals.style.border = '1px solid #adb5bd'; totals.style.borderBottom = '1px solid #adb5bd'; totals.style.padding = '10px 15px'; }
+            if (line) { line.style.display = 'none'; }
+            if (tableBottomLine) { tableBottomLine.style.display = 'none'; }
+        } else {
+            // Classic
+            if (wrap) { wrap.style.border = '1px solid #000'; wrap.style.padding = '10mm 12mm'; wrap.style.minHeight = (paperSize === 'a3' ? '390mm' : '267mm'); }
+            if (header) { header.style.borderBottom = 'none'; header.style.paddingBottom = '0'; }
+            if (customer) { customer.style.background = 'transparent'; customer.style.borderRadius = '0'; customer.style.border = '1px solid #000'; }
+            if (dates) { dates.style.background = 'transparent'; dates.style.borderRadius = '0'; dates.style.border = 'none'; dates.style.display = 'block'; dates.style.gap = '0'; }
+            if (_table) { 
+                _table.style.border = 'none'; 
+                _table.querySelectorAll('th').forEach(th => { th.style.background = 'transparent'; th.style.borderTop = '1px solid #000'; th.style.borderBottom = '1px solid #000'; th.style.borderLeft = 'none'; th.style.borderRight = 'none'; });
+                _table.querySelectorAll('td').forEach(td => { td.style.border = 'none'; });
+            }
+            if (totals) { totals.style.background = 'transparent'; totals.style.borderRadius = '0'; totals.style.border = 'none'; totals.style.borderBottom = '3px double #000'; totals.style.padding = '0 2mm 2mm 0'; }
+            if (line) { line.style.display = 'block'; }
+            if (tableBottomLine) { tableBottomLine.style.display = 'block'; }
+        }
+    };
+
     document.addEventListener('DOMContentLoaded', function() {
         // --- Element Selectors ---
         // ... existing selectors ...
@@ -1349,24 +1245,9 @@ ob_start();
             const thaiDateStr = toThaiDateForJS(billDateInput.value || new Date());
             previewBillDate.textContent = thaiDateStr;
 
-            // Update sign date to match bill date
-            const previewSignDate = document.getElementById('preview_sign_date');
-            if (previewSignDate) previewSignDate.textContent = thaiDateStr;
-
             previewCustomerName.textContent = customerNameInput.value.trim() || '-';
             previewCustomerAddress.textContent = customerAddressInput.value.trim() || '-';
             previewCustomerTaxId.textContent = customerTaxIdInput.value.trim() || '-';
-
-            // Update payment method display
-            const previewPayMethod = document.getElementById('preview_payment_method');
-            if (previewPayMethod && paymentMethodSelect) {
-                const methods = {
-                    'Cash': 'เงินสด',
-                    'Transfer': 'โอนชำระ',
-                    'Credit Card': 'บัตรเครดิต'
-                };
-                previewPayMethod.textContent = methods[paymentMethodSelect.value] || paymentMethodSelect.value;
-            }
 
             // --- Line Items ---
             previewLineItemsBody.innerHTML = '';
@@ -1377,9 +1258,9 @@ ob_start();
             const holidaySurchargeAmount = 100;
 
             if (billItems.length === 0) {
-                previewLineItemsBody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#888; padding: 6mm;"><i>- ยังไม่มีรายการ -</i></td></tr>';
+                previewLineItemsBody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#888; padding: 6mm;"><i>- ยังไม่มีรายการ -</i></td></tr>';
             } else {
-                billItems.forEach((item, idx) => {
+                billItems.forEach((item) => {
                     let itemTotalForPreview = item.quantity * item.unitPrice;
                     let descriptionForPreview = item.description;
                     const unitLabel = item.type === 'room' ? 'คืน' : 'หน่วย';
@@ -1404,77 +1285,52 @@ ob_start();
                     }
 
                     const row = previewLineItemsBody.insertRow();
-                    // # column
-                    const noCell = row.insertCell(0);
-                    noCell.textContent = idx + 1;
-                    noCell.className = 'inv-col-no';
-                    // Description
-                    const descCell = row.insertCell(1);
+
+                    // 1. รายการ (Left)
+                    const descCell = row.insertCell(0);
                     descCell.textContent = descriptionForPreview;
-                    descCell.className = 'inv-col-desc';
-                    // Quantity
-                    const qtyCell = row.insertCell(2);
-                    qtyCell.textContent = item.quantity;
-                    qtyCell.className = 'inv-col-qty';
-                    // Unit
-                    const unitCell = row.insertCell(3);
-                    unitCell.textContent = unitLabel;
-                    unitCell.className = 'inv-col-unit';
-                    // Unit Price
-                    const upCell = row.insertCell(4);
+                    descCell.style.textAlign = 'left';
+
+                    // 2. จำนวน (Center, รวมหน่วย)
+                    const qtyCell = row.insertCell(1);
+                    qtyCell.textContent = `${item.quantity} ${unitLabel}`;
+                    qtyCell.style.textAlign = 'center';
+
+                    // 3. ราคา/หน่วย (Center)
+                    const upCell = row.insertCell(2);
                     upCell.textContent = item.unitPrice.toLocaleString('th-TH', {
-                        minimumFractionDigits: 0,
+                        minimumFractionDigits: 2,
                         maximumFractionDigits: 2
                     });
-                    upCell.className = 'inv-col-price';
-                    // Total
-                    const totCell = row.insertCell(5);
+                    upCell.style.textAlign = 'center';
+
+                    // 4. จำนวนเงิน (Right)
+                    const totCell = row.insertCell(3);
                     totCell.textContent = itemTotalForPreview.toLocaleString('th-TH', {
-                        minimumFractionDigits: 0,
+                        minimumFractionDigits: 2,
                         maximumFractionDigits: 2
                     });
-                    totCell.className = 'inv-col-total';
+                    totCell.style.textAlign = 'right';
 
                     currentPreviewGrandTotal += itemTotalForPreview;
                 });
             }
 
             // Checkin/checkout display
-            const checkinRow = document.getElementById('preview_checkin_row');
-            const checkoutRow = document.getElementById('preview_checkout_row');
-            if (overallMinCheckin) {
+            const datesSection = document.getElementById('preview_dates_section');
+            if (overallMinCheckin && overallMaxCheckout) {
                 previewCheckinDate.textContent = toThaiDateForJS(overallMinCheckin);
-                if (checkinRow) checkinRow.style.display = '';
-            } else {
-                previewCheckinDate.textContent = '';
-                if (checkinRow) checkinRow.style.display = 'none';
-            }
-            if (overallMaxCheckout) {
                 previewCheckoutDate.textContent = toThaiDateForJS(overallMaxCheckout);
-                if (checkoutRow) checkoutRow.style.display = '';
+                if (datesSection) datesSection.style.display = 'block';
             } else {
-                previewCheckoutDate.textContent = '';
-                if (checkoutRow) checkoutRow.style.display = 'none';
+                if (datesSection) datesSection.style.display = 'none';
             }
 
             // Totals
-            const subtotalEl = document.getElementById('preview_subtotal');
-            if (subtotalEl) subtotalEl.textContent = currentPreviewGrandTotal.toLocaleString('th-TH', {
-                minimumFractionDigits: 0,
-                maximumFractionDigits: 2
-            });
             previewGrandTotal.textContent = currentPreviewGrandTotal.toLocaleString('th-TH', {
-                minimumFractionDigits: 0,
+                minimumFractionDigits: 2,
                 maximumFractionDigits: 2
             });
-
-            // Amount in words (Thai baht)
-            const amountWordsEl = document.getElementById('preview_amount_words');
-            if (amountWordsEl) {
-                amountWordsEl.textContent = currentPreviewGrandTotal > 0 ?
-                    amountToThaiWords(currentPreviewGrandTotal) + ' บาทถ้วน' :
-                    '';
-            }
         }
 
         // --- Convert amount to Thai words ---
@@ -1677,27 +1533,146 @@ ob_start();
         // ***** END: NEW SAVE RECEIPT LISTENER *****
 
         // --- Action Button Listeners (Print, Save, Share) ---
+
+        const exportPaperSizeSelect = document.getElementById('export_paper_size');
+        const exportTemplateSelect = document.getElementById('export_template_select');
+        const exportFontSizeSelect = document.getElementById('export_font_size');
+
         printBillBtn.addEventListener('click', function() {
-            // ... existing printBillBtn logic ...
+            if (billItems.length === 0) {
+                showCustomAlert('ไม่สามารถสั่งพิมพ์ได้: ยังไม่มีรายการในบิล');
+                return;
+            }
+            const selectedTemplate = exportTemplateSelect.value;
+            const selectedPaperSize = exportPaperSizeSelect.value;
+            const selectedFontSize = exportFontSizeSelect.value;
+            executePrint(selectedTemplate, selectedPaperSize, selectedFontSize);
+        });
+
+        // ฟังก์ชันสร้างหน้าจอพิมพ์
+        function executePrint(templateType, paperSize, fontSize) {
             const billContentNode = document.getElementById('bill-content');
             if (!billContentNode) {
                 showCustomAlert('ผิดพลาด: ไม่พบเนื้อหาสำหรับพิมพ์');
                 return;
             }
+
+            // Paper Size Variables
+            let widthStr = '210mm';
+            let minHeightStr = '297mm';
+            let paperCssSize = 'A4 portrait';
+            
+            if (paperSize === 'a3') {
+                widthStr = '297mm';
+                minHeightStr = '420mm';
+                paperCssSize = 'A3 portrait';
+            }
+
+            // Font Size Variables
+            let fontCssSize = '12pt'; // normal
+            if (fontSize === 'small') fontCssSize = '10pt';
+            else if (fontSize === 'large') fontCssSize = '14pt';
+
+            // CSS พื้นฐาน
+            const baseCSS = `
+                body { font-family: 'Sarabun', sans-serif; margin: 0; padding: 0; background: #fff; color: #000; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-size: ${fontCssSize}; box-sizing: border-box; }
+                @page { size: ${paperCssSize}; margin: 0; }
+                * { box-sizing: border-box; }
+            `;
+
+            let specificCSS = '';
+
+            if (templateType === 'classic') {
+                // รูปแบบคลาสสิก (เหมือนหน้าจอเป๊ะ)
+                specificCSS = `
+                    .classic-border-wrap { border: 1px solid #000; padding: 10mm 12mm; height: 100%; min-height: 267mm; display: flex; flex-direction: column; box-sizing: border-box; }
+                    .c-header { text-align: center; margin-bottom: 5mm; }
+                    .c-header h2 { font-size: 1.5em; font-weight: bold; margin: 0 0 2mm 0; }
+                    .c-header h3 { font-size: 1.4em; font-weight: bold; margin: 0 0 3mm 0; }
+                    .c-header p { margin: 1.5mm 0; font-size: 1.05em; }
+                    .c-dotted { text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 4px; text-decoration-thickness: 1.5px; }
+                    .c-meta { display: flex; justify-content: space-between; margin-top: 4mm; margin-bottom: 2mm; font-size: 1em; }
+                    .c-line { border-top: 1px solid #000; margin-bottom: 4mm; }
+                    .c-customer { border: 1px solid #000; padding: 4mm 5mm; margin-bottom: 6mm; font-size: 1.05em; }
+                    .c-customer p { margin: 2.5mm 0; line-height: 1.6; }
+                    .c-dates { font-size: 1.1em; margin-bottom: 6mm; font-weight: bold; }
+                    .c-dates p { margin: 3mm 0; }
+                    .c-table { width: 100%; border-collapse: collapse; margin-bottom: 2mm; font-size: 1em; }
+                    .c-table th { border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 3mm 1mm; font-weight: bold; }
+                    .c-table td { padding: 3mm 1mm; vertical-align: top; }
+                    .c-table-bottom-line { border-top: 1px solid #000; margin-bottom: 5mm; }
+                    .c-total-wrap { text-align: right; font-weight: bold; font-size: 1.2em; padding-top: 2mm; margin-bottom: 15mm;}
+                    .c-total-inner { display: inline-block; border-bottom: 3px double #000; padding-bottom: 2mm; padding-right: 2mm;}
+                    .c-total-inner span:first-child { display: inline-block; width: 40mm; text-align: right; margin-right: 6mm;}
+                    .c-total-inner span:last-child { display: inline-block; width: 25mm; text-align: right;}
+                    .c-footer { text-align: center; margin-top: auto; padding-top: 10mm;}
+                    .c-footer .thank-you { font-weight: bold; font-size: 1.2em; margin-bottom: 15mm; letter-spacing: 1px;}
+                    .c-footer .sig { margin-bottom: 8mm; font-size: 1em;}
+                    .c-footer .sig-line { margin-top: 8mm; color: #333;}
+                    .c-footer .auto-gen { font-size: 0.9em; color: #555; font-weight: bold;}
+                `;
+            } else if (templateType === 'detailed') {
+                // รูปแบบละเอียด (ตารางเต็มรูปแบบ)
+                specificCSS = `
+                    .classic-border-wrap { border: none; padding: 0; height: 100%; min-height: 267mm; display: flex; flex-direction: column; box-sizing: border-box; }
+                    .c-header { text-align: center; margin-bottom: 8mm; border-bottom: 2px solid #2c3e50; padding-bottom: 5mm;}
+                    .c-header h2 { font-size: 1.8em; font-weight: bold; margin: 0 0 2mm 0; color: #2c3e50; }
+                    .c-header h3 { font-size: 1.4em; font-weight: bold; margin: 0 0 3mm 0; color: #34495e;}
+                    .c-header p { margin: 1mm 0; font-size: 1em; color: #555;}
+                    .c-dotted { font-weight: bold; color: #000; }
+                    .c-meta { display: flex; justify-content: space-between; margin-bottom: 5mm; font-size: 1em; background: #f8f9fa; padding: 8px; border: 1px solid #dee2e6;}
+                    .c-line { display: none; }
+                    .c-customer { border: 1px solid #dee2e6; padding: 10px; margin-bottom: 6mm; font-size: 1.05em; background: #fff; border-radius: 4px;}
+                    .c-customer p { margin: 2mm 0; }
+                    .c-dates { display: flex; gap: 20px; font-size: 1em; margin-bottom: 6mm; background: #e9ecef; padding: 8px; border-radius: 4px; border: 1px solid #ced4da;}
+                    .c-dates p { margin: 0; }
+                    .c-table { width: 100%; border-collapse: collapse; margin-bottom: 5mm; font-size: 1em; border: 1px solid #adb5bd;}
+                    .c-table th { background-color: #e9ecef; border: 1px solid #adb5bd; padding: 8px 5px; font-weight: bold; text-align: center !important; color: #000;}
+                    .c-table td { border: 1px solid #adb5bd; padding: 8px 5px; vertical-align: top; color: #000;}
+                    .c-table-bottom-line { display: none; }
+                    .c-total-wrap { text-align: right; font-weight: bold; font-size: 1.2em; margin-bottom: 15mm;}
+                    .c-total-inner { display: inline-block; background-color: #e9ecef; border: 1px solid #adb5bd; padding: 10px 15px; border-radius: 4px;}
+                    .c-total-inner span:first-child { margin-right: 15px; }
+                    .c-footer { display: flex; justify-content: space-between; align-items: flex-end; margin-top: auto; border-top: 1px solid #dee2e6; padding-top: 10mm;}
+                    .c-footer .thank-you { font-weight: bold; font-size: 1.1em; color: #2c3e50;}
+                    .c-footer .sig { text-align: center; }
+                    .c-footer .sig-line { margin-top: 10mm; color: #000; border-top: 1px dotted #000; padding-top: 2mm; width: 50mm;}
+                    .c-footer .auto-gen { position: absolute; bottom: 5mm; right: 15mm; font-size: 0.8em; color: #adb5bd; }
+                `;
+            }
+
             const printWindow = window.open('', '_blank', 'width=880,height=900,scrollbars=yes,resizable=yes');
-            printWindow.document.write(`<html><head><title>พิมพ์บิลเงินสด</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700;800&display=swap" rel="stylesheet"><style>body{font-family:'Sarabun',sans-serif;margin:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}@page{size:A4;margin:0}#bill-content{width:210mm;height:297mm;padding:10mm;box-sizing:border-box;display:flex;flex-direction:column;position:relative;background-color:#fff;color:#000;font-size:12pt}.bill-body{border:1.5px solid #333;padding:8mm;width:100%;height:100%;display:flex;flex-direction:column;position:relative;z-index:2;box-sizing:border-box}#bill-content::after{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-45deg);font-size:150pt;font-weight:800;color:rgba(0,0,0,.04);z-index:1;pointer-events:none}header{text-align:center;margin-bottom:5mm;flex-shrink:0}.logo-container img{max-width:150px;max-height:50px;object-fit:contain}h1{font-size:1.5em;margin:0 0 1mm;color:#000}h2{font-size:1.2em;margin:1mm 0;color:#000}.address-phone p{margin:.5mm 0;font-size:.9em;line-height:1.4}.bill-meta{display:flex;justify-content:space-between;margin-bottom:5mm;font-size:.9em;flex-shrink:0}.customer-info{border:1px solid #ccc;padding:2mm 3mm;margin-bottom:5mm;font-size:.9em;flex-shrink:0}.customer-info p{margin:1mm 0}hr.section-divider{border:0;border-top:1px solid #000;margin:4mm 0}.line-items{flex-grow:1;margin-bottom:5mm;border-top:1px solid #000;border-bottom:1px solid #000;padding:1mm 0}.line-items-table{width:100%;border-collapse:collapse;font-size:.9em}.line-items-table th,.line-items-table td{border:none;padding:1.5mm 1mm;text-align:left;vertical-align:top}.line-items-table th{font-weight:700;border-bottom:1px solid #999}.line-items-table td{border-bottom:1px dotted #ccc}.line-items-table tr:last-child td{border-bottom:none}.col-desc{width:55%}.col-qty{width:15%;text-align:center}.col-unit-price{width:15%;text-align:right}.col-amount{width:15%;text-align:right}.checkin-checkout-info{font-size:.9em;margin-bottom:5mm;flex-shrink:0}.totals{text-align:right;margin-top:auto;padding-top:3mm;font-size:1em;flex-shrink:0}.totals table{width:50%;margin-left:auto;border-collapse:collapse}.totals td{padding:1.5mm}.totals .grand-total td{font-weight:700;font-size:1.2em;border-top:1px solid #000;border-bottom:3px double #000}.signatures{display:flex;justify-content:center;margin-top:15mm;font-size:.9em;flex-shrink:0}.signature-box{text-align:center;width:50%}.signature-line{border-bottom:1px dotted #000;height:12mm;margin:2mm 0 1mm}.signature-box p{margin:0;line-height:1.4}.note-footer{text-align:center;font-size:.7em;margin-top:5mm;color:#555;flex-shrink:0}.thank-you-note{text-align:center;font-weight:700;font-size:1em;margin-top:8mm;flex-shrink:0} svg.house-logo{width:80px;height:80px;color:#000;}</style></head><body><div id="bill-content">${billContentNode.innerHTML}</div></body></html>`);
+            printWindow.document.write(`
+                <html>
+                <head>
+                    <title>พิมพ์บิลเงินสด</title>
+                    <link rel="preconnect" href="https://fonts.googleapis.com">
+                    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+                    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700;800&display=swap" rel="stylesheet">
+                    <style>
+                        ${baseCSS}
+                        ${specificCSS}
+                    </style>
+                </head>
+                <body>
+                    <div id="bill-content">${billContentNode.innerHTML}</div>
+                </body>
+                </html>
+            `);
             printWindow.document.close();
+
+            // รอโหลด Font และ CSS เล็กน้อยก่อนเรียกคำสั่งพิมพ์
             setTimeout(() => {
                 try {
                     printWindow.focus();
                     printWindow.print();
-                    printWindow.close();
+                    // printWindow.close(); // เปิดไว้ให้ผู้ใช้ตรวจสอบ หรือปิดเองได้
                 } catch (e) {
                     console.error("Print failed:", e);
-                    showCustomAlert("ไม่สามารถสั่งพิมพ์ได้ อาจถูกบล็อกโดยเบราว์เซอร์");
+                    showCustomAlert("ไม่สามารถสั่งพิมพ์ได้ อาจถูกบล็อกการ Popup โดยเบราว์เซอร์");
                 }
             }, 1000);
-        });
+        }
 
         async function generateBillCanvas() {
             // ... existing generateBillCanvas logic ...
@@ -1706,17 +1681,16 @@ ob_start();
                 showCustomAlert('ไม่สามารถสร้างรูปภาพได้: ไม่พบส่วนประกอบที่จำเป็น');
                 return null;
             }
+            
+            // We apply scaling to HTML2Canvas to get high quality, but we don't need to force CSS here
+            // since updateBillPreview() already visually applied it to #bill-content.
             const clone = sourceElement.cloneNode(true);
             clone.style.position = 'absolute';
             clone.style.top = '-9999px';
             clone.style.left = '0px';
-            clone.style.width = '210mm';
-            clone.style.height = 'auto';
-            clone.style.minHeight = '297mm';
             clone.style.margin = '0';
-            clone.style.fontSize = '12pt';
-            clone.style.fontFamily = "'Sarabun', sans-serif";
-            clone.style.color = '#000';
+            clone.style.backgroundColor = '#fff';
+            
             document.body.appendChild(clone);
             try {
                 const canvas = await html2canvas(clone, {
@@ -1846,6 +1820,9 @@ ob_start();
 
         // --- Initial Load ---
         renderAllItems();
+        if (typeof window.updateBillPreview === 'function') {
+            window.updateBillPreview();
+        }
 
     });
 </script>

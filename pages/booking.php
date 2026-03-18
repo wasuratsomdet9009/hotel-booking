@@ -87,9 +87,10 @@ if ($isMultiRoomMode) {
                 WHEN r.zone = 'F' AND cb.id IS NOT NULL AND cb.booking_type = 'short_stay' AND cb.checkin_datetime <= NOW() AND NOW() < cb.checkout_datetime_calculated THEN 'f_short_occupied'
                 WHEN cb.id IS NOT NULL AND cb.checkin_datetime <= NOW() AND NOW() < cb.checkout_datetime_calculated THEN 'occupied'
                 WHEN cb.id IS NOT NULL AND DATE(cb.checkin_datetime) = CURDATE() AND cb.checkin_datetime > NOW() THEN 'booked'
-                WHEN cb.id IS NOT NULL AND DATE(cb.checkin_datetime) > CURDATE() AND r.status = 'free' THEN 'advance_booking'
-                WHEN r.status = 'free' AND cb.id IS NULL AND NOT EXISTS (SELECT 1 FROM bookings b_adv_check WHERE b_adv_check.room_id = r.id AND DATE(b_adv_check.checkin_datetime) > CURDATE()) THEN 'free'
-                WHEN r.status = 'free' AND cb.id IS NULL AND EXISTS (SELECT 1 FROM bookings b_adv_check2 WHERE b_adv_check2.room_id = r.id AND DATE(b_adv_check2.checkin_datetime) > CURDATE()) THEN 'advance_booking'
+                WHEN cb.id IS NOT NULL AND DATE(cb.checkin_datetime) = DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND r.status = 'free' THEN 'advance_booking'
+                WHEN cb.id IS NOT NULL AND DATE(cb.checkin_datetime) > DATE_ADD(CURDATE(), INTERVAL 1 DAY) AND r.status = 'free' THEN 'free'
+                WHEN r.status = 'free' AND cb.id IS NULL AND NOT EXISTS (SELECT 1 FROM bookings b_adv_check WHERE b_adv_check.room_id = r.id AND DATE(b_adv_check.checkin_datetime) = DATE_ADD(CURDATE(), INTERVAL 1 DAY)) THEN 'free'
+                WHEN r.status = 'free' AND cb.id IS NULL AND EXISTS (SELECT 1 FROM bookings b_adv_check2 WHERE b_adv_check2.room_id = r.id AND DATE(b_adv_check2.checkin_datetime) = DATE_ADD(CURDATE(), INTERVAL 1 DAY)) THEN 'advance_booking'
                 ELSE r.status
             END AS calculated_display_status
         FROM rooms r
@@ -1415,10 +1416,10 @@ ob_start();
 
                     baseRoomTotal += pricePerDay * nights;
 
-                    if (askDeposit) {
-                        if (zone !== 'F' || (zone === 'F' && document.getElementById('collect_deposit_zone_f').checked)) {
-                            depositTotal += FIXED_DEPOSIT_AMOUNT_GLOBAL_JS;
-                        }
+                    if (zone !== 'F') {
+                        depositTotal += FIXED_DEPOSIT_AMOUNT_GLOBAL_JS;
+                    } else if (zone === 'F' && document.getElementById('collect_deposit_zone_f') && document.getElementById('collect_deposit_zone_f').checked) {
+                        depositTotal += FIXED_DEPOSIT_AMOUNT_GLOBAL_JS;
                     }
                 });
 
@@ -1447,12 +1448,15 @@ ob_start();
 
                     if (bookingType === 'short_stay') {
                         baseRoomTotal = priceShort;
+                        if (zone !== 'F') {
+                            depositTotal = FIXED_DEPOSIT_AMOUNT_GLOBAL_JS;
+                        }
                     } else {
                         baseRoomTotal = pricePerDay * nights;
-                        if (askDeposit) {
-                            if (zone !== 'F' || (zone === 'F' && document.getElementById('collect_deposit_zone_f').checked)) {
-                                depositTotal = FIXED_DEPOSIT_AMOUNT_GLOBAL_JS;
-                            }
+                        if (zone !== 'F') {
+                            depositTotal = FIXED_DEPOSIT_AMOUNT_GLOBAL_JS;
+                        } else if (zone === 'F' && document.getElementById('collect_deposit_zone_f') && document.getElementById('collect_deposit_zone_f').checked) {
+                            depositTotal = FIXED_DEPOSIT_AMOUNT_GLOBAL_JS;
                         }
                     }
                 }
@@ -1473,7 +1477,9 @@ ob_start();
             const depositAmountDisplay = document.getElementById('deposit-amount-display');
             const finalAmountPaidInput = document.getElementById('final_amount_paid');
 
-            if (baseAmountPaidDisplay) baseAmountPaidDisplay.value = Math.round(baseRoomTotal);
+            if (baseAmountPaidDisplay) {
+                baseAmountPaidDisplay.value = Math.round(baseRoomTotal);
+            }
             if (totalAddonPriceDisplay) totalAddonPriceDisplay.textContent = Math.round(addonTotal);
             if (depositAmountDisplay) depositAmountDisplay.textContent = Math.round(depositTotal);
 

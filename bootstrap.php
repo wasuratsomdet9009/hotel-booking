@@ -8,7 +8,7 @@ if (session_status() == PHP_SESSION_NONE) {
 date_default_timezone_set('Asia/Bangkok');
 // --- การตั้งค่า URL และ Path หลักของเว็บไซต์ (บังคับ HTTPS) ---
 define('BASE_URL', 'https://resort-booking.online');
-define('BASE_PATH', '/'); 
+define('BASE_PATH', '/');
 
 if (BASE_PATH === '/') {
     define('FULL_BASE_URL', rtrim(BASE_URL, '/'));
@@ -21,23 +21,28 @@ define('LOGIN_PAGE', FULL_BASE_URL . '/hotel_booking/pages/login.php');
 define('DASHBOARD_PAGE', FULL_BASE_URL . '/hotel_booking/pages/index.php');
 
 
-function is_logged_in() {
+function is_logged_in()
+{
     return isset($_SESSION['user_id']);
 }
 
-function get_current_user_id() {
+function get_current_user_id()
+{
     return $_SESSION['user_id'] ?? null;
 }
 
-function get_current_username() {
+function get_current_username()
+{
     return $_SESSION['username'] ?? null;
 }
 
-function get_current_user_role() {
+function get_current_user_role()
+{
     return $_SESSION['user_role'] ?? null;
 }
 
-function require_login() {
+function require_login()
+{
     if (!is_logged_in()) {
         if (parse_url($_SERVER["REQUEST_URI"], PHP_URL_PATH) !== parse_url(LOGIN_PAGE, PHP_URL_PATH)) {
             header('Location: ' . LOGIN_PAGE);
@@ -46,7 +51,8 @@ function require_login() {
     }
 }
 
-function require_role($roleNeeded) {
+function require_role($roleNeeded)
+{
     require_login();
     $currentRole = get_current_user_role();
     if (is_array($roleNeeded)) {
@@ -62,7 +68,8 @@ function require_role($roleNeeded) {
     }
 }
 
-function require_admin() {
+function require_admin()
+{
     require_role('admin');
 }
 // --- END: Session and Authentication ---
@@ -96,7 +103,8 @@ try {
     exit('ระบบขัดข้อง: ไม่สามารถเชื่อมต่อฐานข้อมูลได้ในขณะนี้...');
 }
 
-function get_system_setting_value($pdoConn, $key, $default = null) {
+function get_system_setting_value($pdoConn, $key, $default = null)
+{
     try {
         $stmt = $pdoConn->prepare("SELECT setting_value FROM system_settings WHERE setting_key = ?");
         $stmt->execute([$key]);
@@ -135,7 +143,8 @@ if (!defined('API_BASE_URL_PHP')) {
     define('API_BASE_URL_PHP', FULL_BASE_URL . '/hotel_booking/pages/api.php');
 }
 
-function h($str) {
+function h($str)
+{
     return htmlspecialchars($str ?? '', ENT_QUOTES, 'UTF-8');
 }
 
@@ -147,7 +156,8 @@ define('WATERMARK_PATH', dirname(__DIR__) . '/assets/image/watermark.png');
 /**
  * Sends a room status update to Telegram.
  */
-function sendTelegramRoomStatusUpdate(PDO $pdo) {
+function sendTelegramRoomStatusUpdate(PDO $pdo)
+{
     if (!defined('TELEGRAM_BOT_TOKEN') || !defined('TELEGRAM_CHAT_ID') || empty(TELEGRAM_BOT_TOKEN)) return;
 
     try {
@@ -199,9 +209,13 @@ function sendTelegramRoomStatusUpdate(PDO $pdo) {
             foreach ($roomsInZone as $room) {
                 $customer_info = '';
                 switch ($room['display_status']) {
-                    case 'free': $status_icon = '✅'; break;
-                    case 'f_short_occupied': $status_icon = '⭕️'; break;
-                    default: 
+                    case 'free':
+                        $status_icon = '✅';
+                        break;
+                    case 'f_short_occupied':
+                        $status_icon = '⭕️';
+                        break;
+                    default:
                         $status_icon = '❌';
                         if (!empty($room['customer_name'])) {
                             $name_parts = explode(' ', $room['customer_name']);
@@ -213,7 +227,7 @@ function sendTelegramRoomStatusUpdate(PDO $pdo) {
             }
             $message .= "\n";
         }
-        
+
         $telegramApiUrl = "https://api.telegram.org/bot" . TELEGRAM_BOT_TOKEN . "/sendMessage";
         $post_fields = ['chat_id' => TELEGRAM_CHAT_ID, 'text' => $message, 'parse_mode' => 'HTML'];
 
@@ -229,7 +243,180 @@ function sendTelegramRoomStatusUpdate(PDO $pdo) {
     }
 }
 
-function process_uploaded_image_with_compression($tmpFilePath, $destinationPath, $originalFilename) {
+/**
+ * [HELPER] Sends a photo to Telegram with a caption. Falls back to sendMessage if the file is missing or a PDF.
+ */
+function _tg_sendPhotoOrMessage(string $caption, ?string $filePath = null): void
+{
+    if (!defined('TELEGRAM_BOT_TOKEN') || !defined('TELEGRAM_CHAT_ID') || empty(TELEGRAM_BOT_TOKEN)) return;
+
+    $apiBase = "https://api.telegram.org/bot" . TELEGRAM_BOT_TOKEN;
+
+    // Send as photo if file exists and is an image
+    if ($filePath && file_exists($filePath)) {
+        $ext = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
+        if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif'])) {
+            $ch = curl_init();
+            $post_fields = [
+                'chat_id'    => TELEGRAM_CHAT_ID,
+                'photo'      => new CURLFile($filePath),
+                'caption'    => mb_substr($caption, 0, 1024), // Telegram caption limit
+                'parse_mode' => 'HTML',
+            ];
+            curl_setopt($ch, CURLOPT_URL, $apiBase . "/sendPhoto");
+            curl_setopt($ch, CURLOPT_POST, 1);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $post_fields);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+            $response = curl_exec($ch);
+            curl_close($ch);
+            // If Telegram reports ok, we're done
+            $result = json_decode($response, true);
+            if (!empty($result['ok'])) return;
+            error_log("[Telegram sendPhoto] Failed, falling back to sendMessage. Response: " . $response);
+        }
+        // PDF or failed photo: append note to message
+        if (in_array($ext, ['pdf', 'pdf'])) {
+            $caption .= "\n\n📎 (มีหลักฐานเป็น PDF แนบในระบบ)";
+        }
+    }
+
+    // Fallback: send as text message
+    $ch = curl_init();
+    $post_fields = ['chat_id' => TELEGRAM_CHAT_ID, 'text' => $caption, 'parse_mode' => 'HTML'];
+    curl_setopt($ch, CURLOPT_URL, $apiBase . "/sendMessage");
+    curl_setopt($ch, CURLOPT_POST, 1);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($post_fields));
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+    curl_exec($ch);
+    curl_close($ch);
+}
+
+/**
+ * Sends a grouped booking notification to Telegram when a new booking is created.
+ * Handles both single and multi-room bookings as one grouped message.
+ *
+ * @param PDO    $pdo            Active DB connection
+ * @param array  $bookingIds     Array of newly created booking IDs
+ * @param string|null $receiptImagePath Full filesystem path to the first receipt image (if any)
+ */
+function sendTelegramNewBookingNotification(PDO $pdo, array $bookingIds, ?string $receiptImagePath = null): void
+{
+    if (!defined('TELEGRAM_BOT_TOKEN') || empty(TELEGRAM_BOT_TOKEN) || empty($bookingIds)) return;
+
+    try {
+        $placeholders = implode(',', array_fill(0, count($bookingIds), '?'));
+        $stmt = $pdo->prepare("
+            SELECT
+                b.id, b.customer_name, b.customer_phone, b.booking_type,
+                b.checkin_datetime, b.checkout_datetime_calculated,
+                b.nights, b.total_price, b.amount_paid, b.payment_method,
+                b.deposit_amount, b.booking_group_id,
+                r.zone, r.room_number
+            FROM bookings b
+            JOIN rooms r ON b.room_id = r.id
+            WHERE b.id IN ({$placeholders})
+            ORDER BY r.zone, CAST(r.room_number AS UNSIGNED)
+        ");
+        $stmt->execute($bookingIds);
+        $bookings = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        if (empty($bookings)) return;
+
+        $first       = $bookings[0];
+        $customerName = htmlspecialchars($first['customer_name']);
+        $phone       = !empty($first['customer_phone']) ? htmlspecialchars($first['customer_phone']) : '-';
+        $isMulti     = count($bookings) > 1;
+        $groupId     = $first['booking_group_id'];
+
+        // Build room list
+        $roomList = [];
+        $totalPaid = 0;
+        foreach ($bookings as $b) {
+            $roomList[] = htmlspecialchars($b['zone'] . $b['room_number']);
+            $totalPaid += (int)$b['amount_paid'];
+        }
+        $roomsStr = implode(', ', $roomList);
+
+        // Thai date/time formatting
+        $thaiMonths = ['', 'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+        $tz = new DateTimeZone('Asia/Bangkok');
+        $dtCheckin  = new DateTime($first['checkin_datetime'], $tz);
+        $dtCheckout = new DateTime($first['checkout_datetime_calculated'], $tz);
+        $checkinStr  = $dtCheckin->format('j') . ' ' . $thaiMonths[(int)$dtCheckin->format('n')] . ' ' . ($dtCheckin->format('Y') + 543) . ' ' . $dtCheckin->format('H:i') . ' น.';
+        $checkoutStr = $dtCheckout->format('j') . ' ' . $thaiMonths[(int)$dtCheckout->format('n')] . ' ' . ($dtCheckout->format('Y') + 543) . ' ' . $dtCheckout->format('H:i') . ' น.';
+        $nowThai = (new DateTime('now', $tz))->format('j') . ' ' . $thaiMonths[(int)(new DateTime('now', $tz))->format('n')] . ' ' . ((new DateTime('now', $tz))->format('Y') + 543) . ' ' . (new DateTime('now', $tz))->format('H:i') . ' น.';
+
+        $bookingTypeLabel = $first['booking_type'] === 'short_stay' ? '🕐 ชั่วคราว' : '🌙 ค้างคืน';
+        $nights = (int)($first['nights'] ?? 1);
+        $payMethod = htmlspecialchars($first['payment_method'] ?? '-');
+
+        // Compose message
+        $icon = $isMulti ? '👥' : '🏨';
+        $msg  = "{$icon} <b>การจองใหม่!</b>\n";
+        $msg .= "━━━━━━━━━━━━━━━━━━━\n";
+        if ($groupId) $msg .= "📋 กลุ่มการจอง: <b>#{$groupId}</b>\n";
+        $msg .= "👤 ลูกค้า: <b>{$customerName}</b>\n";
+        $msg .= "📞 เบอร์โทร: {$phone}\n";
+        $msg .= "🛏️ ห้อง: <b>{$roomsStr}</b>\n";
+        $msg .= "🗓️ เช็คอิน: {$checkinStr}\n";
+        $msg .= "🗓️ เช็คเอาท์: {$checkoutStr}\n";
+        if ($first['booking_type'] === 'overnight') {
+            $msg .= "🌙 จำนวน: {$nights} คืน\n";
+        }
+        $msg .= "🏷️ ประเภท: {$bookingTypeLabel}\n";
+        $msg .= "💰 ยอดชำระ: <b>" . number_format($totalPaid) . " บาท</b>\n";
+        $msg .= "💳 วิธีชำระ: {$payMethod}\n";
+        $msg .= "━━━━━━━━━━━━━━━━━━━\n";
+        $msg .= "⏰ บันทึกเมื่อ: {$nowThai}";
+
+        _tg_sendPhotoOrMessage($msg, $receiptImagePath);
+
+    } catch (Exception $e) {
+        error_log("[TG NewBooking] Failed: " . $e->getMessage());
+    }
+}
+
+/**
+ * Sends a deposit return notification to Telegram when a deposit is returned.
+ *
+ * @param PDO         $pdo             Active DB connection
+ * @param string      $roomName        Room identifier (e.g. "A1")
+ * @param string      $customerName    Customer name
+ * @param int         $depositAmount   Amount of deposit returned (THB)
+ * @param string|null $proofImagePath  Full filesystem path to the proof image (if any)
+ */
+function sendTelegramDepositReturnNotification(PDO $pdo, string $roomName, string $customerName, int $depositAmount, ?string $proofImagePath = null): void
+{
+    if (!defined('TELEGRAM_BOT_TOKEN') || empty(TELEGRAM_BOT_TOKEN)) return;
+
+    try {
+        $tz = new DateTimeZone('Asia/Bangkok');
+        $now = new DateTime('now', $tz);
+        $thaiMonths = ['', 'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+        $nowThai = $now->format('j') . ' ' . $thaiMonths[(int)$now->format('n')] . ' ' . ($now->format('Y') + 543) . ' ' . $now->format('H:i') . ' น.';
+
+        $customerHtml = htmlspecialchars($customerName);
+        $roomHtml     = htmlspecialchars($roomName);
+
+        $msg  = "✅ <b>คืนมัดจำแล้ว!</b>\n";
+        $msg .= "━━━━━━━━━━━━━━━━━━━\n";
+        $msg .= "🛏️ ห้อง: <b>{$roomHtml}</b>\n";
+        $msg .= "👤 ลูกค้า: <b>{$customerHtml}</b>\n";
+        $msg .= "💵 มัดจำที่คืน: <b>" . number_format($depositAmount) . " บาท</b>\n";
+        $msg .= "━━━━━━━━━━━━━━━━━━━\n";
+        $msg .= "⏰ บันทึกเมื่อ: {$nowThai}";
+
+        _tg_sendPhotoOrMessage($msg, $proofImagePath);
+
+    } catch (Exception $e) {
+        error_log("[TG DepositReturn] Failed: " . $e->getMessage());
+    }
+}
+
+function process_uploaded_image_with_compression($tmpFilePath, $destinationPath, $originalFilename)
+{
     if (!file_exists($tmpFilePath) || !is_uploaded_file($tmpFilePath)) return false;
     $fileSize = @filesize($tmpFilePath);
     if ($fileSize === false) return move_uploaded_file($tmpFilePath, $destinationPath);
@@ -237,21 +424,32 @@ function process_uploaded_image_with_compression($tmpFilePath, $destinationPath,
     $supportedImageTypes = ['jpg', 'jpeg', 'png'];
 
     if ($fileSize > MAX_FILE_SIZE_BEFORE_COMPRESSION && in_array($fileExtension, $supportedImageTypes) && extension_loaded('gd')) {
-        $image = null; $compressionSuccess = false;
+        $image = null;
+        $compressionSuccess = false;
         try {
-            if ($fileExtension === 'jpg' || $fileExtension === 'jpeg') { $image = @imagecreatefromjpeg($tmpFilePath); if ($image) $compressionSuccess = @imagejpeg($image, $destinationPath, IMAGE_COMPRESSION_QUALITY_JPEG); }
-            elseif ($fileExtension === 'png') { $image = @imagecreatefrompng($tmpFilePath); if ($image) { imagesavealpha($image, true); $compressionSuccess = @imagepng($image, $destinationPath, IMAGE_COMPRESSION_LEVEL_PNG); } }
+            if ($fileExtension === 'jpg' || $fileExtension === 'jpeg') {
+                $image = @imagecreatefromjpeg($tmpFilePath);
+                if ($image) $compressionSuccess = @imagejpeg($image, $destinationPath, IMAGE_COMPRESSION_QUALITY_JPEG);
+            } elseif ($fileExtension === 'png') {
+                $image = @imagecreatefrompng($tmpFilePath);
+                if ($image) {
+                    imagesavealpha($image, true);
+                    $compressionSuccess = @imagepng($image, $destinationPath, IMAGE_COMPRESSION_LEVEL_PNG);
+                }
+            }
             if ($image) imagedestroy($image);
             if ($compressionSuccess) return true;
-        } catch (Exception $e) {}
+        } catch (Exception $e) {
+        }
     }
     return move_uploaded_file($tmpFilePath, $destinationPath);
 }
 
-function getNextReceiptNumber(PDO $pdo) {
+function getNextReceiptNumber(PDO $pdo)
+{
     try {
         $date = new DateTime("now", new DateTimeZone("Asia/Bangkok"));
-        $thaiYearShort = (int)$date->format('Y') + 543 - 2500; 
+        $thaiYearShort = (int)$date->format('Y') + 543 - 2500;
         $prefix = 'RE' . $thaiYearShort . '-';
         $pdo->beginTransaction();
         $stmt = $pdo->prepare("SELECT MAX(CAST(SUBSTRING(receipt_number, 6) AS UNSIGNED)) FROM generated_receipts WHERE receipt_number LIKE ? FOR UPDATE");
@@ -263,7 +461,7 @@ function getNextReceiptNumber(PDO $pdo) {
         return $newReceiptNumber;
     } catch (Exception $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
-        return 'ERR-' . time() . rand(100, 999); 
+        return 'ERR-' . time() . rand(100, 999);
     }
 }
 
@@ -271,7 +469,8 @@ function getNextReceiptNumber(PDO $pdo) {
  * [REFACTORED V3 - OVERDUE PRIORITY FIX]
  * ดึงข้อมูลสถานะห้องพักโดยให้ความสำคัญกับ Overdue (เกินกำหนดคืนห้อง) สูงสุด
  */
-function fetchRoomStatuses(PDO $pdo) {
+function fetchRoomStatuses(PDO $pdo)
+{
     $sql = "
         WITH RankedBookings AS (
             SELECT
@@ -338,12 +537,15 @@ function fetchRoomStatuses(PDO $pdo) {
                 WHEN rb.id IS NOT NULL AND rb.checkin_datetime <= NOW() THEN 
                     CASE WHEN r.zone = 'F' AND rb.booking_type = 'short_stay' THEN 'f_short_occupied' ELSE 'occupied' END
 
-                -- 3. Booked (รอเช็คอินวันนี้)
-                WHEN rb.id IS NOT NULL AND DATE(rb.checkin_datetime) = CURDATE() THEN 'booked'
-
                 -- 4. Advance Booking (จองล่วงหน้า)
+                -- สีฟ้า (advance_booking) เฉพาะการจองล่วงหน้าสำหรับพรุ่งนี้เท่านั้น
+                -- หากการจองล่วงหน้ามากกว่า 2 วัน (คือมะรืนนี้เป็นต้นไป) ให้เป็นสีเขียว (free) ก่อน
                 WHEN rb.id IS NOT NULL AND rb.checkin_datetime > NOW() THEN 
-                     CASE WHEN r.status = 'free' THEN 'advance_booking' ELSE r.status END
+                     CASE 
+                         WHEN r.status = 'free' AND DATE(rb.checkin_datetime) = DATE_ADD(CURDATE(), INTERVAL 1 DAY) THEN 'advance_booking' 
+                         WHEN r.status = 'free' THEN 'free'
+                         ELSE r.status 
+                     END
 
                 ELSE 'free'
             END AS display_status,
@@ -356,7 +558,7 @@ function fetchRoomStatuses(PDO $pdo) {
         LEFT JOIN RankedBookings rb ON r.id = rb.room_id AND rb.rn = 1
         ORDER BY r.zone ASC, CAST(r.room_number AS UNSIGNED) ASC
     ";
-    
+
     $stmt = $pdo->prepare($sql);
     $stmt->execute();
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -364,25 +566,34 @@ function fetchRoomStatuses(PDO $pdo) {
 
 // +++ Centralized Helper Functions +++
 if (!function_exists('set_success_message')) {
-    function set_success_message($message) { $_SESSION['success_message'] = $message; }
+    function set_success_message($message)
+    {
+        $_SESSION['success_message'] = $message;
+    }
 }
 if (!function_exists('set_error_message')) {
-    function set_error_message($message) { $_SESSION['error_message'] = $message; }
+    function set_error_message($message)
+    {
+        $_SESSION['error_message'] = $message;
+    }
 }
 if (!function_exists('toThaiDateString')) {
-    function toThaiDateString($dateInput) {
+    function toThaiDateString($dateInput)
+    {
         if (empty($dateInput)) return 'N/A';
         try {
             $date = $dateInput instanceof DateTime ? $dateInput : new DateTime($dateInput);
-            $thaiMonths = [1=>'มกราคม',2=>'กุมภาพันธ์',3=>'มีนาคม',4=>'เมษายน',5=>'พฤษภาคม',6=>'มิถุนายน',7=>'กรกฎาคม',8=>'สิงหาคม',9=>'กันยายน',10=>'ตุลาคม',11=>'พฤศจิกายน',12=>'ธันวาคม'];
+            $thaiMonths = [1 => 'มกราคม', 2 => 'กุมภาพันธ์', 3 => 'มีนาคม', 4 => 'เมษายน', 5 => 'พฤษภาคม', 6 => 'มิถุนายน', 7 => 'กรกฎาคม', 8 => 'สิงหาคม', 9 => 'กันยายน', 10 => 'ตุลาคม', 11 => 'พฤศจิกายน', 12 => 'ธันวาคม'];
             return $date->format('j') . ' ' . $thaiMonths[(int)$date->format('n')] . ' ' . ($date->format('Y') + 543);
-        } catch (Exception $e) { return 'รูปแบบวันที่ผิดพลาด'; }
+        } catch (Exception $e) {
+            return 'รูปแบบวันที่ผิดพลาด';
+        }
     }
 }
 if (!function_exists('thaimonthfull')) {
-    function thaimonthfull($montheng) {
-        $thaimonths = ['January'=>'มกราคม','February'=>'กุมภาพันธ์','March'=>'มีนาคม','April'=>'เมษายน','May'=>'พฤษภาคม','June'=>'มิถุนายน','July'=>'กรกฎาคม','August'=>'สิงหาคม','September'=>'กันยายน','October'=>'ตุลาคม','November'=>'พฤศจิกายน','December'=>'ธันวาคม'];
+    function thaimonthfull($montheng)
+    {
+        $thaimonths = ['January' => 'มกราคม', 'February' => 'กุมภาพันธ์', 'March' => 'มีนาคม', 'April' => 'เมษายน', 'May' => 'พฤษภาคม', 'June' => 'มิถุนายน', 'July' => 'กรกฎาคม', 'August' => 'สิงหาคม', 'September' => 'กันยายน', 'October' => 'ตุลาคม', 'November' => 'พฤศจิกายน', 'December' => 'ธันวาคม'];
         return $thaimonths[$montheng] ?? $montheng;
     }
 }
-?>
